@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
 import type { UserRole, Topic, Problem, Submission, UserStats, StudentUser } from '../types/judge';
-import { storageService, INITIAL_TOPICS, INITIAL_PROBLEMS } from '../services/storageService';
+import { storageService } from '../services/storageService';
 import { gradeSubmission, type GradingProgressCallback, type SupportedLanguage } from '../services/judgeEngine';
 import confetti from 'canvas-confetti';
 
@@ -497,13 +497,13 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       return;
     }
     storageService.resetToDefault();
-    setTopics(INITIAL_TOPICS);
-    setProblems(INITIAL_PROBLEMS);
+    setTopics([]);
+    setProblems([]);
     setSubmissions([]);
     setStudents(storageService.getStudents());
     setCurrentStudent(null);
-    setActiveProblem(INITIAL_PROBLEMS[0]);
-    showToast('Khôi phục mẫu', 'Đã cài đặt lại dữ liệu mặc định hệ thống FAMINH', 'info');
+    setActiveProblem(null);
+    showToast('Đặt lại dữ liệu', 'Đã làm mới dữ liệu hệ thống (danh sách bài tập và chuyên đề trống)', 'info');
   };
 
   return (

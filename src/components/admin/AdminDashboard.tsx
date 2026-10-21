@@ -112,107 +112,119 @@ export const AdminDashboard: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 dark:divide-slate-800/60">
-              {filteredProblems.map((prob) => {
-                const topic = topics.find((t) => t.id === prob.topicId);
-                const testCount = prob.testCases?.length || 0;
-                const hasVideo = prob.videoConfig?.enabled && prob.videoConfig?.url;
+              {filteredProblems.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="py-12 text-center text-slate-500">
+                    <BookOpen className="w-10 h-10 mx-auto text-slate-400 mb-2 opacity-50" />
+                    <p className="font-semibold text-sm">Chưa có bài tập nào</p>
+                    <p className="text-xs text-slate-400 mt-1">
+                      Nhấn vào nút "Tạo đề bài mới" ở trên để bắt đầu thêm bài tập vào hệ thống.
+                    </p>
+                  </td>
+                </tr>
+              ) : (
+                filteredProblems.map((prob) => {
+                  const topic = topics.find((t) => t.id === prob.topicId);
+                  const testCount = prob.testCases?.length || 0;
+                  const hasVideo = prob.videoConfig?.enabled && prob.videoConfig?.url;
 
-                return (
-                  <tr key={prob.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
-                    <td className="py-3.5 px-4">
-                      <div className="flex items-center gap-2.5">
-                        <span className="font-mono text-xs font-bold text-blue-600 dark:text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/20">
-                          {prob.code}
+                  return (
+                    <tr key={prob.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+                      <td className="py-3.5 px-4">
+                        <div className="flex items-center gap-2.5">
+                          <span className="font-mono text-xs font-bold text-blue-600 dark:text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/20">
+                            {prob.code}
+                          </span>
+                          <div>
+                            <h4 className="font-semibold text-slate-950 dark:text-white">{prob.title}</h4>
+                            <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                              Thang điểm: <b className="text-amber-600 dark:text-amber-400">{prob.totalPoints}đ</b> • Độ khó: {prob.difficulty}
+                            </span>
+                          </div>
+                        </div>
+                      </td>
+
+                      <td className="py-3.5 px-4 text-slate-700 dark:text-slate-300">
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 font-medium">
+                          <BookOpen className="w-3.5 h-3.5 text-blue-500" />
+                          {topic?.name || 'Chưa gán'}
                         </span>
-                        <div>
-                          <h4 className="font-semibold text-slate-950 dark:text-white">{prob.title}</h4>
-                          <span className="text-[11px] text-slate-500 dark:text-slate-400">
-                            Thang điểm: <b className="text-amber-600 dark:text-amber-400">{prob.totalPoints}đ</b> • Độ khó: {prob.difficulty}
+                      </td>
+
+                      <td className="py-3.5 px-4 text-slate-600 dark:text-slate-400 font-mono">
+                        <div className="flex items-center gap-2">
+                          <span className="flex items-center gap-1" title="Thời gian">
+                            <Clock className="w-3 h-3 text-slate-500" /> {prob.timeLimit}s
+                          </span>
+                          <span>•</span>
+                          <span className="flex items-center gap-1" title="Bộ nhớ">
+                            <HardDrive className="w-3 h-3 text-slate-500" /> {prob.memoryLimit}MB
                           </span>
                         </div>
-                      </div>
-                    </td>
+                      </td>
 
-                    <td className="py-3.5 px-4 text-slate-700 dark:text-slate-300">
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 font-medium">
-                        <BookOpen className="w-3.5 h-3.5 text-blue-500" />
-                        {topic?.name || 'Chưa gán'}
-                      </span>
-                    </td>
-
-                    <td className="py-3.5 px-4 text-slate-600 dark:text-slate-400 font-mono">
-                      <div className="flex items-center gap-2">
-                        <span className="flex items-center gap-1" title="Thời gian">
-                          <Clock className="w-3 h-3 text-slate-500" /> {prob.timeLimit}s
-                        </span>
-                        <span>•</span>
-                        <span className="flex items-center gap-1" title="Bộ nhớ">
-                          <HardDrive className="w-3 h-3 text-slate-500" /> {prob.memoryLimit}MB
-                        </span>
-                      </div>
-                    </td>
-
-                    {/* Test cases badge & manage button */}
-                    <td className="py-3.5 px-4 text-center">
-                      <button
-                        onClick={() => setManagingTestsProblem(prob)}
-                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition-all shadow-sm ${
-                          testCount > 0
-                            ? 'bg-blue-50 dark:bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-500/30 hover:bg-blue-600 hover:text-white'
-                            : 'bg-rose-50 dark:bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-500/30 hover:bg-rose-600 hover:text-white'
-                        }`}
-                        title="Nhấp để nạp ZIP hoặc chỉnh sửa test case"
-                      >
-                        <Layers className="w-3.5 h-3.5" />
-                        <span>{testCount > 0 ? `${testCount} Tests (Themis)` : 'Chưa có Test!'}</span>
-                      </button>
-                    </td>
-
-                    {/* Video guide badge & manage button */}
-                    <td className="py-3.5 px-4 text-center">
-                      <button
-                        onClick={() => setConfiguringVideoProblem(prob)}
-                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-semibold border transition-all ${
-                          hasVideo
-                            ? 'bg-rose-50 dark:bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-500/30 hover:bg-rose-600 hover:text-white'
-                            : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-300 dark:border-slate-700 hover:bg-slate-200 dark:hover:text-white'
-                        }`}
-                        title="Nhấp để cấu hình video chữa bài"
-                      >
-                        <Video className="w-3.5 h-3.5 text-rose-500 dark:text-rose-400" />
-                        <span>{hasVideo ? 'Đã gắn video' : '+ Gắn video'}</span>
-                      </button>
-                    </td>
-
-                    {/* Actions */}
-                    <td className="py-3.5 px-4 text-right">
-                      <div className="inline-flex items-center gap-2">
+                      {/* Test cases badge & manage button */}
+                      <td className="py-3.5 px-4 text-center">
                         <button
-                          onClick={() => setEditingProblem(prob)}
-                          className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-blue-600 text-slate-600 dark:text-slate-300 hover:text-white border border-slate-200 dark:border-slate-700 transition-colors"
-                          title="Sửa đề bài"
+                          onClick={() => setManagingTestsProblem(prob)}
+                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition-all shadow-sm ${
+                            testCount > 0
+                              ? 'bg-blue-50 dark:bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-500/30 hover:bg-blue-600 hover:text-white'
+                              : 'bg-rose-50 dark:bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-500/30 hover:bg-rose-600 hover:text-white'
+                          }`}
+                          title="Nhấp để nạp ZIP hoặc chỉnh sửa test case"
                         >
-                          <Edit2 className="w-3.5 h-3.5" />
+                          <Layers className="w-3.5 h-3.5" />
+                          <span>{testCount > 0 ? `${testCount} Tests (Themis)` : 'Chưa có Test!'}</span>
                         </button>
+                      </td>
+
+                      {/* Video guide badge & manage button */}
+                      <td className="py-3.5 px-4 text-center">
                         <button
-                          onClick={() => {
-                            openConfirmModal({
-                              title: 'Xác nhận xóa bài tập',
-                              message: `Bạn có chắc chắn muốn xóa bài tập [${prob.code}] "${prob.title}" khỏi hệ thống? Tất cả các lần nộp bài liên quan cũng sẽ bị gỡ bỏ.`,
-                              confirmLabel: 'Xác nhận xóa',
-                              onConfirm: () => deleteProblem(prob.id),
-                            });
-                          }}
-                          className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-rose-600 text-slate-600 dark:text-slate-300 hover:text-white border border-slate-200 dark:border-slate-700 transition-colors"
-                          title="Xóa bài tập"
+                          onClick={() => setConfiguringVideoProblem(prob)}
+                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-semibold border transition-all ${
+                            hasVideo
+                              ? 'bg-rose-50 dark:bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-500/30 hover:bg-rose-600 hover:text-white'
+                              : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-300 dark:border-slate-700 hover:bg-slate-200 dark:hover:text-white'
+                          }`}
+                          title="Nhấp để cấu hình video chữa bài"
                         >
-                          <Trash2 className="w-3.5 h-3.5" />
+                          <Video className="w-3.5 h-3.5 text-rose-500 dark:text-rose-400" />
+                          <span>{hasVideo ? 'Đã gắn video' : '+ Gắn video'}</span>
                         </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
+                      </td>
+
+                      {/* Actions */}
+                      <td className="py-3.5 px-4 text-right">
+                        <div className="inline-flex items-center gap-2">
+                          <button
+                            onClick={() => setEditingProblem(prob)}
+                            className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-blue-600 text-slate-600 dark:text-slate-300 hover:text-white border border-slate-200 dark:border-slate-700 transition-colors"
+                            title="Sửa đề bài"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => {
+                              openConfirmModal({
+                                title: 'Xác nhận xóa bài tập',
+                                message: `Bạn có chắc chắn muốn xóa bài tập [${prob.code}] "${prob.title}" khỏi hệ thống? Tất cả các lần nộp bài liên quan cũng sẽ bị gỡ bỏ.`,
+                                confirmLabel: 'Xác nhận xóa',
+                                onConfirm: () => deleteProblem(prob.id),
+                              });
+                            }}
+                            className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-rose-600 text-slate-600 dark:text-slate-300 hover:text-white border border-slate-200 dark:border-slate-700 transition-colors"
+                            title="Xóa bài tập"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
             </tbody>
           </table>
         </div>

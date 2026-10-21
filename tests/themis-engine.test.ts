@@ -1,0 +1,394 @@
+import assert from 'node:assert/strict';
+import {
+  naturalCompare,
+  normalizeThemisOutput,
+  compareThemisOutputs,
+  preprocessCodeForExecution,
+  generateThemisRunScript,
+  generateRealisticMemory,
+  parseThemisBashOutput,
+  gradeSubmission,
+} from '../src/services/judgeEngine.ts';
+import {
+  INITIAL_TOPICS,
+  INITIAL_PROBLEMS,
+  storageService,
+} from '../src/services/storageService.ts';
+import type { Problem } from '../src/types/judge.ts';
+
+// Setup mock localStorage and sessionStorage for Node.js environment
+const mockStorage = (() => {
+  let store: Record<string, string> = {};
+  return {
+    getItem: (key: string) => store[key] || null,
+    setItem: (key: string, value: string) => {
+      store[key] = value.toString();
+    },
+    removeItem: (key: string) => {
+      delete store[key];
+    },
+    clear: () => {
+      store = {};
+    },
+  };
+})();
+
+(globalThis as unknown as { localStorage: typeof mockStorage }).localStorage = mockStorage;
+(globalThis as unknown as { sessionStorage: typeof mockStorage }).sessionStorage = mockStorage;
+
+let totalTestsRun = 0;
+let passedTests = 0;
+
+function runTest(name: string, fn: () => void | Promise<void>) {
+  totalTestsRun++;
+  try {
+    const res = fn();
+    if (res instanceof Promise) {
+      return res.then(
+        () => {
+          passedTests++;
+          console.log(`  [PASS] ${name}`);
+        },
+        (err) => {
+          console.error(`  [FAIL] ${name}:`, err);
+          throw err;
+        }
+      );
+    }
+    passedTests++;
+    console.log(`  [PASS] ${name}`);
+    return Promise.resolve();
+  } catch (err) {
+    console.error(`  [FAIL] ${name}:`, err);
+    throw err;
+  }
+}
+
+async function main() {
+  console.log('====================================================');
+  console.log('BAT DAU KIEM THU TOAN DIEN HE THONG CHAM THEMIS');
+  console.log('====================================================\n');
+
+  // ==========================================
+  // NHOM 1: KHOI TAO DULIEU (EMPTY SLATE)
+  // ==========================================
+  console.log('Nhom 1: Khoi tao du lieu trong sach (No auto-created samples)');
+  
+  await runTest('INITIAL_TOPICS va INITIAL_PROBLEMS mac dinh phai la mang rong []', () => {
+    assert.deepEqual(INITIAL_TOPICS, [], 'INITIAL_TOPICS phai la mang rong []');
+    assert.deepEqual(INITIAL_PROBLEMS, [], 'INITIAL_PROBLEMS phai la mang rong []');
+  });
+
+  await runTest('storageService.getTopics() va getProblems() tra ve mang rong khi chua co du lieu', () => {
+    mockStorage.clear();
+    const topics = storageService.getTopics();
+    const problems = storageService.getProblems();
+    assert.equal(topics.length, 0, 'topics phai co length 0');
+    assert.equal(problems.length, 0, 'problems phai co length 0');
+    // Khong duoc tu y ghi vao localStorage de tao de bai ao
+    assert.equal(mockStorage.getItem('faminh_judge_topics_v2'), null);
+    assert.equal(mockStorage.getItem('faminh_judge_problems_v2'), null);
+  });
+
+  await runTest('storageService.resetToDefault() dua topics va problems ve []', () => {
+    storageService.saveTopics([{ id: 't1', name: 'Topic 1', order: 1 }]);
+    storageService.saveProblems([{
+      id: 'p1',
+      code: 'P1',
+      title: 'Prob 1',
+      topicId: 't1',
+      difficulty: 'Dễ',
+      timeLimit: 1,
+      memoryLimit: 256,
+      totalPoints: 10,
+      description: 'Desc',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }]);
+
+    assert.equal(storageService.getTopics().length, 1);
+    assert.equal(storageService.getProblems().length, 1);
+
+    storageService.resetToDefault();
+    assert.equal(storageService.getTopics().length, 0, 'Sau resetToDefault topics phai la []');
+    assert.equal(storageService.getProblems().length, 0, 'Sau resetToDefault problems phai la []');
+  });
+
+  // ==========================================
+  // NHOM 2: SAP XEP TU NHIEN THEMIS (NATURAL SORT)
+  // ==========================================
+  console.log('\nNhom 2: Sap xep tu nhien Natural Sort (Test #1 -> Test #20)');
+
+  await runTest('naturalCompare sap xep dung thu tu tu nhien Test 1 den Test 20', () => {
+    const raw = ['Test #10', 'Test #1', 'Test #20', 'Test #2', 'Test #9', 'Test #15'];
+    const sorted = [...raw].sort(naturalCompare);
+    assert.deepEqual(sorted, [
+      'Test #1',
+      'Test #2',
+      'Test #9',
+      'Test #10',
+      'Test #15',
+      'Test #20',
+    ]);
+  });
+
+  await runTest('naturalCompare ho tro ten test dang tc1, tc2, tc10, tc20', () => {
+    const raw = ['tc20', 'tc1', 'tc2', 'tc10'];
+    const sorted = [...raw].sort(naturalCompare);
+    assert.deepEqual(sorted, ['tc1', 'tc2', 'tc10', 'tc20']);
+  });
+
+  // ==========================================
+  // NHOM 3: CHUAN HOA VA SO SANH OUTPUT THEMIS
+  // ==========================================
+  console.log('\nNhom 3: Chuan hoa va so sanh Output theo chuan Themis');
+
+  await runTest('normalizeThemisOutput loai bo \\r\\n, trailing spaces va dong trong cuoi', () => {
+    const input = 'line 1   \r\nline 2\t  \r\n\r\n\r\n';
+    const normalized = normalizeThemisOutput(input);
+    assert.equal(normalized, 'line 1\nline 2');
+  });
+
+  await runTest('compareThemisOutputs chap nhan sai khac khoang trang cuoi file', () => {
+    assert.equal(compareThemisOutputs('12\n\n', '12'), true);
+    assert.equal(compareThemisOutputs('12\r\n', '12\n'), true);
+    assert.equal(compareThemisOutputs('   12   ', '12'), true);
+  });
+
+  await runTest('compareThemisOutputs chap nhan khoang trang giua cac token giong nhau', () => {
+    assert.equal(compareThemisOutputs('1   2    3', '1 2 3'), true);
+    assert.equal(compareThemisOutputs('1\n2\n3', '1 2 3'), true);
+  });
+
+  await runTest('compareThemisOutputs ho tro so thuc voi sai so 1e-6', () => {
+    assert.equal(compareThemisOutputs('3.1415926', '3.14159265'), true);
+    assert.equal(compareThemisOutputs('3.14159', '3.15'), false);
+  });
+
+  await runTest('compareThemisOutputs ho tro khong phan biet hoa thuong cho YES/NO/TRUE/FALSE', () => {
+    assert.equal(compareThemisOutputs('YES', 'yes'), true);
+    assert.equal(compareThemisOutputs('no', 'NO'), true);
+    assert.equal(compareThemisOutputs('True', 'TRUE'), true);
+    assert.equal(compareThemisOutputs('false', 'FALSE'), true);
+    assert.equal(compareThemisOutputs('ABC', 'xyz'), false);
+  });
+
+  await runTest('compareThemisOutputs bat chinh xac token khong khop', () => {
+    assert.equal(compareThemisOutputs('10 20', '10 30'), false);
+    assert.equal(compareThemisOutputs('10 20', '10 20 30'), false);
+  });
+
+  // ==========================================
+  // NHOM 4: TIEN XU LY CODE (PREPROCESS CODE & FREOPEN)
+  // ==========================================
+  console.log('\nNhom 4: Xu ly freopen 100% giu nguyen code hoc sinh');
+
+  await runTest('preprocessCodeForExecution xoa sach moi bien the freopen C++', () => {
+    const code = `#include <iostream>
+#define int long long
+using namespace std;
+
+int arr[1000000];
+
+int main() {
+    freopen("TONG2SO.INP", "r", stdin);
+    freopen ( "TONG2SO.OUT" , "w" , stdout ) ;
+    ios_base::sync_with_stdio(false);
+    cin.tie(NULL);
+    int a, b;
+    cin >> a >> b;
+    cout << a + b;
+    return 0;
+}`;
+
+    const { cleanedCode, freopenHandled } = preprocessCodeForExecution(code, 'cpp');
+    assert.equal(freopenHandled, true);
+    assert.equal(cleanedCode.includes('freopen'), false, 'Khong con lenh freopen nao');
+    assert.equal(cleanedCode.includes('#define int long long'), true, 'Giu nguyen #define');
+    assert.equal(cleanedCode.includes('int arr[1000000];'), true, 'Giu nguyen mang toan cuc');
+    assert.equal(cleanedCode.includes('int main()'), true, 'Giu nguyen ten ham main');
+    assert.equal(cleanedCode.includes('_student_main'), false, 'Tuyet doi khong rename ham main');
+  });
+
+  await runTest('preprocessCodeForExecution ho tro Pascal assign/reset/rewrite', () => {
+    const pascalCode = `program Bai;
+begin
+    assign(input, 'BAI.INP'); reset(input);
+    assign(output, 'BAI.OUT'); rewrite(output);
+    read(a);
+    writeln(a);
+end.`;
+    const { cleanedCode, freopenHandled } = preprocessCodeForExecution(pascalCode, 'pascal');
+    assert.equal(freopenHandled, true);
+    assert.equal(cleanedCode.includes('assign'), false);
+    assert.equal(cleanedCode.includes('reset'), false);
+    assert.equal(cleanedCode.includes('rewrite'), false);
+  });
+
+  await runTest('preprocessCodeForExecution ho tro Python sys.stdin = open(...)', () => {
+    const pyCode = `import sys
+sys.stdin = open('BAI.INP', 'r')
+sys.stdout = open('BAI.OUT', 'w')
+print(int(sys.stdin.read()))`;
+    const { cleanedCode, freopenHandled } = preprocessCodeForExecution(pyCode, 'python');
+    assert.equal(freopenHandled, true);
+    assert.equal(cleanedCode.includes('sys.stdin = open'), false);
+    assert.equal(cleanedCode.includes('sys.stdout = open'), false);
+  });
+
+  // ==========================================
+  // NHOM 5: RAM DAO DONG CHAN THUC (NO HARDCODED 3.5 MB)
+  // ==========================================
+  console.log('\nNhom 5: Bo nho RAM dao dong chan thuc (1.1 MB - 3.8 MB)');
+
+  await runTest('generateRealisticMemory sinh RAM trong [1.1, 3.8] MB cho C++ va khong trung lap 3.5 MB cung', () => {
+    const ramValues: number[] = [];
+    for (let i = 1; i <= 20; i++) {
+      const ram = generateRealisticMemory(i, 'cpp');
+      assert.ok(ram >= 1.1 && ram <= 3.8, `RAM ${ram} phai nam trong [1.1, 3.8] MB`);
+      ramValues.push(ram);
+    }
+    const uniqueValues = new Set(ramValues);
+    assert.ok(uniqueValues.size >= 5, `Phai co it nhat 5 gia tri RAM khac nhau tren 20 test (thuc te: ${uniqueValues.size})`);
+  });
+
+  await runTest('generateRealisticMemory ho tro Python (12.0 - 15.8 MB) va Java (28.0 - 35.0 MB)', () => {
+    for (let i = 1; i <= 5; i++) {
+      const pyRam = generateRealisticMemory(i, 'python');
+      assert.ok(pyRam >= 12.0 && pyRam <= 15.8, `Python RAM ${pyRam} phai trong [12.0, 15.8]`);
+      const javaRam = generateRealisticMemory(i, 'java');
+      assert.ok(javaRam >= 28.0 && javaRam <= 35.0, `Java RAM ${javaRam} phai trong [28.0, 35.0]`);
+    }
+  });
+
+  // ==========================================
+  // NHOM 6: DRIVER SCRIPT RUN.SH & PARSER
+  // ==========================================
+  console.log('\nNhom 6: Sinh kịch bản run.sh va parse output chuẩn Themis');
+
+  await runTest('generateThemisRunScript tao dung kich ban bash voi timeout, START/END date', () => {
+    const script = generateThemisRunScript(20, 1.0, 'cpp');
+    assert.ok(script.includes('#!/bin/bash'));
+    assert.ok(script.includes('g++ -O2 -w solution.cpp -o solution'));
+    assert.ok(script.includes('TOTAL_TESTS=20'));
+    assert.ok(script.includes('TIME_LIMIT=1.0'));
+    assert.ok(script.includes('START=$(date +%s%3N)'));
+    assert.ok(script.includes('timeout $TIME_LIMIT ./solution < "test$i.in" > "out$i.txt"'));
+    assert.ok(script.includes('END=$(date +%s%3N)'));
+    assert.ok(script.includes('EXEC_TIME=$((END - START))'));
+    assert.ok(script.includes('VERDICT: TLE'));
+    assert.ok(script.includes('VERDICT: RTE'));
+    assert.ok(script.includes('VERDICT: OK'));
+  });
+
+  await runTest('generateThemisRunScript ho tro Python voi syntax check py_compile', () => {
+    const script = generateThemisRunScript(10, 2.0, 'python');
+    assert.ok(script.includes('python3 -m py_compile solution.py'));
+    assert.ok(script.includes('TOTAL_TESTS=10'));
+    assert.ok(script.includes('TIME_LIMIT=2.0'));
+  });
+
+  await runTest('parseThemisBashOutput trich xuat chinh xac loi bien dich (CE)', () => {
+    const mockOutput = `COMPILATION_ERROR
+solution.cpp: In function 'int main()':
+solution.cpp:6:5: error: 'ans' was not declared in this scope`;
+
+    const parsed = parseThemisBashOutput(mockOutput);
+    assert.equal(parsed.isCompilationError, true);
+    assert.ok(parsed.compilationMessage?.includes("'ans' was not declared in this scope"));
+    assert.equal(parsed.tests.size, 0);
+  });
+
+  await runTest('parseThemisBashOutput boc tach dung thoi gian mili-giay, TLE, RTE va output', () => {
+    const mockOutput = `COMPILATION_SUCCESS
+---TEST 1---
+VERDICT: OK
+TIME: 45
+OUTPUT:
+100
+---END TEST 1---
+---TEST 2---
+VERDICT: TLE
+TIME: 1050
+---END TEST 2---
+---TEST 3---
+VERDICT: RTE
+TIME: 8
+---END TEST 3---
+---TEST 4---
+VERDICT: OK
+TIME: 0
+OUTPUT:
+200
+---END TEST 4---`;
+
+    const parsed = parseThemisBashOutput(mockOutput);
+    assert.equal(parsed.isCompilationError, false);
+    assert.equal(parsed.tests.size, 4);
+
+    const t1 = parsed.tests.get(1)!;
+    assert.equal(t1.verdict, 'OK');
+    assert.equal(t1.timeMs, 45);
+    assert.equal(t1.output.trim(), '100');
+
+    const t2 = parsed.tests.get(2)!;
+    assert.equal(t2.verdict, 'TLE');
+    assert.equal(t2.timeMs, 1050);
+
+    const t3 = parsed.tests.get(3)!;
+    assert.equal(t3.verdict, 'RTE');
+    assert.equal(t3.timeMs, 8);
+
+    const t4 = parsed.tests.get(4)!;
+    assert.equal(t4.verdict, 'OK');
+    assert.equal(t4.timeMs, 0);
+    assert.equal(t4.output.trim(), '200');
+
+    // Kiem tra cong thuc chuyen doi sang thoi gian giay:
+    // Neu timeMs = 45 -> 0.045s
+    const sec1 = Math.max(0.001, +(t1.timeMs / 1000).toFixed(3));
+    assert.equal(sec1, 0.045);
+
+    // Neu timeMs = 0 -> 0.001s (tuyet doi khong bi 1.000s mac dinh)
+    const sec4 = Math.max(0.001, +(t4.timeMs / 1000).toFixed(3));
+    assert.equal(sec4, 0.001);
+  });
+
+  // ==========================================
+  // NHOM 7: GRADE SUBMISSION AN TOAN VOI DE KHONG TEST
+  // ==========================================
+  console.log('\nNhom 7: Cham diem an toan khi bai tap chua co test case');
+
+  await runTest('gradeSubmission tra ve ket qua em dep va thong bao ro rang khi de 0 test', async () => {
+    const emptyProblem: Problem = {
+      id: 'prob_empty',
+      code: 'EMPTY',
+      title: 'Bai Chua Co Test',
+      topicId: 't1',
+      difficulty: 'Dễ',
+      timeLimit: 1.0,
+      memoryLimit: 256,
+      totalPoints: 10,
+      description: 'Chua co test',
+      testCases: [],
+      samples: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    const res = await gradeSubmission(emptyProblem, 'int main(){return 0;}', 'cpp');
+    assert.equal(res.totalTests, 0);
+    assert.equal(res.passedCount, 0);
+    assert.equal(res.totalPointsEarned, 0);
+    assert.ok(res.compilationMessage?.includes('chưa có bộ test case'));
+  });
+
+  console.log('\n====================================================');
+  console.log(`KET QUA: ${passedTests}/${totalTestsRun} TESTS PASS (100% THANH CONG)`);
+  console.log('====================================================\n');
+}
+
+main().catch((err) => {
+  console.error('\nLoi khi chay bo kiem thu:', err);
+  process.exit(1);
+});

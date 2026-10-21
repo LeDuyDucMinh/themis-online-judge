@@ -495,6 +495,9 @@ Cho dãy số nguyên $A = (a_1, a_2, \\dots, a_n)$. Hãy tìm...
                   onChange={(e) => setTopicId(e.target.value)}
                   className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:ring-1 focus:ring-red-500"
                 >
+                  {topics.length === 0 && (
+                    <option value="">(Chưa có chủ đề - Vui lòng tạo chủ đề trước)</option>
+                  )}
                   {topics.map((t) => (
                     <option key={t.id} value={t.id}>
                       {t.name}

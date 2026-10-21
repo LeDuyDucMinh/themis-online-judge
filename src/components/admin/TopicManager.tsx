@@ -231,7 +231,18 @@ export const TopicManager: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 dark:divide-slate-800/60">
-              {topics.map((t, idx) => {
+              {topics.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="py-12 text-center text-slate-500">
+                    <Layers className="w-10 h-10 mx-auto text-slate-400 mb-2 opacity-50" />
+                    <p className="font-semibold text-sm">Chưa có chủ đề nào được tạo</p>
+                    <p className="text-xs text-slate-400 mt-1">
+                      Nhấp vào nút "+ Thêm chủ đề mới" ở trên để bắt đầu tạo chủ đề và thêm bài tập.
+                    </p>
+                  </td>
+                </tr>
+              ) : (
+                topics.map((t, idx) => {
                 const topicProblems = problems.filter((p) => p.topicId === t.id);
                 const isExpanded = expandedTopicId === t.id;
 
@@ -453,8 +464,9 @@ export const TopicManager: React.FC = () => {
                     )}
                   </React.Fragment>
                 );
-              })}
-            </tbody>
+              })
+            )}
+          </tbody>
           </table>
         </div>
       </div>

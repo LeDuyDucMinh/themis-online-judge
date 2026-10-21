@@ -394,68 +394,80 @@ export const UserProblemList: React.FC<UserProblemListProps> = ({ onSelectProble
         </div>
 
         {/* Lưới các ô Chủ Đề (Bấm vào để chuyển trang danh sách bài) */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {topics.map((topic) => {
-            const topicProblems = problems.filter((p) => p.topicId === topic.id);
-            const solvedInTopic = topicProblems.filter(
-              (p) => getProblemStatus(p.id) === 'SOLVED'
-            ).length;
-            const progressPercent =
-              topicProblems.length > 0
-                ? Math.round((solvedInTopic / topicProblems.length) * 100)
-                : 0;
+        {topics.length === 0 ? (
+          <div className="bg-slate-900/60 border border-slate-800 rounded-3xl p-12 text-center shadow-lg">
+            <div className="w-16 h-16 rounded-2xl bg-slate-800 border border-slate-700 text-slate-400 flex items-center justify-center mx-auto mb-4">
+              <Layers className="w-8 h-8 text-blue-400 opacity-60" />
+            </div>
+            <h4 className="text-lg font-bold text-slate-200">Chưa có chủ đề bài tập nào</h4>
+            <p className="text-xs text-slate-400 mt-2 max-w-md mx-auto leading-relaxed">
+              Hệ thống hiện tại chưa có chủ đề bài tập nào được tạo. Giáo viên / Quản trị viên vui lòng đăng nhập để bắt đầu tạo chủ đề và thêm bài tập.
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            {topics.map((topic) => {
+              const topicProblems = problems.filter((p) => p.topicId === topic.id);
+              const solvedInTopic = topicProblems.filter(
+                (p) => getProblemStatus(p.id) === 'SOLVED'
+              ).length;
+              const progressPercent =
+                topicProblems.length > 0
+                  ? Math.round((solvedInTopic / topicProblems.length) * 100)
+                  : 0;
 
-            return (
-              <div
-                key={topic.id}
-                onClick={() => setActiveTopicId(topic.id)}
-                className="cursor-pointer p-6 rounded-3xl border border-slate-800 bg-slate-900/90 hover:bg-slate-800/90 hover:border-blue-500/60 transition-all duration-200 relative overflow-hidden group shadow-lg hover:shadow-2xl hover:shadow-blue-500/10 flex flex-col justify-between"
-              >
-                <div>
-                  {/* Top: Icon và số lượng bài */}
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="w-12 h-12 rounded-2xl bg-blue-500/10 border border-blue-500/20 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold group-hover:scale-110 group-hover:bg-blue-600 group-hover:text-white transition-all shadow-sm">
-                      <Layers className="w-6 h-6" />
+              return (
+                <div
+                  key={topic.id}
+                  onClick={() => setActiveTopicId(topic.id)}
+                  className="cursor-pointer p-6 rounded-3xl border border-slate-800 bg-slate-900/90 hover:bg-slate-800/90 hover:border-blue-500/60 transition-all duration-200 relative overflow-hidden group shadow-lg hover:shadow-2xl hover:shadow-blue-500/10 flex flex-col justify-between"
+                >
+                  <div>
+                    {/* Top: Icon và số lượng bài */}
+                    <div className="flex items-start justify-between mb-4">
+                      <div className="w-12 h-12 rounded-2xl bg-blue-500/10 border border-blue-500/20 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold group-hover:scale-110 group-hover:bg-blue-600 group-hover:text-white transition-all shadow-sm">
+                        <Layers className="w-6 h-6" />
+                      </div>
+                      <span className="text-xs font-mono font-semibold px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700/80">
+                        {solvedInTopic}/{topicProblems.length} bài
+                      </span>
                     </div>
-                    <span className="text-xs font-mono font-semibold px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700/80">
-                      {solvedInTopic}/{topicProblems.length} bài
-                    </span>
+
+                    {/* Tên chủ đề & Mô tả */}
+                    <h4 className="font-extrabold text-lg text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                      {topic.name}
+                    </h4>
+                    <p className="text-xs text-slate-600 dark:text-slate-400 mt-2 line-clamp-2 leading-relaxed">
+                      {topic.description || 'Tuyển tập các bài tập rèn luyện tư duy thuật toán theo chủ đề.'}
+                    </p>
                   </div>
 
-                  {/* Tên chủ đề & Mô tả */}
-                  <h4 className="font-extrabold text-lg text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
-                    {topic.name}
-                  </h4>
-                  <p className="text-xs text-slate-600 dark:text-slate-400 mt-2 line-clamp-2 leading-relaxed">
-                    {topic.description || 'Tuyển tập các bài tập rèn luyện tư duy thuật toán theo chủ đề.'}
-                  </p>
-                </div>
+                  {/* Bottom: Thanh tiến độ hoàn thành */}
+                  <div className="mt-6 pt-4 border-t border-slate-200 dark:border-slate-800/80">
+                    <div className="flex justify-between text-xs text-slate-600 dark:text-slate-400 mb-1.5 font-medium">
+                      <span>Tiến độ hoàn thành</span>
+                      <span className="font-mono font-bold text-blue-600 dark:text-blue-400">
+                        {progressPercent}%
+                      </span>
+                    </div>
+                    <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-2 overflow-hidden border border-slate-300 dark:border-slate-700/40">
+                      <div
+                        className="bg-gradient-to-r from-blue-500 to-indigo-500 h-full transition-all duration-300 rounded-full"
+                        style={{ width: `${progressPercent}%` }}
+                      />
+                    </div>
 
-                {/* Bottom: Thanh tiến độ hoàn thành */}
-                <div className="mt-6 pt-4 border-t border-slate-200 dark:border-slate-800/80">
-                  <div className="flex justify-between text-xs text-slate-600 dark:text-slate-400 mb-1.5 font-medium">
-                    <span>Tiến độ hoàn thành</span>
-                    <span className="font-mono font-bold text-blue-600 dark:text-blue-400">
-                      {progressPercent}%
-                    </span>
-                  </div>
-                  <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-2 overflow-hidden border border-slate-300 dark:border-slate-700/40">
-                    <div
-                      className="bg-gradient-to-r from-blue-500 to-indigo-500 h-full transition-all duration-300 rounded-full"
-                      style={{ width: `${progressPercent}%` }}
-                    />
-                  </div>
-
-                  {/* Call to action */}
-                  <div className="mt-4 flex items-center justify-between text-xs font-bold text-blue-600 dark:text-blue-400 group-hover:text-blue-700 dark:group-hover:text-blue-300 transition-colors">
-                    <span>Vào làm bài chủ đề này</span>
-                    <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                    {/* Call to action */}
+                    <div className="mt-4 flex items-center justify-between text-xs font-bold text-blue-600 dark:text-blue-400 group-hover:text-blue-700 dark:group-hover:text-blue-300 transition-colors">
+                      <span>Vào làm bài chủ đề này</span>
+                      <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                    </div>
                   </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );

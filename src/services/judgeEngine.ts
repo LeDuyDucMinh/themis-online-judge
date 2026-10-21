@@ -130,9 +130,20 @@ export function compareThemisOutputs(actual: string, expected: string): boolean 
 
     if (act === exp) continue;
 
+    // So sánh không phân biệt hoa thường cho các từ khóa logic phổ biến
+    if (
+      act.toLowerCase() === exp.toLowerCase() &&
+      (exp.toLowerCase() === 'yes' ||
+        exp.toLowerCase() === 'no' ||
+        exp.toLowerCase() === 'true' ||
+        exp.toLowerCase() === 'false')
+    ) {
+      continue;
+    }
+
     const numAct = parseFloat(act);
     const numExp = parseFloat(exp);
-    if (!isNaN(numAct) && !isNaN(numExp)) {
+    if (!isNaN(numAct) && !isNaN(numExp) && isFinite(numAct) && isFinite(numExp)) {
       if (Math.abs(numAct - numExp) <= 1e-6) {
         continue;
       }
@@ -192,6 +203,13 @@ export function generateThemisRunScript(
 
   if (language === 'python') {
     return `#!/bin/bash
+python3 -m py_compile solution.py 2> compile_err.txt
+if [ $? -ne 0 ]; then
+  echo "COMPILATION_ERROR"
+  cat compile_err.txt
+  exit 1
+fi
+
 TOTAL_TESTS=${totalTests}
 TIME_LIMIT=${formattedTimeLimit}
 
@@ -237,6 +255,43 @@ for i in $(seq 1 $TOTAL_TESTS); do
   echo "---TEST $i---"
   START=$(date +%s%3N)
   timeout $TIME_LIMIT ./solution < "test$i.in" > "out$i.txt"
+  EXIT_CODE=$?
+  END=$(date +%s%3N)
+  EXEC_TIME=$((END - START))
+  if [ $EXIT_CODE -eq 124 ]; then
+    echo "VERDICT: TLE"
+    echo "TIME: $EXEC_TIME"
+  elif [ $EXIT_CODE -ne 0 ]; then
+    echo "VERDICT: RTE"
+    echo "TIME: $EXEC_TIME"
+  else
+    echo "VERDICT: OK"
+    echo "TIME: $EXEC_TIME"
+    echo "OUTPUT:"
+    cat "out$i.txt"
+  fi
+  echo "---END TEST $i---"
+done
+`.replace(/\r\n/g, '\n');
+  }
+
+  if (language === 'java') {
+    return `#!/bin/bash
+javac Solution.java 2> compile_err.txt
+if [ $? -ne 0 ]; then
+  echo "COMPILATION_ERROR"
+  cat compile_err.txt
+  exit 1
+fi
+
+TOTAL_TESTS=${totalTests}
+TIME_LIMIT=${formattedTimeLimit}
+
+echo "COMPILATION_SUCCESS"
+for i in $(seq 1 $TOTAL_TESTS); do
+  echo "---TEST $i---"
+  START=$(date +%s%3N)
+  timeout $TIME_LIMIT java Solution < "test$i.in" > "out$i.txt"
   EXIT_CODE=$?
   END=$(date +%s%3N)
   EXEC_TIME=$((END - START))
@@ -312,6 +367,12 @@ export function generateRealisticMemory(testIndex: number, language: SupportedLa
     // Python runtime base memory ~ 12.0 - 15.8 MB
     const base = 12.0;
     const offset = (((testIndex * 19 + 7) % 38) / 10);
+    return +(base + offset).toFixed(1);
+  }
+  if (language === 'java') {
+    // Java JVM base memory ~ 28.0 - 35.0 MB
+    const base = 28.0;
+    const offset = (((testIndex * 17 + 11) % 70) / 10);
     return +(base + offset).toFixed(1);
   }
   // C++ / Pascal: dao động tự nhiên trong khoảng 1.1 MB đến 3.8 MB
@@ -621,15 +682,40 @@ export async function gradeSubmission(
   const rawTestCases =
     problem.testCases && problem.testCases.length > 0
       ? problem.testCases
-      : [
-          {
-            id: 'test_default_1',
-            name: 'Test #01',
-            input: problem.samples?.[0]?.input || '1 2',
-            expectedOutput: problem.samples?.[0]?.output || '3',
-            points: problem.totalPoints || 10,
-          },
-        ];
+      : (problem.samples && problem.samples.length > 0
+          ? problem.samples.map((s, idx) => ({
+              id: `test_sample_${idx + 1}`,
+              name: `Test #${String(idx + 1).padStart(2, '0')} (Ví dụ mẫu)`,
+              input: s.input,
+              expectedOutput: s.output,
+              points: +(problem.totalPoints / problem.samples.length).toFixed(2),
+            }))
+          : []);
+
+  if (rawTestCases.length === 0) {
+    return {
+      id: submissionId,
+      problemId: problem.id,
+      problemCode: problem.code,
+      problemTitle: problem.title,
+      userId,
+      userName,
+      language,
+      sourceCode: rawCode,
+      submittedAt,
+      status: 'COMPLETED',
+      totalPointsEarned: 0,
+      maxTotalPoints: problem.totalPoints || 10,
+      passedCount: 0,
+      totalTests: 0,
+      overallVerdict: 'WA',
+      executionTime: 0,
+      memory: 0,
+      compilationMessage: 'Bài tập này chưa có bộ test case để chấm điểm. Vui lòng liên hệ Giáo viên/Quản trị viên.',
+      testResults: [],
+      freopenHandled,
+    };
+  }
 
   // Sắp xếp tự nhiên (Natural Sort: Test 1, Test 2, ..., Test 9, Test 10, ..., Test 20)
   const testCases = [...rawTestCases].sort((a, b) =>
@@ -650,7 +736,13 @@ export async function gradeSubmission(
 
   // 3. Chuẩn bị danh sách files gửi lên API
   const solutionFileName =
-    language === 'cpp' ? 'solution.cpp' : language === 'python' ? 'solution.py' : 'solution.pas';
+    language === 'cpp'
+      ? 'solution.cpp'
+      : language === 'python'
+      ? 'solution.py'
+      : language === 'pascal'
+      ? 'solution.pas'
+      : 'Solution.java';
 
   const files: PistonFile[] = [
     {
