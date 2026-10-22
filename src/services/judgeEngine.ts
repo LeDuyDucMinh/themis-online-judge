@@ -475,6 +475,17 @@ export const JUDGE0_LANGUAGE_MAP: Record<SupportedLanguage, number> = {
 };
 
 export function getJudge0Url(): string {
+  // Khi trang web đang chạy trên HTTPS (như https://faminh.io.vn):
+  // Trình duyệt sẽ chặn tất cả các yêu cầu HTTP không mã hóa (lỗi Mixed Content: Failed to fetch).
+  // Do đó, tự động định tuyến qua Reverse Proxy HTTPS an toàn: /api/judge0
+  if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
+    const custom = localStorage.getItem('faminh_judge0_api_url');
+    if (custom && custom.startsWith('https://')) {
+      return cleanJudge0Str(custom, '/api/judge0');
+    }
+    return '/api/judge0';
+  }
+
   if (typeof window !== 'undefined') {
     const custom = localStorage.getItem('faminh_judge0_api_url');
     if (custom && custom.trim()) return cleanJudge0Str(custom, DEFAULT_JUDGE0_URL);
@@ -500,10 +511,16 @@ export function setJudge0Url(url: string): void {
 }
 
 export async function testJudge0Connection(url?: string): Promise<{ success: boolean; version?: string; message: string }> {
-  const target = (url || getJudge0Url()).replace(/\/+$/, '');
+  let target = (url || getJudge0Url()).replace(/\/+$/, '');
+
+  // Bảo vệ Mixed Content: Nếu trang web là HTTPS mà target là http://, tự động dùng proxy an toàn /api/judge0
+  if (typeof window !== 'undefined' && window.location.protocol === 'https:' && target.startsWith('http://')) {
+    target = '/api/judge0';
+  }
+
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 5000);
+    const timeout = setTimeout(() => controller.abort(), 7000);
     const headers: Record<string, string> = {};
     const token = getJudge0Token();
     if (token) {
@@ -536,7 +553,12 @@ export async function executeWithJudge0(
   language: SupportedLanguage,
   endpoint?: string
 ): Promise<Judge0ExecutionResult> {
-  const serverUrl = (endpoint || getJudge0Url()).replace(/\/+$/, '');
+  let serverUrl = (endpoint || getJudge0Url()).replace(/\/+$/, '');
+
+  // Bảo vệ Mixed Content: Tự động dùng proxy HTTPS nếu đang chạy trên HTTPS
+  if (typeof window !== 'undefined' && window.location.protocol === 'https:' && serverUrl.startsWith('http://')) {
+    serverUrl = '/api/judge0';
+  }
   let sourceCode = code;
 
   // Với Java trên Judge0, tên public class phải là Main

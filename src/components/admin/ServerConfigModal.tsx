@@ -11,7 +11,6 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import {
-  getJudge0Url,
   setJudge0Url,
   testJudge0Connection,
   DEFAULT_JUDGE0_URL,
@@ -25,7 +24,15 @@ interface ServerConfigModalProps {
 
 export const ServerConfigModal: React.FC<ServerConfigModalProps> = ({ isOpen, onClose }) => {
   const { showToast } = useJudge();
-  const [serverUrl, setLocalServerUrl] = useState<string>(getJudge0Url());
+  const getInitialDisplayUrl = () => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('faminh_judge0_api_url');
+      if (saved && saved.trim() && saved !== '/api/judge0') return saved.trim();
+    }
+    return DEFAULT_JUDGE0_URL;
+  };
+
+  const [serverUrl, setLocalServerUrl] = useState<string>(getInitialDisplayUrl);
   const [isTesting, setIsTesting] = useState<boolean>(false);
   const [testStatus, setTestStatus] = useState<{
     tested: boolean;
@@ -42,7 +49,7 @@ export const ServerConfigModal: React.FC<ServerConfigModalProps> = ({ isOpen, on
   // Tự động kiểm tra kết nối khi mở modal
   useEffect(() => {
     if (isOpen) {
-      const current = getJudge0Url();
+      const current = getInitialDisplayUrl();
       setLocalServerUrl(current);
       handleTestConnection(current);
     }
@@ -197,6 +204,11 @@ export const ServerConfigModal: React.FC<ServerConfigModalProps> = ({ isOpen, on
             </div>
             <p className="text-[11px] text-slate-400">
               Mặc định: <code className="text-red-400">{DEFAULT_JUDGE0_URL}</code> (VPS riêng của FAMINH).
+              {typeof window !== 'undefined' && window.location.protocol === 'https:' && (
+                <span className="block mt-1 text-emerald-400 font-medium">
+                  🔒 Đã kích hoạt Secure HTTPS Proxy (tự động vượt lỗi Mixed Content để kết nối VPS an toàn).
+                </span>
+              )}
             </p>
           </div>
 

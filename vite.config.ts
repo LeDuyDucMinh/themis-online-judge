@@ -10,6 +10,15 @@ export default defineConfig(({ mode }) => {
       react(),
       tailwindcss(),
     ],
+    server: {
+      proxy: {
+        '/api/judge0': {
+          target: env.JUDGE0_API_URL || 'http://103.149.170.5:2358',
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/api\/judge0/, ''),
+        },
+      },
+    },
     define: {
       'process.env': JSON.stringify(env),
     },
