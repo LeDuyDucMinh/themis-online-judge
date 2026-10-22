@@ -447,13 +447,25 @@ export function parseThemisBashOutput(rawOutput: string): {
   };
 }
 
-export const DEFAULT_JUDGE0_URL =
-  (typeof process !== 'undefined' && (process.env.JUDGE0_API_URL || process.env.VITE_JUDGE0_API_URL)) ||
-  'http://103.149.170.5:2358';
+const cleanJudge0Str = (val: unknown, fallback: string = ''): string => {
+  if (typeof val === 'string') {
+    const trimmed = val.trim().replace(/[\r\n\t]+/g, '');
+    return trimmed || fallback;
+  }
+  return fallback;
+};
 
-export const DEFAULT_JUDGE0_TOKEN =
+export const DEFAULT_JUDGE0_URL = cleanJudge0Str(
+  (typeof process !== 'undefined' && (process.env.JUDGE0_API_URL || process.env.VITE_JUDGE0_API_URL)) ||
+  (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_JUDGE0_API_URL),
+  'http://103.149.170.5:2358'
+);
+
+export const DEFAULT_JUDGE0_TOKEN = cleanJudge0Str(
   (typeof process !== 'undefined' && (process.env.JUDGE0_API_TOKEN || process.env.VITE_JUDGE0_API_TOKEN)) ||
-  'faminh_secret_api_token';
+  (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_JUDGE0_API_TOKEN),
+  'faminh_secret_api_token'
+);
 
 export const JUDGE0_LANGUAGE_MAP: Record<SupportedLanguage, number> = {
   cpp: 54,     // C++ (GCC 9.2.0)
@@ -465,17 +477,18 @@ export const JUDGE0_LANGUAGE_MAP: Record<SupportedLanguage, number> = {
 export function getJudge0Url(): string {
   if (typeof window !== 'undefined') {
     const custom = localStorage.getItem('faminh_judge0_api_url');
-    if (custom && custom.trim()) return custom.trim();
+    if (custom && custom.trim()) return cleanJudge0Str(custom, DEFAULT_JUDGE0_URL);
   }
-  const envUrl = (typeof process !== 'undefined' && (process.env.JUDGE0_API_URL || process.env.VITE_JUDGE0_API_URL));
-  if (envUrl && envUrl.trim()) return envUrl.trim();
+  const envUrl = (typeof process !== 'undefined' && (process.env.JUDGE0_API_URL || process.env.VITE_JUDGE0_API_URL)) ||
+    (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_JUDGE0_API_URL);
+  if (envUrl && typeof envUrl === 'string' && envUrl.trim()) return cleanJudge0Str(envUrl, DEFAULT_JUDGE0_URL);
   return DEFAULT_JUDGE0_URL;
 }
 
 export function getJudge0Token(): string {
   if (typeof window !== 'undefined') {
     const custom = localStorage.getItem('faminh_judge0_api_token');
-    if (custom && custom.trim()) return custom.trim();
+    if (custom && custom.trim()) return cleanJudge0Str(custom, DEFAULT_JUDGE0_TOKEN);
   }
   return DEFAULT_JUDGE0_TOKEN;
 }

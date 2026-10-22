@@ -1,24 +1,52 @@
 import type { Problem, TestCase, Submission } from '../types/judge';
 import { idbService } from './db';
+import { storageService } from './storageService';
 
 /**
- * Biến môi trường hệ thống cho Database và Judge0 VPS (Đọc từ process.env / Vite define)
+ * Hàm làm sạch chuỗi cấu hình (loại bỏ khoảng trắng, dấu xuống dòng \r, \n vô tình dính vào khi copy-paste trên Vercel)
+ */
+const cleanStr = (val: unknown, fallback: string = ''): string => {
+  if (typeof val === 'string') {
+    const trimmed = val.trim().replace(/[\r\n\t]+/g, '');
+    return trimmed || fallback;
+  }
+  return fallback;
+};
+
+/**
+ * Biến môi trường hệ thống cho Database và Judge0 VPS (Hỗ trợ Vite import.meta, process.env và fallback đám mây)
  */
 export const ENV = {
-  JUDGE0_URL:
+  JUDGE0_URL: cleanStr(
     (typeof process !== 'undefined' && (process.env.JUDGE0_API_URL || process.env.VITE_JUDGE0_API_URL)) ||
-    'http://103.149.170.5:2358',
-  JUDGE0_TOKEN:
+    (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_JUDGE0_API_URL),
+    'http://103.149.170.5:2358'
+  ),
+  JUDGE0_TOKEN: cleanStr(
     (typeof process !== 'undefined' && (process.env.JUDGE0_API_TOKEN || process.env.VITE_JUDGE0_API_TOKEN)) ||
-    'faminh_secret_api_token',
-  SUPABASE_URL:
-    (typeof process !== 'undefined' && (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL)) || '',
-  SUPABASE_ANON_KEY:
-    (typeof process !== 'undefined' && (process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY)) || '',
-  FIREBASE_API_KEY:
-    (typeof process !== 'undefined' && (process.env.FIREBASE_API_KEY || process.env.VITE_FIREBASE_API_KEY)) || '',
-  FIREBASE_PROJECT_ID:
-    (typeof process !== 'undefined' && (process.env.FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID)) || '',
+    (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_JUDGE0_API_TOKEN),
+    'faminh_secret_api_token'
+  ),
+  SUPABASE_URL: cleanStr(
+    (typeof process !== 'undefined' && (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL)) ||
+    (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_SUPABASE_URL),
+    'https://wsccqtgnwejupfucfqtg.supabase.co'
+  ),
+  SUPABASE_ANON_KEY: cleanStr(
+    (typeof process !== 'undefined' && (process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY)) ||
+    (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_SUPABASE_ANON_KEY),
+    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndzY2NxdGdud2VqdXBmdWNmcXRnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI2NjAxMTYsImV4cCI6MjEwODIzNjExNn0.ILXlVuUZGPfVo9n2_IhpVQHIPJ8QkZHajAWAKMP1280'
+  ),
+  FIREBASE_API_KEY: cleanStr(
+    (typeof process !== 'undefined' && (process.env.FIREBASE_API_KEY || process.env.VITE_FIREBASE_API_KEY)) ||
+    (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_FIREBASE_API_KEY),
+    ''
+  ),
+  FIREBASE_PROJECT_ID: cleanStr(
+    (typeof process !== 'undefined' && (process.env.FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID)) ||
+    (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_FIREBASE_PROJECT_ID),
+    ''
+  ),
 };
 
 /**
@@ -37,6 +65,41 @@ export function isSupabaseConfigured(): boolean {
  * Service API Database tập trung: Hỗ trợ cả Supabase Cloud REST API và IndexedDB dự phòng bền vững
  */
 export const apiService = {
+  /**
+   * Kiểm tra cấu hình Cloud
+   */
+  isConfigured(): boolean {
+    return isSupabaseConfigured();
+  },
+
+  /**
+   * Đảm bảo Lớp học (Classroom) tồn tại trên Supabase Cloud để tránh lỗi Foreign Key Constraint 409
+   */
+  async ensureClassroom(classId: string, className?: string, joinCode?: string): Promise<void> {
+    if (!isSupabaseConfigured() || !classId) return;
+    try {
+      const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/classrooms`;
+      await fetch(targetUrl, {
+        method: 'POST',
+        headers: {
+          apikey: ENV.SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${ENV.SUPABASE_ANON_KEY}`,
+          'Content-Type': 'application/json',
+          Prefer: 'resolution=merge-duplicates',
+        },
+        body: JSON.stringify({
+          id: classId,
+          class_name: className || 'Lớp Học FAMINH',
+          description: 'Lớp học lập trình FAMINH',
+          join_code: joinCode || 'OXYZ',
+          updated_at: new Date().toISOString(),
+        }),
+      });
+    } catch (e) {
+      console.warn('[apiService] ensureClassroom warning:', e);
+    }
+  },
+
   /**
    * Lưu bộ Test Cases vào Database (Bắt buộc await và throw Error nếu thất bại)
    */
@@ -145,7 +208,7 @@ export const apiService = {
           problem_title: submission.problemTitle || submission.problemCode || '',
           user_id: submission.userId,
           user_name: submission.userName,
-          class_id: submission.classId,
+          class_id: submission.classId || 'class_default_faminh',
           language: submission.language,
           source_code: submission.sourceCode,
           verdict: submission.overallVerdict,
@@ -154,11 +217,11 @@ export const apiService = {
           max_total_points: submission.maxTotalPoints,
           passed_count: submission.passedCount,
           total_tests: submission.totalTests,
-          execution_time: submission.executionTime || 0,
-          memory: submission.memory || 0,
-          compilation_message: submission.compilationMessage || '',
-          submitted_at: submission.submittedAt,
-          test_results: submission.testResults || [],
+          execution_time: submission.executionTime,
+          memory: submission.memory,
+          compilation_message: submission.compilationMessage,
+          submitted_at: submission.submittedAt || new Date().toISOString(),
+          test_results: submission.testResults,
         };
 
         const res = await fetch(targetUrl, {
@@ -177,16 +240,16 @@ export const apiService = {
           throw new Error(`Lỗi Supabase (${res.status}): ${errDetail.slice(0, 150)}`);
         }
       } catch (err: unknown) {
-        console.error('[apiService] Lỗi lưu submission lên Supabase Cloud:', err);
+        console.error('[apiService] Lỗi lưu kết quả bài nộp lên Supabase Cloud:', err);
         throw new Error(
-          `Không thể lưu lịch sử nộp bài vào Database đám mây: ${(err as Error)?.message || 'Lỗi kết nối'}`
+          `Không thể ghi nhận trạng thái nộp bài lên Database đám mây: ${(err as Error)?.message || 'Lỗi kết nối'}`
         );
       }
     }
   },
 
   /**
-   * Lấy toàn bộ lịch sử nộp bài từ Database
+   * Lấy lịch sử nộp bài (Toàn bộ hoặc theo học sinh) từ Database thực tế
    */
   async fetchSubmissions(): Promise<Submission[]> {
     let cloudSubmissions: Submission[] = [];
@@ -260,6 +323,12 @@ export const apiService = {
 
     if (isSupabaseConfigured()) {
       try {
+        const targetClassId = problem.classId || 'class_default_faminh';
+        // Đảm bảo lớp học tồn tại trên Supabase để không dính lỗi foreign key
+        if (targetClassId && targetClassId !== 'class_default_faminh') {
+          await this.ensureClassroom(targetClassId);
+        }
+
         const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/problems`;
         const payload = {
           id: problem.id,
@@ -268,7 +337,7 @@ export const apiService = {
           description: problem.description,
           difficulty: problem.difficulty,
           topic_id: problem.topicId,
-          class_id: problem.classId,
+          class_id: targetClassId,
           time_limit: problem.timeLimit,
           memory_limit: problem.memoryLimit,
           total_points: problem.totalPoints,
@@ -385,7 +454,18 @@ export const apiService = {
       }
     }
 
-    const localProblems = await idbService.getAllProblems();
+    // Lấy bài tập cục bộ từ cả IndexedDB và localStorage (đề phòng dữ liệu nằm trong localStorage trước khi nâng cấp)
+    const [idbProblems, storageProblems] = await Promise.all([
+      idbService.getAllProblems(),
+      Promise.resolve(storageService.getProblems()),
+    ]);
+    const localMap = new Map<string, Problem>();
+    idbProblems.forEach((p) => localMap.set(p.id, p));
+    storageProblems.forEach((p) => {
+      if (!localMap.has(p.id)) localMap.set(p.id, p);
+    });
+    const localProblems = Array.from(localMap.values());
+
     const mergedMap = new Map<string, Problem>();
     localProblems.forEach((p) => mergedMap.set(p.id, p));
     cloudProblems.forEach((p) => {
@@ -406,21 +486,97 @@ export const apiService = {
     }
 
     // TỰ ĐỘNG ĐỒNG BỘ 2 CHIỀU:
-    // Nếu trên máy này có bài tập trong IndexedDB nhưng trên Supabase Cloud chưa có:
+    // Nếu trên máy này có bài tập trong IndexedDB/localStorage nhưng trên Supabase Cloud chưa có:
     // Tự động đẩy ngay bài tập và bộ test case lên Supabase để điện thoại và các máy khác thấy ngay lập tức!
     if (isSupabaseConfigured() && localProblems.length > 0) {
       for (const p of localProblems) {
         if (!cloudProblems.some((cp) => cp.id === p.id)) {
-          this.saveProblem(p).catch((err) => console.warn('[apiService] Auto-sync problem error:', err));
-          idbService.getTestCases(p.id).then((tests) => {
-            if (tests && tests.length > 0) {
-              this.saveTestCases(p.id, tests).catch((err) => console.warn('[apiService] Auto-sync testCases error:', err));
-            }
-          }).catch(() => {});
+          this.saveProblem(p)
+            .then(async () => {
+              const tests = (await idbService.getTestCases(p.id)) || p.testCases;
+              if (tests && tests.length > 0) {
+                await this.saveTestCases(p.id, tests);
+              }
+              console.log(`[apiService] Đã tự động đồng bộ bài tập ${p.code} lên Cloud`);
+            })
+            .catch((err) => console.warn('[apiService] Auto-sync problem error:', err));
         }
       }
     }
 
     return result;
+  },
+
+  /**
+   * ĐỒNG BỘ TOÀN DIỆN LÊN SUPABASE CLOUD
+   * Đẩy toàn bộ danh sách lớp học, bài tập, test case và lịch sử nộp bài từ máy này lên Supabase Cloud
+   */
+  async syncAllToCloud(): Promise<{ problemsCount: number; testCasesCount: number; submissionsCount: number }> {
+    if (!isSupabaseConfigured()) {
+      throw new Error('Supabase Cloud chưa được cấu hình địa chỉ URL và API Key');
+    }
+
+    // 1. Đồng bộ Classrooms
+    const localClasses = storageService.getClasses();
+    for (const cls of localClasses) {
+      await this.ensureClassroom(cls.id, cls.className, cls.joinCode);
+    }
+
+    // 2. Gom toàn bộ bài tập từ IndexedDB và localStorage
+    const [idbProblems, storageProblems] = await Promise.all([
+      idbService.getAllProblems(),
+      Promise.resolve(storageService.getProblems()),
+    ]);
+    const problemMap = new Map<string, Problem>();
+    idbProblems.forEach((p) => problemMap.set(p.id, p));
+    storageProblems.forEach((p) => {
+      if (!problemMap.has(p.id)) problemMap.set(p.id, p);
+    });
+    const allProblems = Array.from(problemMap.values());
+
+    let syncedProblems = 0;
+    let syncedTests = 0;
+
+    for (const p of allProblems) {
+      await this.saveProblem(p);
+      syncedProblems++;
+
+      let tests = await idbService.getTestCases(p.id);
+      if (!tests || tests.length === 0) {
+        tests = p.testCases;
+      }
+      if (tests && tests.length > 0) {
+        await this.saveTestCases(p.id, tests);
+        syncedTests += tests.length;
+      }
+    }
+
+    // 3. Gom và đồng bộ lịch sử nộp bài Submissions
+    const [idbSubs, storageSubs] = await Promise.all([
+      idbService.getAllSubmissions(),
+      Promise.resolve(storageService.getSubmissions()),
+    ]);
+    const subMap = new Map<string, Submission>();
+    idbSubs.forEach((s) => subMap.set(s.id, s));
+    storageSubs.forEach((s) => {
+      if (!subMap.has(s.id)) subMap.set(s.id, s);
+    });
+    const allSubs = Array.from(subMap.values());
+    let syncedSubs = 0;
+
+    for (const sub of allSubs) {
+      try {
+        await this.saveSubmission(sub);
+        syncedSubs++;
+      } catch (e) {
+        console.warn('[apiService] Sync submission warn:', e);
+      }
+    }
+
+    return {
+      problemsCount: syncedProblems,
+      testCasesCount: syncedTests,
+      submissionsCount: syncedSubs,
+    };
   },
 };

@@ -11,6 +11,7 @@ import {
   Sparkles,
   KeyRound,
   FileCode2,
+  RefreshCw,
 } from 'lucide-react';
 
 
@@ -138,12 +139,23 @@ export const StudentClassList: React.FC = () => {
           </p>
         </div>
 
-        <button
-          onClick={() => setIsJoinModalOpen(true)}
-          className="text-xs font-bold text-red-600 dark:text-red-400 hover:underline flex items-center gap-1 cursor-pointer"
-        >
-          <span>+ Nhập mã vào lớp mới</span>
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => window.location.reload()}
+            className="text-xs font-semibold text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 flex items-center gap-1 cursor-pointer transition-colors"
+            title="Tải lại dữ liệu mới nhất từ hệ thống"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            <span>Làm mới</span>
+          </button>
+
+          <button
+            onClick={() => setIsJoinModalOpen(true)}
+            className="text-xs font-bold text-red-600 dark:text-red-400 hover:underline flex items-center gap-1 cursor-pointer"
+          >
+            <span>+ Nhập mã vào lớp mới</span>
+          </button>
+        </div>
       </div>
 
       {/* Grid danh sách lớp học của học sinh */}

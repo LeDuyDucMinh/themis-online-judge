@@ -15,6 +15,7 @@ import {
   GraduationCap,
   LogIn,
   Server,
+  Cloud,
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -39,7 +40,20 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab }) => 
     openConfirmModal,
     activeClass,
     setActiveClassId,
+    syncToCloud,
+    isCloudConfigured,
   } = useJudge();
+
+  const [isSyncingCloud, setIsSyncingCloud] = React.useState(false);
+
+  const handleSyncCloud = async () => {
+    setIsSyncingCloud(true);
+    try {
+      await syncToCloud();
+    } finally {
+      setIsSyncingCloud(false);
+    }
+  };
 
   const handleResetConfirm = () => {
     openConfirmModal({
@@ -242,6 +256,22 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab }) => 
               >
                 <Server className="w-3.5 h-3.5 text-emerald-400" />
                 <span className="hidden lg:inline">Server Chấm VPS</span>
+              </button>
+
+              {/* Nút Đồng bộ Supabase Cloud */}
+              <button
+                onClick={handleSyncCloud}
+                disabled={isSyncingCloud}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-sky-950/60 hover:bg-sky-900/80 text-sky-300 hover:text-white border border-sky-700/60 text-xs font-semibold transition-all cursor-pointer disabled:opacity-50 shadow-sm"
+                title={isCloudConfigured ? 'Đồng bộ toàn bộ bài tập & test cases lên Supabase Cloud' : 'Đang kết nối Supabase Cloud'}
+              >
+                <div className="relative flex items-center justify-center">
+                  <Cloud className={`w-3.5 h-3.5 text-sky-400 ${isSyncingCloud ? 'animate-spin' : ''}`} />
+                  {isCloudConfigured && (
+                    <span className="absolute -top-1 -right-1 w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  )}
+                </div>
+                <span className="hidden sm:inline">{isSyncingCloud ? 'Đang đẩy...' : 'Đồng bộ Cloud'}</span>
               </button>
 
               {/* Đổi mật khẩu */}

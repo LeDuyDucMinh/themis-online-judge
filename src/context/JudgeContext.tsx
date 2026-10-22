@@ -108,6 +108,8 @@ interface JudgeContextType {
 
   getProblemStatus: (problemId: string) => 'UNSOLVED' | 'PARTIAL' | 'SOLVED';
   resetAllData: () => void;
+  syncToCloud: () => Promise<{ success: boolean; message: string; problemsCount?: number }>;
+  isCloudConfigured: boolean;
 }
 
 
@@ -324,6 +326,18 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
           const current = storageService.getProblems();
           if (current.length > 0) {
             await idbService.saveProblems(current);
+            // TỰ ĐỘNG ĐẨY LÊN SUPABASE CLOUD NẾU CLOUD ĐANG TRỐNG
+            if (apiService.isConfigured()) {
+              apiService.syncAllToCloud().then((res) => {
+                if (res.problemsCount > 0) {
+                  showToast(
+                    'Đã đồng bộ lên Cloud! ☁️',
+                    `Đã tự động đưa ${res.problemsCount} bài tập lên Supabase Cloud. Điện thoại đã có thể xem được ngay!`,
+                    'success'
+                  );
+                }
+              }).catch(() => {});
+            }
           }
         }
 
@@ -802,6 +816,28 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     return 'UNSOLVED';
   };
 
+  const isCloudConfigured = apiService.isConfigured();
+
+  const syncToCloud = async (): Promise<{ success: boolean; message: string; problemsCount?: number }> => {
+    try {
+      const res = await apiService.syncAllToCloud();
+      showToast(
+        'Đồng bộ thành công! ☁️',
+        `Đã đẩy ${res.problemsCount} bài tập và ${res.testCasesCount} test case lên Supabase Cloud. Mọi thiết bị khác (điện thoại, máy tính) đã có thể xem được ngay!`,
+        'success'
+      );
+      const cloudProbs = await apiService.fetchProblems();
+      if (cloudProbs && cloudProbs.length > 0) {
+        setProblems(cloudProbs);
+      }
+      return { success: true, message: 'Đồng bộ thành công', problemsCount: res.problemsCount };
+    } catch (err: unknown) {
+      const msg = (err as Error)?.message || 'Lỗi khi đồng bộ dữ liệu lên Cloud';
+      showToast('Lỗi đồng bộ Cloud', msg, 'error');
+      return { success: false, message: msg };
+    }
+  };
+
   const resetAllData = () => {
     if (!isAdminAuthenticated) {
       showToast('Từ chối', 'Chỉ quản trị viên mới có quyền khôi phục dữ liệu hệ thống!', 'error');
@@ -882,6 +918,8 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         submitCode,
         getProblemStatus,
         resetAllData,
+        syncToCloud,
+        isCloudConfigured,
       }}
     >
 
