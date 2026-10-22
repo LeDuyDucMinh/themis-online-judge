@@ -101,6 +101,38 @@ export const apiService = {
   },
 
   /**
+   * Xóa Lớp học (Classroom) khỏi Supabase Cloud
+   */
+  async deleteClassroom(classId: string): Promise<void> {
+    if (!isSupabaseConfigured() || !classId) return;
+    try {
+      // 1. Cập nhật các bài tập gán vào lớp này sang null để không vi phạm ràng buộc khóa ngoại (foreign key)
+      const patchUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/problems?class_id=eq.${classId}`;
+      await fetch(patchUrl, {
+        method: 'PATCH',
+        headers: {
+          apikey: ENV.SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${ENV.SUPABASE_ANON_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ class_id: null }),
+      });
+
+      // 2. Xóa dòng lớp học trong bảng classrooms
+      const deleteUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/classrooms?id=eq.${classId}`;
+      await fetch(deleteUrl, {
+        method: 'DELETE',
+        headers: {
+          apikey: ENV.SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${ENV.SUPABASE_ANON_KEY}`,
+        },
+      });
+    } catch (e) {
+      console.warn('[apiService] deleteClassroom warning:', e);
+    }
+  },
+
+  /**
    * Lưu bộ Test Cases vào Database (Bắt buộc await và throw Error nếu thất bại)
    */
   async saveTestCases(problemId: string, testCases: TestCase[]): Promise<void> {

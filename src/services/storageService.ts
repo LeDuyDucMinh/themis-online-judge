@@ -311,19 +311,18 @@ export const storageService = {
 
   getClasses(): Classroom[] {
     const raw = localStorage.getItem(STORAGE_KEYS.CLASSES);
-    if (!raw) {
+    if (raw === null) {
       this.saveClasses([DEFAULT_CLASS]);
       return [DEFAULT_CLASS];
     }
     try {
       const list: Classroom[] = JSON.parse(raw);
-      if (!Array.isArray(list) || list.length === 0) {
-        this.saveClasses([DEFAULT_CLASS]);
-        return [DEFAULT_CLASS];
+      if (!Array.isArray(list)) {
+        return [];
       }
       return list;
     } catch {
-      return [DEFAULT_CLASS];
+      return [];
     }
   },
 

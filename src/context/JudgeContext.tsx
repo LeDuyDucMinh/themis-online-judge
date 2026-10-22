@@ -220,6 +220,7 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
   const deleteClass = (id: string) => {
     storageService.deleteClass(id);
+    apiService.deleteClassroom(id).catch(() => {});
     setClasses(storageService.getClasses());
     setClassStudents(storageService.getClassStudents());
     setTopics(storageService.getTopics());

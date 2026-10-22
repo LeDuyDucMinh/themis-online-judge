@@ -227,18 +227,16 @@ export const TeacherClassList: React.FC = () => {
                       >
                         <Edit2 className="w-3.5 h-3.5" />
                       </button>
-                      {cls.id !== 'class_default_faminh' && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDeleteClass(cls);
-                          }}
-                          className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-950/40 transition-colors"
-                          title="Xóa lớp học này"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      )}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteClass(cls);
+                        }}
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-950/40 transition-colors"
+                        title="Xóa lớp học này"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
                     </div>
                   </div>
 
