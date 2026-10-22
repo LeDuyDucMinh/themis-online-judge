@@ -7,6 +7,7 @@ import {
   Eye,
   EyeOff,
   AlertTriangle,
+  Loader2,
 } from 'lucide-react';
 
 export const ChangePasswordModal: React.FC = () => {
@@ -17,10 +18,11 @@ export const ChangePasswordModal: React.FC = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+  const [isUpdating, setIsUpdating] = useState(false);
 
   if (!isChangePasswordModalOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (newPassword !== confirmPassword) {
@@ -33,14 +35,19 @@ export const ChangePasswordModal: React.FC = () => {
       return;
     }
 
-    const res = changeAdminPassword(oldPassword, newPassword);
-    if (!res.success) {
-      setError(res.message);
-    } else {
-      setOldPassword('');
-      setNewPassword('');
-      setConfirmPassword('');
-      setError('');
+    setIsUpdating(true);
+    try {
+      const res = await changeAdminPassword(oldPassword, newPassword);
+      if (!res.success) {
+        setError(res.message);
+      } else {
+        setOldPassword('');
+        setNewPassword('');
+        setConfirmPassword('');
+        setError('');
+      }
+    } finally {
+      setIsUpdating(false);
     }
   };
 
@@ -153,9 +160,20 @@ export const ChangePasswordModal: React.FC = () => {
             </button>
             <button
               type="submit"
-              className="px-5 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-lg shadow-red-600/20"
+              disabled={isUpdating}
+              className="px-5 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-lg shadow-red-600/20 disabled:opacity-50 cursor-pointer"
             >
-              <Check className="w-4 h-4" /> Cập nhật mật khẩu
+              {isUpdating ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Đang lưu lên Database...</span>
+                </>
+              ) : (
+                <>
+                  <Check className="w-4 h-4" />
+                  <span>Cập nhật mật khẩu</span>
+                </>
+              )}
             </button>
           </div>
         </form>

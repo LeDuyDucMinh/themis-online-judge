@@ -1,6 +1,6 @@
-import type { Problem, TestCase, Submission } from '../types/judge';
+import type { Problem, TestCase, Submission, Classroom, ClassStudent, StudentUser, Topic } from '../types/judge';
 import { idbService } from './db';
-import { storageService } from './storageService';
+import { storageService, DEFAULT_ADMIN_PASSWORD } from './storageService';
 
 /**
  * Hàm làm sạch chuỗi cấu hình (loại bỏ khoảng trắng, dấu xuống dòng \r, \n vô tình dính vào khi copy-paste trên Vercel)
@@ -73,6 +73,87 @@ export const apiService = {
   },
 
   /**
+   * Header tiêu chuẩn chống aggressive cache trên mọi thiết bị và trình duyệt
+   */
+  getAntiCacheHeaders(): Record<string, string> {
+    return {
+      apikey: ENV.SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${ENV.SUPABASE_ANON_KEY}`,
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      Pragma: 'no-cache',
+      Expires: '0',
+    };
+  },
+
+  /**
+   * Lấy danh sách Lớp học (Classrooms) từ Database đám mây (Anti-cache real-time)
+   */
+  async fetchClassrooms(): Promise<Classroom[]> {
+    let cloudClasses: Classroom[] = [];
+    if (isSupabaseConfigured()) {
+      try {
+        const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/classrooms?order=created_at.asc&_t=${Date.now()}`;
+        const res = await fetch(targetUrl, {
+          headers: this.getAntiCacheHeaders(),
+          cache: 'no-store',
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data)) {
+            cloudClasses = data
+              .filter((c: any) => c.id && !c.id.startsWith('__system_'))
+              .map((c: any): Classroom => ({
+                id: c.id,
+                className: c.class_name || 'Lớp Học FAMINH',
+                description: c.description || '',
+                teacherId: 'admin',
+                joinCode: c.join_code || 'OXYZ',
+                createdAt: c.created_at || new Date().toISOString(),
+              }));
+          }
+        }
+      } catch (err) {
+        console.warn('[apiService] Lỗi fetch classrooms từ Supabase Cloud:', err);
+      }
+    }
+
+    if (cloudClasses.length > 0) {
+      storageService.saveClasses(cloudClasses);
+      return cloudClasses;
+    }
+
+    return storageService.getClasses();
+  },
+
+  /**
+   * Lưu hoặc cập nhật Lớp học lên Supabase Cloud
+   */
+  async saveClassroom(cls: Classroom): Promise<void> {
+    if (!cls || !cls.id) return;
+    if (!isSupabaseConfigured()) return;
+    try {
+      const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/classrooms`;
+      await fetch(targetUrl, {
+        method: 'POST',
+        headers: {
+          ...this.getAntiCacheHeaders(),
+          'Content-Type': 'application/json',
+          Prefer: 'resolution=merge-duplicates',
+        },
+        body: JSON.stringify({
+          id: cls.id,
+          class_name: cls.className,
+          description: cls.description || '',
+          join_code: cls.joinCode || 'OXYZ',
+          updated_at: new Date().toISOString(),
+        }),
+      });
+    } catch (e) {
+      console.warn('[apiService] saveClassroom warn:', e);
+    }
+  },
+
+  /**
    * Đảm bảo Lớp học (Classroom) tồn tại trên Supabase Cloud để tránh lỗi Foreign Key Constraint 409
    */
   async ensureClassroom(classId: string, className?: string, joinCode?: string): Promise<void> {
@@ -82,8 +163,7 @@ export const apiService = {
       await fetch(targetUrl, {
         method: 'POST',
         headers: {
-          apikey: ENV.SUPABASE_ANON_KEY,
-          Authorization: `Bearer ${ENV.SUPABASE_ANON_KEY}`,
+          ...this.getAntiCacheHeaders(),
           'Content-Type': 'application/json',
           Prefer: 'resolution=merge-duplicates',
         },
@@ -111,8 +191,7 @@ export const apiService = {
       await fetch(patchUrl, {
         method: 'PATCH',
         headers: {
-          apikey: ENV.SUPABASE_ANON_KEY,
-          Authorization: `Bearer ${ENV.SUPABASE_ANON_KEY}`,
+          ...this.getAntiCacheHeaders(),
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ class_id: null }),
@@ -122,14 +201,254 @@ export const apiService = {
       const deleteUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/classrooms?id=eq.${classId}`;
       await fetch(deleteUrl, {
         method: 'DELETE',
-        headers: {
-          apikey: ENV.SUPABASE_ANON_KEY,
-          Authorization: `Bearer ${ENV.SUPABASE_ANON_KEY}`,
-        },
+        headers: this.getAntiCacheHeaders(),
       });
     } catch (e) {
       console.warn('[apiService] deleteClassroom warning:', e);
     }
+  },
+
+  /**
+   * Lấy danh sách liên kết Học sinh - Lớp học từ Supabase Cloud (Anti-cache real-time)
+   */
+  async fetchClassStudents(): Promise<ClassStudent[]> {
+    if (isSupabaseConfigured()) {
+      try {
+        const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/classrooms?id=eq.__system_class_students__&_t=${Date.now()}`;
+        const res = await fetch(targetUrl, {
+          headers: this.getAntiCacheHeaders(),
+          cache: 'no-store',
+        });
+        if (res.ok) {
+          const rows = await res.json();
+          if (Array.isArray(rows) && rows.length > 0 && rows[0].description) {
+            const parsed = JSON.parse(rows[0].description);
+            if (Array.isArray(parsed)) {
+              storageService.saveClassStudents(parsed);
+              return parsed;
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('[apiService] fetchClassStudents warn:', e);
+      }
+    }
+    return storageService.getClassStudents();
+  },
+
+  /**
+   * Lưu liên kết Học sinh - Lớp học lên Supabase Cloud
+   */
+  async saveClassStudents(list: ClassStudent[]): Promise<void> {
+    storageService.saveClassStudents(list);
+    if (!isSupabaseConfigured()) return;
+    try {
+      const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/classrooms`;
+      await fetch(targetUrl, {
+        method: 'POST',
+        headers: {
+          ...this.getAntiCacheHeaders(),
+          'Content-Type': 'application/json',
+          Prefer: 'resolution=merge-duplicates',
+        },
+        body: JSON.stringify({
+          id: '__system_class_students__',
+          class_name: 'CLASS_STUDENTS',
+          description: JSON.stringify(list),
+          join_code: 'REL',
+          updated_at: new Date().toISOString(),
+        }),
+      });
+    } catch (e) {
+      console.warn('[apiService] saveClassStudents warn:', e);
+    }
+  },
+
+  /**
+   * Lấy danh sách Học sinh từ Supabase Cloud (Anti-cache real-time)
+   */
+  async fetchStudents(): Promise<StudentUser[]> {
+    if (isSupabaseConfigured()) {
+      try {
+        const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/classrooms?id=eq.__system_students__&_t=${Date.now()}`;
+        const res = await fetch(targetUrl, {
+          headers: this.getAntiCacheHeaders(),
+          cache: 'no-store',
+        });
+        if (res.ok) {
+          const rows = await res.json();
+          if (Array.isArray(rows) && rows.length > 0 && rows[0].description) {
+            const parsed = JSON.parse(rows[0].description);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              storageService.saveStudents(parsed);
+              return parsed;
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('[apiService] fetchStudents warn:', e);
+      }
+    }
+    return storageService.getStudents();
+  },
+
+  /**
+   * Lưu danh sách Học sinh lên Supabase Cloud
+   */
+  async saveStudents(list: StudentUser[]): Promise<void> {
+    storageService.saveStudents(list);
+    if (!isSupabaseConfigured()) return;
+    try {
+      const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/classrooms`;
+      await fetch(targetUrl, {
+        method: 'POST',
+        headers: {
+          ...this.getAntiCacheHeaders(),
+          'Content-Type': 'application/json',
+          Prefer: 'resolution=merge-duplicates',
+        },
+        body: JSON.stringify({
+          id: '__system_students__',
+          class_name: 'STUDENTS',
+          description: JSON.stringify(list),
+          join_code: 'USER',
+          updated_at: new Date().toISOString(),
+        }),
+      });
+    } catch (e) {
+      console.warn('[apiService] saveStudents warn:', e);
+    }
+  },
+
+  /**
+   * Lấy danh sách Chủ đề từ Supabase Cloud
+   */
+  async fetchTopics(): Promise<Topic[]> {
+    if (isSupabaseConfigured()) {
+      try {
+        const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/classrooms?id=eq.__system_topics__&_t=${Date.now()}`;
+        const res = await fetch(targetUrl, {
+          headers: this.getAntiCacheHeaders(),
+          cache: 'no-store',
+        });
+        if (res.ok) {
+          const rows = await res.json();
+          if (Array.isArray(rows) && rows.length > 0 && rows[0].description) {
+            const parsed = JSON.parse(rows[0].description);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              storageService.saveTopics(parsed);
+              return parsed;
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('[apiService] fetchTopics warn:', e);
+      }
+    }
+    return storageService.getTopics();
+  },
+
+  /**
+   * Lưu danh sách Chủ đề lên Supabase Cloud
+   */
+  async saveTopics(list: Topic[]): Promise<void> {
+    storageService.saveTopics(list);
+    if (!isSupabaseConfigured()) return;
+    try {
+      const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/classrooms`;
+      await fetch(targetUrl, {
+        method: 'POST',
+        headers: {
+          ...this.getAntiCacheHeaders(),
+          'Content-Type': 'application/json',
+          Prefer: 'resolution=merge-duplicates',
+        },
+        body: JSON.stringify({
+          id: '__system_topics__',
+          class_name: 'TOPICS',
+          description: JSON.stringify(list),
+          join_code: 'TOPIC',
+          updated_at: new Date().toISOString(),
+        }),
+      });
+    } catch (e) {
+      console.warn('[apiService] saveTopics warn:', e);
+    }
+  },
+
+  /**
+   * Lấy mật mã Admin hiện tại trực tiếp từ Database (Supabase Cloud)
+   * Không phụ thuộc vào LocalStorage
+   */
+  async getAdminPasswordFromDatabase(): Promise<string> {
+    if (isSupabaseConfigured()) {
+      try {
+        const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/classrooms?id=eq.__system_admin_auth__&_t=${Date.now()}`;
+        const res = await fetch(targetUrl, {
+          headers: this.getAntiCacheHeaders(),
+          cache: 'no-store',
+        });
+        if (res.ok) {
+          const rows = await res.json();
+          if (Array.isArray(rows) && rows.length > 0 && rows[0].description) {
+            return rows[0].description.trim();
+          }
+        }
+        // Nếu dòng __system_admin_auth__ chưa tồn tại trên database, tự động khởi tạo mặc định
+        await this.updateAdminPasswordInDatabase(DEFAULT_ADMIN_PASSWORD);
+        return DEFAULT_ADMIN_PASSWORD;
+      } catch (err) {
+        console.warn('[apiService] Lỗi kết nối Supabase Cloud khi lấy Admin Password:', err);
+      }
+    }
+    return DEFAULT_ADMIN_PASSWORD;
+  },
+
+  /**
+   * BẮT BUỘC KIỂM TRA MẬT KHẨU ADMIN QUA API VỚI DATABASE TRỰC TIẾP
+   * Không ưu tiên mật khẩu/token cũ ở LocalStorage
+   */
+  async verifyAdminPassword(password: string): Promise<boolean> {
+    if (!password || !password.trim()) return false;
+    try {
+      const dbPassword = await this.getAdminPasswordFromDatabase();
+      return password.trim() === dbPassword.trim();
+    } catch {
+      return false;
+    }
+  },
+
+  /**
+   * Cập nhật mật mã Admin mới lên Database (Supabase Cloud)
+   */
+  async updateAdminPasswordInDatabase(newPassword: string): Promise<boolean> {
+    if (!newPassword || newPassword.trim().length < 6) return false;
+    storageService.setAdminPassword(newPassword.trim());
+    if (isSupabaseConfigured()) {
+      try {
+        const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/classrooms`;
+        const res = await fetch(targetUrl, {
+          method: 'POST',
+          headers: {
+            ...this.getAntiCacheHeaders(),
+            'Content-Type': 'application/json',
+            Prefer: 'resolution=merge-duplicates',
+          },
+          body: JSON.stringify({
+            id: '__system_admin_auth__',
+            class_name: 'ADMIN_CREDENTIAL',
+            description: newPassword.trim(),
+            join_code: 'ROOT',
+            updated_at: new Date().toISOString(),
+          }),
+        });
+        return res.ok;
+      } catch (err) {
+        console.error('[apiService] Lỗi cập nhật Admin Password lên Supabase Cloud:', err);
+        return false;
+      }
+    }
+    return true;
   },
 
   /**
@@ -287,12 +606,10 @@ export const apiService = {
     let cloudSubmissions: Submission[] = [];
     if (isSupabaseConfigured()) {
       try {
-        const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/submissions?order=submitted_at.desc&limit=150`;
+        const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/submissions?order=submitted_at.desc&limit=150&_t=${Date.now()}`;
         const res = await fetch(targetUrl, {
-          headers: {
-            apikey: ENV.SUPABASE_ANON_KEY,
-            Authorization: `Bearer ${ENV.SUPABASE_ANON_KEY}`,
-          },
+          headers: this.getAntiCacheHeaders(),
+          cache: 'no-store',
         });
         if (res.ok) {
           const list = await res.json();
@@ -442,12 +759,10 @@ export const apiService = {
     let cloudProblems: Problem[] = [];
     if (isSupabaseConfigured()) {
       try {
-        const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/problems?order=code.asc`;
+        const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/problems?order=code.asc&_t=${Date.now()}`;
         const res = await fetch(targetUrl, {
-          headers: {
-            apikey: ENV.SUPABASE_ANON_KEY,
-            Authorization: `Bearer ${ENV.SUPABASE_ANON_KEY}`,
-          },
+          headers: this.getAntiCacheHeaders(),
+          cache: 'no-store',
         });
         if (res.ok) {
           const list = await res.json();
@@ -551,10 +866,15 @@ export const apiService = {
     // 1. Đồng bộ Classrooms
     const localClasses = storageService.getClasses();
     for (const cls of localClasses) {
-      await this.ensureClassroom(cls.id, cls.className, cls.joinCode);
+      await this.saveClassroom(cls);
     }
 
-    // 2. Gom toàn bộ bài tập từ IndexedDB và localStorage
+    // 2. Đồng bộ quan hệ học sinh - lớp, danh sách học sinh và chủ đề
+    await this.saveClassStudents(storageService.getClassStudents());
+    await this.saveStudents(storageService.getStudents());
+    await this.saveTopics(storageService.getTopics());
+
+    // 3. Gom toàn bộ bài tập từ IndexedDB và localStorage
     const [idbProblems, storageProblems] = await Promise.all([
       idbService.getAllProblems(),
       Promise.resolve(storageService.getProblems()),

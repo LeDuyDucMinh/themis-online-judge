@@ -12,6 +12,7 @@ import {
   GraduationCap,
   ShieldCheck,
   User,
+  Loader2,
 } from 'lucide-react';
 
 export const AdminAuthModal: React.FC = () => {
@@ -52,41 +53,57 @@ export const AdminAuthModal: React.FC = () => {
 
   if (!isAuthModalOpen) return null;
 
+  const [isVerifying, setIsVerifying] = useState(false);
+
   // Kiểm tra xem đã có ai đăng nhập chưa (để quyết định có cho phép bấm nút X đóng hay không)
   const canClose = Boolean(isAdminAuthenticated || currentStudent);
 
-  const handleStudentSubmit = (e: React.FormEvent) => {
+  const handleStudentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage('');
-    const res = loginStudent(studentUsername, studentPassword);
-    if (!res.success) {
-      setErrorMessage(res.message);
-    } else {
-      setStudentUsername('');
-      setStudentPassword('');
-      setErrorMessage('');
+    setIsVerifying(true);
+    try {
+      const res = await loginStudent(studentUsername, studentPassword);
+      if (!res.success) {
+        setErrorMessage(res.message);
+      } else {
+        setStudentUsername('');
+        setStudentPassword('');
+        setErrorMessage('');
+      }
+    } catch {
+      setErrorMessage('Đã xảy ra lỗi kết nối khi đăng nhập. Vui lòng thử lại!');
+    } finally {
+      setIsVerifying(false);
     }
   };
 
-  const handleAdminSubmit = (e: React.FormEvent) => {
+  const handleAdminSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (lockCountdown > 0) return;
+    if (lockCountdown > 0 || isVerifying) return;
     setErrorMessage('');
+    setIsVerifying(true);
 
-    const res = loginAdmin(adminPassword);
-    if (!res.success) {
-      const nextFail = failedAttempts + 1;
-      setFailedAttempts(nextFail);
-      setErrorMessage(res.message);
+    try {
+      const res = await loginAdmin(adminPassword);
+      if (!res.success) {
+        const nextFail = failedAttempts + 1;
+        setFailedAttempts(nextFail);
+        setErrorMessage(res.message);
 
-      if (nextFail >= 5) {
-        setLockCountdown(30);
-        setErrorMessage('Nhập sai quá 5 lần. Tạm thời khóa xác thực trong 30 giây để bảo vệ hệ thống.');
+        if (nextFail >= 5) {
+          setLockCountdown(30);
+          setErrorMessage('Nhập sai quá 5 lần. Tạm thời khóa xác thực trong 30 giây để bảo vệ hệ thống.');
+        }
+      } else {
+        setAdminPassword('');
+        setErrorMessage('');
+        setFailedAttempts(0);
       }
-    } else {
-      setAdminPassword('');
-      setErrorMessage('');
-      setFailedAttempts(0);
+    } catch {
+      setErrorMessage('Không thể kết nối đến Database để xác thực mật khẩu Admin!');
+    } finally {
+      setIsVerifying(false);
     }
   };
 
@@ -261,10 +278,20 @@ export const AdminAuthModal: React.FC = () => {
             <div className="pt-2">
               <button
                 type="submit"
-                disabled={!studentUsername.trim() || !studentPassword.trim()}
+                disabled={isVerifying || !studentUsername.trim() || !studentPassword.trim()}
                 className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center justify-center gap-2 shadow-lg shadow-blue-600/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
               >
-                <LogIn className="w-4 h-4" /> Đăng Nhập Luyện Tập
+                {isVerifying ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Đang đăng nhập...</span>
+                  </>
+                ) : (
+                  <>
+                    <LogIn className="w-4 h-4" />
+                    <span>Đăng Nhập Luyện Tập</span>
+                  </>
+                )}
               </button>
             </div>
 
@@ -293,7 +320,7 @@ export const AdminAuthModal: React.FC = () => {
                     setAdminPassword(e.target.value);
                     setErrorMessage('');
                   }}
-                  disabled={lockCountdown > 0}
+                  disabled={lockCountdown > 0 || isVerifying}
                   placeholder="Nhập mật mã quản trị..."
                   autoFocus
                   className="w-full pl-10 pr-10 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-red-500/50 focus:border-red-500 transition-all font-mono"
@@ -311,10 +338,20 @@ export const AdminAuthModal: React.FC = () => {
             <div className="pt-2">
               <button
                 type="submit"
-                disabled={lockCountdown > 0 || !adminPassword.trim()}
+                disabled={lockCountdown > 0 || isVerifying || !adminPassword.trim()}
                 className="w-full py-2.5 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white text-xs font-bold flex items-center justify-center gap-2 shadow-lg shadow-red-600/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
               >
-                <LogIn className="w-4 h-4" /> Mở Quyền Quản Trị Admin
+                {isVerifying ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Đang đối chiếu Database...</span>
+                  </>
+                ) : (
+                  <>
+                    <LogIn className="w-4 h-4" />
+                    <span>Mở Quyền Quản Trị Admin</span>
+                  </>
+                )}
               </button>
             </div>
 

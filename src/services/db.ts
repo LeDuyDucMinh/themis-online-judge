@@ -513,4 +513,32 @@ export const idbService = {
       throw err;
     }
   },
+
+  async clearSubmissions(): Promise<void> {
+    if (!isIDBSupported()) return;
+    try {
+      const db = await getDB();
+      if (!db.objectStoreNames.contains(STORES.SUBMISSIONS)) return;
+      const tx = db.transaction(STORES.SUBMISSIONS, 'readwrite');
+      tx.objectStore(STORES.SUBMISSIONS).clear();
+    } catch (err) {
+      console.warn('[idbService] Lỗi clear submissions:', err);
+    }
+  },
+
+  async clearAllData(): Promise<void> {
+    if (!isIDBSupported()) return;
+    try {
+      const db = await getDB();
+      const stores = [STORES.PROBLEMS, STORES.TEST_CASES, STORES.SUBMISSIONS, STORES.TOPICS].filter(
+        (s) => db.objectStoreNames.contains(s)
+      );
+      if (stores.length > 0) {
+        const tx = db.transaction(stores, 'readwrite');
+        stores.forEach((s) => tx.objectStore(s).clear());
+      }
+    } catch (err) {
+      console.warn('[idbService] Lỗi clearAllData:', err);
+    }
+  },
 };

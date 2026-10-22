@@ -30,11 +30,11 @@ export const StudentManagerModal: React.FC = () => {
 
   if (!isStudentModalOpen) return null;
 
-  const handleCreate = (e: React.FormEvent) => {
+  const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage('');
 
-    const res = addStudent(fullName, username, password);
+    const res = await addStudent(fullName, username, password);
     if (!res.success) {
       setErrorMessage(res.message);
     } else {

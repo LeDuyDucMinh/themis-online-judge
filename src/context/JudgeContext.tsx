@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useRef, type ReactNode } from 'react';
 import type { UserRole, Topic, Problem, Submission, UserStats, StudentUser, Classroom, ClassStudent } from '../types/judge';
 import { storageService, DEFAULT_CLASS } from '../services/storageService';
-import { idbService } from '../services/db';
 import { apiService } from '../services/apiService';
 import { gradeSubmission, type GradingProgressCallback, type SupportedLanguage } from '../services/judgeEngine';
 import confetti from 'canvas-confetti';
@@ -52,15 +51,19 @@ interface JudgeContextType {
   closeConfirmModal: () => void;
 
   // Student Auth & Management Actions
-  loginStudent: (username: string, password: string) => { success: boolean; message: string };
+  loginStudent: (username: string, password: string) => Promise<{ success: boolean; message: string }>;
   logoutStudent: () => void;
-  addStudent: (fullName: string, username: string, password: string) => { success: boolean; message: string };
-  deleteStudent: (id: string) => void;
+  addStudent: (fullName: string, username: string, password: string) => Promise<{ success: boolean; message: string }>;
+  deleteStudent: (id: string) => Promise<void>;
 
   // Admin Auth Actions
-  loginAdmin: (password: string) => { success: boolean; message: string };
+  loginAdmin: (password: string) => Promise<{ success: boolean; message: string }>;
   logoutAdmin: () => void;
-  changeAdminPassword: (oldPass: string, newPass: string) => { success: boolean; message: string };
+  changeAdminPassword: (oldPass: string, newPass: string) => Promise<{ success: boolean; message: string }>;
+
+  // Refresh & Anti-Cache
+  refreshAllData: () => Promise<void>;
+  isRefreshing: boolean;
 
   // Multi-Classroom (Nhiều lớp học độc lập)
   classes: Classroom[];
@@ -207,6 +210,7 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
   const createClass = (className: string, description: string): Classroom => {
     const newClass = storageService.addClass({ className, description });
+    apiService.saveClassroom(newClass).catch(() => {});
     setClasses(storageService.getClasses());
     showToast('Tạo lớp thành công', `Đã tạo lớp "${newClass.className}" - Mã tham gia: ${newClass.joinCode}`, 'success');
     return newClass;
@@ -214,6 +218,10 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
   const updateClass = (id: string, data: Partial<Classroom>) => {
     storageService.updateClass(id, data);
+    const updated = storageService.getClassById(id);
+    if (updated) {
+      apiService.saveClassroom(updated).catch(() => {});
+    }
     setClasses(storageService.getClasses());
     showToast('Cập nhật thành công', 'Đã lưu thay đổi thông tin lớp học', 'success');
   };
@@ -237,8 +245,10 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     }
     const res = storageService.joinClassByCode(currentStudent.id, joinCode);
     if (res.success) {
-      setClassStudents(storageService.getClassStudents());
+      const updatedRelations = storageService.getClassStudents();
+      setClassStudents(updatedRelations);
       setClasses(storageService.getClasses());
+      apiService.saveClassStudents(updatedRelations).catch(() => {});
       showToast(res.message, `Lớp: ${res.classroom?.className}`, 'success');
     } else {
       showToast('Không thể tham gia', res.message, 'error');
@@ -252,13 +262,17 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
   const enrollStudentToClass = (classId: string, studentId: string) => {
     storageService.enrollStudentToClass(classId, studentId);
-    setClassStudents(storageService.getClassStudents());
+    const updatedRelations = storageService.getClassStudents();
+    setClassStudents(updatedRelations);
+    apiService.saveClassStudents(updatedRelations).catch(() => {});
     showToast('Thành công', 'Đã thêm học sinh vào lớp', 'success');
   };
 
   const removeStudentFromClass = (classId: string, studentId: string) => {
     storageService.removeStudentFromClass(classId, studentId);
-    setClassStudents(storageService.getClassStudents());
+    const updatedRelations = storageService.getClassStudents();
+    setClassStudents(updatedRelations);
+    apiService.saveClassStudents(updatedRelations).catch(() => {});
     showToast('Đã đưa ra khỏi lớp', 'Đã xóa học sinh khỏi danh sách lớp này', 'info');
   };
 
@@ -274,90 +288,86 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const [stats, setStats] = useState<UserStats>(() => storageService.getUserStats());
 
   const isHydratedRef = useRef(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // 1. Phục hồi và bổ sung dữ liệu bài tập, test cases & lịch sử nộp bài từ IndexedDB
+  /**
+   * TẢI MỚI DỮ LIỆU TOÀN DIỆN TỪ SUPABASE CLOUD DATABASE (ANTI-CACHE REAL-TIME)
+   * Không dùng cache cứng, luôn kéo dữ liệu mới nhất khi vào Dashboard hoặc đổi tài khoản
+   */
+  const refreshAllData = async (): Promise<void> => {
+    setIsRefreshing(true);
+    try {
+      const [cloudClasses, cloudRelations, cloudStudents, cloudTopics, cloudProblems, cloudSubs] = await Promise.all([
+        apiService.fetchClassrooms(),
+        apiService.fetchClassStudents(),
+        apiService.fetchStudents(),
+        apiService.fetchTopics(),
+        apiService.fetchProblems(),
+        apiService.fetchSubmissions(),
+      ]);
+
+      if (cloudClasses && cloudClasses.length > 0) {
+        setClasses(cloudClasses);
+      }
+      if (cloudRelations) {
+        setClassStudents(cloudRelations);
+      }
+      if (cloudStudents && cloudStudents.length > 0) {
+        setStudents(cloudStudents);
+      }
+      if (cloudTopics && cloudTopics.length > 0) {
+        setTopics(cloudTopics);
+      }
+      if (cloudProblems && cloudProblems.length > 0) {
+        setProblems((prev) => {
+          const mergedMap = new Map<string, Problem>();
+          cloudProblems.forEach((p) => mergedMap.set(p.id, p));
+          prev.forEach((p) => {
+            const existing = mergedMap.get(p.id);
+            if (!existing) {
+              mergedMap.set(p.id, p);
+            } else {
+              const existingHasRealTests = (existing.testCases || []).some(
+                (t) => (t.input && t.input.trim().length > 0) || (t.expectedOutput && t.expectedOutput.trim().length > 0)
+              );
+              const prevHasRealTests = (p.testCases || []).some(
+                (t) => (t.input && t.input.trim().length > 0) || (t.expectedOutput && t.expectedOutput.trim().length > 0)
+              );
+              if (!existingHasRealTests && prevHasRealTests) {
+                mergedMap.set(p.id, { ...existing, testCases: p.testCases });
+              }
+            }
+          });
+          return Array.from(mergedMap.values());
+        });
+
+        setActiveProblem((curr) => {
+          if (!curr) return cloudProblems[0] || null;
+          const updated = cloudProblems.find((p) => p.id === curr.id);
+          return updated || curr;
+        });
+      }
+      if (cloudSubs) {
+        setSubmissions(cloudSubs);
+      }
+    } catch (err) {
+      console.warn('[JudgeContext] Lỗi refreshAllData:', err);
+    } finally {
+      setIsRefreshing(false);
+      isHydratedRef.current = true;
+    }
+  };
+
+  // 1. Phục hồi và bổ sung dữ liệu khi khởi động
   useEffect(() => {
     let isMounted = true;
     (async () => {
       try {
-        const [cloudProblems, cloudSubmissions] = await Promise.all([
-          apiService.fetchProblems(),
-          apiService.fetchSubmissions(),
-        ]);
-        if (!isMounted) return;
-
-        if (cloudProblems && cloudProblems.length > 0) {
-          setProblems((prev) => {
-            const mergedMap = new Map<string, Problem>();
-            // 1. Nạp toàn bộ bài từ Database thực tế vào trước (chứa 100% test cases)
-            cloudProblems.forEach((p) => mergedMap.set(p.id, p));
-
-            // 2. Kết hợp với bài trong prev nếu prev có bài mới hơn hoặc có test case thực sự
-            prev.forEach((p) => {
-              const existing = mergedMap.get(p.id);
-              if (!existing) {
-                mergedMap.set(p.id, p);
-              } else {
-                const existingHasRealTests = (existing.testCases || []).some(
-                  (t) => (t.input && t.input.trim().length > 0) || (t.expectedOutput && t.expectedOutput.trim().length > 0)
-                );
-                const prevHasRealTests = (p.testCases || []).some(
-                  (t) => (t.input && t.input.trim().length > 0) || (t.expectedOutput && t.expectedOutput.trim().length > 0)
-                );
-
-                if (!existingHasRealTests && prevHasRealTests) {
-                  mergedMap.set(p.id, { ...existing, testCases: p.testCases });
-                } else if (!existingHasRealTests && !prevHasRealTests && (p.testCases?.length || 0) > (existing.testCases?.length || 0)) {
-                  mergedMap.set(p.id, { ...existing, testCases: p.testCases });
-                }
-              }
-            });
-
-            const finalList = Array.from(mergedMap.values());
-            return finalList;
-          });
-
-          setActiveProblem((curr) => {
-            if (!curr) return cloudProblems[0] || null;
-            const updated = cloudProblems.find((p) => p.id === curr.id);
-            return updated || curr;
-          });
-        } else {
-          // Lần đầu mở app hoặc DB v2 mới khởi tạo: nạp dữ liệu hiện có từ localStorage vào IndexedDB
-          const current = storageService.getProblems();
-          if (current.length > 0) {
-            await idbService.saveProblems(current);
-            // TỰ ĐỘNG ĐẨY LÊN SUPABASE CLOUD NẾU CLOUD ĐANG TRỐNG
-            if (apiService.isConfigured()) {
-              apiService.syncAllToCloud().then((res) => {
-                if (res.problemsCount > 0) {
-                  showToast(
-                    'Đã đồng bộ lên Cloud! ☁️',
-                    `Đã tự động đưa ${res.problemsCount} bài tập lên Supabase Cloud. Điện thoại đã có thể xem được ngay!`,
-                    'success'
-                  );
-                }
-              }).catch(() => {});
-            }
-          }
-        }
-
-        // BỔ SUNG QUAN TRỌNG: Nạp toàn bộ lịch sử nộp bài (AC) từ Database thực tế vào React state
-        if (cloudSubmissions && cloudSubmissions.length > 0) {
-          setSubmissions((prev) => {
-            const subMap = new Map<string, Submission>();
-            // Nạp từ prev trước, sau đó ghi đè bằng cloudSubmissions (nguồn chính thức và đầy đủ nhất từ DB)
-            prev.forEach((s) => subMap.set(s.id, s));
-            cloudSubmissions.forEach((s) => subMap.set(s.id, s));
-            return Array.from(subMap.values()).sort(
-              (a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime()
-            );
-          });
-        }
+        await refreshAllData();
       } catch (err) {
-        console.warn('Lỗi đồng bộ IndexedDB vào React state:', err);
-      } finally {
-        isHydratedRef.current = true;
+        if (isMounted) {
+          console.warn('Lỗi tải dữ liệu khởi động:', err);
+        }
       }
     })();
     return () => {
@@ -365,11 +375,72 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     };
   }, []);
 
+  // 2. ÉP VĂNG RA MÀN HÌNH ĐĂNG NHẬP NẾU PHIÊN ADMIN SAI MẬT KHẨU TRÊN DATABASE
+  const forceAdminLogout = (reason: string) => {
+    storageService.clearAllStorageAndCookies();
+    sessionStorage.removeItem('faminh_admin_verified_pass');
+    setCurrentStudent(null);
+    setIsAdminAuthenticated(false);
+    setRole('USER');
+    setActiveClassId(null);
+    setActiveProblem(null);
+    setActiveTopicId(null);
+    setClasses([]);
+    setClassStudents([]);
+    setSubmissions([]);
+    setProblems([]);
+    setTopics([]);
+    setStats({
+      solvedCount: 0,
+      attemptedCount: 0,
+      totalSubmissions: 0,
+      pointsAccumulated: 0,
+    });
+    setIsAuthModalOpen(true);
+    setAuthModalTab('admin');
+    showToast('Phiên làm việc kết thúc', reason, 'error');
+  };
+
+  // 3. ĐỐI CHIẾU REAL-TIME MẬT KHẨU ADMIN VỚI DATABASE TRỰC TIẾP
   useEffect(() => {
+    if (!isAdminAuthenticated) return;
+
+    let isMounted = true;
+    const verifySessionRealtime = async () => {
+      const verifiedPass = sessionStorage.getItem('faminh_admin_verified_pass');
+      if (!verifiedPass) {
+        if (isMounted) {
+          forceAdminLogout('Phiên quản trị chưa được đối chiếu trực tiếp với Database. Vui lòng đăng nhập lại!');
+        }
+        return;
+      }
+
+      const isValid = await apiService.verifyAdminPassword(verifiedPass);
+      if (!isValid && isMounted) {
+        forceAdminLogout('Mật mã quản trị viên trên Database đã thay đổi. Bạn đã bị đăng xuất để bảo vệ hệ thống!');
+      }
+    };
+
+    verifySessionRealtime();
+
+    const handleFocus = () => {
+      verifySessionRealtime();
+    };
+    window.addEventListener('focus', handleFocus);
+    const interval = setInterval(verifySessionRealtime, 45000);
+
+    return () => {
+      isMounted = false;
+      window.removeEventListener('focus', handleFocus);
+      clearInterval(interval);
+    };
+  }, [isAdminAuthenticated]);
+
+  useEffect(() => {
+    if (!isHydratedRef.current) return;
     storageService.saveTopics(topics);
   }, [topics]);
 
-  // 2. Chỉ lưu problems khi đã hoàn tất hydration từ IndexedDB để không bị ghi đè dữ liệu rỗng
   useEffect(() => {
     if (!isHydratedRef.current) return;
     storageService.saveProblems(problems);
@@ -378,7 +449,6 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   useEffect(() => {
     setStats(storageService.getUserStats(isAdminAuthenticated ? null : currentStudent, activeClassId, submissions));
   }, [submissions, isAdminAuthenticated, currentStudent, activeClassId]);
-
 
   const showToast = (title: string, message: string, type: ToastMessage['type'] = 'info') => {
     const id = `toast_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
@@ -393,27 +463,37 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   };
 
   // Học sinh Đăng nhập
-  const loginStudent = (username: string, password: string): { success: boolean; message: string } => {
+  const loginStudent = async (username: string, password: string): Promise<{ success: boolean; message: string }> => {
     if (!username.trim() || !password.trim()) {
       return { success: false, message: 'Vui lòng nhập đầy đủ Tên đăng nhập và Mật khẩu!' };
     }
 
-    const currentList = storageService.getStudents();
+    let currentList = await apiService.fetchStudents();
+    if (!currentList || currentList.length === 0) {
+      currentList = storageService.getStudents();
+    }
+
     const found = currentList.find(
       (s) => s.username.toLowerCase() === username.trim().toLowerCase() && s.password === password.trim()
     );
 
     if (found) {
-      setCurrentStudent(found);
-      storageService.setStudentSession(found);
-      // Hủy quyền admin nếu có
+      // Dọn dẹp session admin cũ nếu có
+      storageService.setAdminSessionActive(false);
+      sessionStorage.removeItem('faminh_admin_verified_pass');
       setIsAdminAuthenticated(false);
       setRole('USER');
-      storageService.setAdminSessionActive(false);
+
+      setCurrentStudent(found);
+      storageService.setStudentSession(found);
       setIsAuthModalOpen(false);
+
+      // Fetch mới ngay danh sách lớp học và dữ liệu của học sinh này từ Database
+      await refreshAllData();
+
       showToast(
         'Đăng nhập thành công',
-        `Chào mừng học sinh ${found.fullName}! Chúc em luyện tập đạt kết quả tốt nhất.`,
+        `Chào mừng học sinh ${found.fullName}! Dữ liệu lớp học đã được cập nhật mới nhất.`,
         'success'
       );
       return { success: true, message: 'Đăng nhập thành công' };
@@ -427,20 +507,40 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
   // Học sinh Đăng xuất
   const logoutStudent = () => {
+    storageService.clearAllStorageAndCookies();
+    sessionStorage.removeItem('faminh_admin_verified_pass');
     setCurrentStudent(null);
-    storageService.setStudentSession(null);
+    setIsAdminAuthenticated(false);
+    setRole('USER');
+    setActiveClassId(null);
+    setActiveProblem(null);
+    setActiveTopicId(null);
+    setClasses([]);
+    setClassStudents([]);
+    setSubmissions([]);
+    setProblems([]);
+    setTopics([]);
+    setStats({
+      solvedCount: 0,
+      attemptedCount: 0,
+      totalSubmissions: 0,
+      pointsAccumulated: 0,
+    });
     setIsAuthModalOpen(true);
     setAuthModalTab('student');
-    showToast('Đã đăng xuất', 'Đã đăng xuất tài khoản học sinh.', 'info');
+    showToast('Đã đăng xuất', 'Đã đăng xuất tài khoản và xóa sạch toàn bộ phiên làm việc.', 'info');
   };
 
   // Giáo viên tạo tài khoản Học sinh mới
-  const addStudent = (fullName: string, username: string, password: string): { success: boolean; message: string } => {
+  const addStudent = async (fullName: string, username: string, password: string): Promise<{ success: boolean; message: string }> => {
     if (!fullName.trim() || !username.trim() || !password.trim()) {
       return { success: false, message: 'Vui lòng điền đầy đủ Họ và tên, Tên đăng nhập và Mật khẩu!' };
     }
     const cleanUsername = username.trim().toLowerCase();
-    const currentList = storageService.getStudents();
+    let currentList = await apiService.fetchStudents();
+    if (!currentList || currentList.length === 0) {
+      currentList = storageService.getStudents();
+    }
     if (currentList.some((s) => s.username.toLowerCase() === cleanUsername)) {
       return { success: false, message: `Tên đăng nhập "${cleanUsername}" đã tồn tại! Vui lòng chọn tên khác.` };
     }
@@ -453,82 +553,122 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       createdAt: new Date().toISOString(),
     };
 
-    storageService.addStudent(newStudent);
-    setStudents(storageService.getStudents());
+    const nextList = [newStudent, ...currentList];
+    storageService.saveStudents(nextList);
+    await apiService.saveStudents(nextList);
+    setStudents(nextList);
     showToast('Cấp tài khoản thành công', `Đã tạo tài khoản cho học sinh ${newStudent.fullName} (${newStudent.username})`, 'success');
     return { success: true, message: 'Tạo tài khoản thành công' };
   };
 
   // Giáo viên xóa tài khoản Học sinh
-  const deleteStudent = (id: string) => {
+  const deleteStudent = async (id: string) => {
     storageService.deleteStudent(id);
-    setStudents(storageService.getStudents());
+    const list = storageService.getStudents();
+    setStudents(list);
+    await apiService.saveStudents(list);
     if (currentStudent?.id === id) {
-      setCurrentStudent(null);
-      storageService.setStudentSession(null);
-      setIsAuthModalOpen(true);
+      logoutStudent();
     }
     showToast('Đã xóa', 'Đã xóa tài khoản học sinh khỏi danh sách.', 'info');
   };
 
-  const loginAdmin = (password: string): { success: boolean; message: string } => {
-    if (!password) {
+  // Giáo viên (Admin) Đăng nhập - BẮT BUỘC ĐỐI CHIẾU TRỰC TIẾP VỚI DATABASE
+  const loginAdmin = async (password: string): Promise<{ success: boolean; message: string }> => {
+    if (!password || !password.trim()) {
       return { success: false, message: 'Vui lòng nhập mật mã quản trị viên!' };
     }
 
-    const isValid = storageService.verifyAdminPassword(password);
+    // Đối chiếu trực tiếp với Supabase Cloud Database qua API
+    const isValid = await apiService.verifyAdminPassword(password.trim());
     if (isValid) {
+      // Dọn dẹp session học sinh nếu có
+      storageService.setStudentSession(null);
+      setCurrentStudent(null);
+
       setIsAdminAuthenticated(true);
       setRole('ADMIN');
       storageService.setAdminSessionActive(true);
-      // Hủy session học sinh nếu đang đăng nhập admin
-      setCurrentStudent(null);
-      storageService.setStudentSession(null);
+      sessionStorage.setItem('faminh_admin_verified_pass', password.trim());
       setIsAuthModalOpen(false);
+
+      // Kéo dữ liệu mới nhất từ Database
+      await refreshAllData();
+
       showToast(
         'Xác thực thành công',
-        'Chào mừng Giáo viên / Quản trị viên FAMINH! Đã mở quyền quản trị hệ thống.',
+        'Chào mừng Giáo viên / Quản trị viên FAMINH! Đã mở quyền quản trị hệ thống với Database.',
         'success'
       );
       return { success: true, message: 'Đăng nhập thành công' };
     } else {
+      // Đối chiếu sai mật khẩu: ÉP VĂNG / TỪ CHỐI
+      storageService.clearAllStorageAndCookies();
+      sessionStorage.removeItem('faminh_admin_verified_pass');
+      setIsAdminAuthenticated(false);
+      setRole('USER');
       showToast(
         'Từ chối truy cập',
-        'Mật mã quản trị viên không chính xác. Hành vi truy cập trái phép bị chặn!',
+        'Mật mã quản trị viên không chính xác trên Database. Yêu cầu đăng nhập lại!',
         'error'
       );
-      return { success: false, message: 'Mật mã quản trị viên không chính xác!' };
+      return { success: false, message: 'Mật mã quản trị viên không chính xác trên Database!' };
     }
   };
 
+  // Quản trị viên Đăng xuất
   const logoutAdmin = () => {
+    storageService.clearAllStorageAndCookies();
+    sessionStorage.removeItem('faminh_admin_verified_pass');
+    setCurrentStudent(null);
     setIsAdminAuthenticated(false);
     setRole('USER');
-    storageService.setAdminSessionActive(false);
+    setActiveClassId(null);
+    setActiveProblem(null);
+    setActiveTopicId(null);
+    setClasses([]);
+    setClassStudents([]);
+    setSubmissions([]);
+    setProblems([]);
+    setTopics([]);
+    setStats({
+      solvedCount: 0,
+      attemptedCount: 0,
+      totalSubmissions: 0,
+      pointsAccumulated: 0,
+    });
     setIsAuthModalOpen(true);
-    setAuthModalTab('student');
+    setAuthModalTab('admin');
     showToast(
       'Đã đăng xuất Admin',
-      'Đã khóa quyền quản trị. Hệ thống trở về màn hình đăng nhập.',
+      'Đã khóa quyền quản trị và dọn dẹp an toàn toàn bộ dữ liệu phiên.',
       'info'
     );
   };
 
-  const changeAdminPassword = (
+  const changeAdminPassword = async (
     oldPass: string,
     newPass: string
-  ): { success: boolean; message: string } => {
-    if (!storageService.verifyAdminPassword(oldPass)) {
-      return { success: false, message: 'Mật mã hiện tại không đúng!' };
+  ): Promise<{ success: boolean; message: string }> => {
+    // 1. Kiểm tra mật khẩu cũ trực tiếp qua Database
+    const isOldValid = await apiService.verifyAdminPassword(oldPass);
+    if (!isOldValid) {
+      return { success: false, message: 'Mật mã hiện tại không đúng trên Database!' };
     }
-    if (!newPass || newPass.length < 6) {
+    if (!newPass || newPass.trim().length < 6) {
       return { success: false, message: 'Mật mã mới phải có ít nhất 6 ký tự!' };
     }
 
-    storageService.setAdminPassword(newPass);
-    setIsChangePasswordModalOpen(false);
-    showToast('Đổi mật mã thành công', 'Mật mã quản trị FAMINH mới đã được cập nhật an toàn.', 'success');
-    return { success: true, message: 'Đổi mật mã thành công' };
+    // 2. Cập nhật mật mã mới lên Database Supabase Cloud
+    const updated = await apiService.updateAdminPasswordInDatabase(newPass.trim());
+    if (updated) {
+      sessionStorage.setItem('faminh_admin_verified_pass', newPass.trim());
+      setIsChangePasswordModalOpen(false);
+      showToast('Đổi mật mã thành công', 'Mật mã quản trị FAMINH mới đã được cập nhật an toàn lên Database.', 'success');
+      return { success: true, message: 'Đổi mật mã thành công' };
+    } else {
+      return { success: false, message: 'Không thể kết nối đến Database để đổi mật mã!' };
+    }
   };
 
   const addTopic = (topicData: Omit<Topic, 'id'>) => {
@@ -886,6 +1026,8 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         loginAdmin,
         logoutAdmin,
         changeAdminPassword,
+        refreshAllData,
+        isRefreshing,
         classes,
         activeClassId,
         setActiveClassId,

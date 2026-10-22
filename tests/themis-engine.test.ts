@@ -17,7 +17,7 @@ import {
 import type { Problem } from '../src/types/judge.ts';
 
 // Setup mock localStorage and sessionStorage for Node.js environment
-const mockStorage = (() => {
+const createMockStorage = () => {
   let store: Record<string, string> = {};
   return {
     getItem: (key: string) => store[key] || null,
@@ -30,11 +30,18 @@ const mockStorage = (() => {
     clear: () => {
       store = {};
     },
+    get length() {
+      return Object.keys(store).length;
+    },
+    key: (i: number) => Object.keys(store)[i] || null,
   };
-})();
+};
+
+const mockStorage = createMockStorage();
+const mockSessionStorage = createMockStorage();
 
 (globalThis as unknown as { localStorage: typeof mockStorage }).localStorage = mockStorage;
-(globalThis as unknown as { sessionStorage: typeof mockStorage }).sessionStorage = mockStorage;
+(globalThis as unknown as { sessionStorage: typeof mockSessionStorage }).sessionStorage = mockSessionStorage;
 
 let totalTestsRun = 0;
 let passedTests = 0;
@@ -112,6 +119,20 @@ async function main() {
     storageService.resetToDefault();
     assert.equal(storageService.getTopics().length, 0, 'Sau resetToDefault topics phai la []');
     assert.equal(storageService.getProblems().length, 0, 'Sau resetToDefault problems phai la []');
+  });
+
+  await runTest('storageService.clearAllStorageAndCookies() xoa sach toan bo sessions, classes, problems va giu nguyen theme', () => {
+    mockStorage.setItem('faminh_admin_password_v1', 'secret123');
+    mockStorage.setItem('faminh_judge_theme_v1', 'dark');
+    mockStorage.setItem('faminh_judge_students_v1', '[{"id":"s1"}]');
+    mockStorage.setItem('faminh_judge_classes_v1', '[{"id":"c1"}]');
+
+    storageService.clearAllStorageAndCookies();
+
+    assert.equal(mockStorage.getItem('faminh_judge_theme_v1'), 'dark', 'Theme phai duoc bao toan');
+    assert.equal(mockStorage.getItem('faminh_admin_password_v1'), null, 'Admin password phai bi xoa sach');
+    assert.equal(mockStorage.getItem('faminh_judge_students_v1'), null, 'Students phai bi xoa sach');
+    assert.equal(mockStorage.getItem('faminh_judge_classes_v1'), null, 'Classes phai bi xoa sach');
   });
 
   // ==========================================

@@ -608,5 +608,89 @@ export const storageService = {
     sessionStorage.removeItem(STORAGE_KEYS.ADMIN_SESSION);
     sessionStorage.removeItem(STORAGE_KEYS.STUDENT_SESSION);
   },
+
+  /**
+   * XÓA TOÀN BỘ STORAGE, COOKIES VÀ STATE KHI LOGOUT
+   * - Xóa toàn bộ sessionStorage
+   * - Xóa toàn bộ Cookies trình duyệt
+   * - Xóa các khóa dữ liệu phiên, người dùng, lớp học, bài tập trong localStorage
+   */
+  clearAllStorageAndCookies(): void {
+    // Lưu lại theme giao diện nếu có trước khi dọn dẹp
+    let savedTheme: string | null = null;
+    if (typeof localStorage !== 'undefined') {
+      try {
+        savedTheme = localStorage.getItem(STORAGE_KEYS.THEME);
+      } catch {
+        // Bỏ qua lỗi truy cập localStorage
+      }
+    }
+
+    // 1. Dọn dẹp sessionStorage
+    if (typeof sessionStorage !== 'undefined') {
+      try {
+        sessionStorage.clear();
+      } catch {
+        // Bỏ qua lỗi truy cập sessionStorage
+      }
+    }
+
+    // 2. Dọn dẹp localStorage (giữ lại theme giao diện nếu có)
+    if (typeof localStorage !== 'undefined') {
+      try {
+
+        // Xóa tất cả các khóa lưu trữ của FAMINH
+        Object.values(STORAGE_KEYS).forEach((k) => {
+          if (k !== STORAGE_KEYS.THEME) {
+            localStorage.removeItem(k);
+          }
+        });
+
+        // Quét và xóa toàn bộ các khóa bắt đầu bằng faminh_ khác (ngoại trừ theme)
+        const keysToRemove: string[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k && k.startsWith('faminh_') && k !== STORAGE_KEYS.THEME) {
+            keysToRemove.push(k);
+          }
+        }
+        keysToRemove.forEach((k) => localStorage.removeItem(k));
+
+        if (savedTheme) {
+          localStorage.setItem(STORAGE_KEYS.THEME, savedTheme);
+        }
+      } catch {
+        // Bỏ qua lỗi truy cập localStorage
+      }
+    }
+
+    // 3. Dọn dẹp Cookies
+    if (typeof document !== 'undefined' && typeof document.cookie === 'string') {
+      try {
+        const cookies = document.cookie.split(';');
+        for (const cookie of cookies) {
+          const eqPos = cookie.indexOf('=');
+          const name = eqPos > -1 ? cookie.substring(0, eqPos).trim() : cookie.trim();
+          if (name) {
+            document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/`;
+            if (typeof window !== 'undefined' && window.location && window.location.hostname) {
+              const host = window.location.hostname;
+              document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=${host}`;
+              document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=.${host}`;
+            }
+          }
+        }
+      } catch {
+        // Bỏ qua lỗi cookies
+      }
+    }
+
+    // 4. Dọn dẹp bộ đệm submissions trong IndexedDB
+    try {
+      idbService.clearSubmissions();
+    } catch {
+      // Bỏ qua lỗi
+    }
+  },
 };
 

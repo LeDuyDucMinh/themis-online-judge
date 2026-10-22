@@ -92,7 +92,7 @@ export const TeacherClassDetail: React.FC<TeacherClassDetailProps> = ({ classId 
   const classStudentIds = new Set(classStudents.map((s) => s.id));
   const availableStudents = students.filter((s) => !classStudentIds.has(s.id));
 
-  const handleEnrollStudent = (e: React.FormEvent) => {
+  const handleEnrollStudent = async (e: React.FormEvent) => {
     e.preventDefault();
     if (addMode === 'existing') {
       if (!selectedExistingStudentId) {
@@ -107,7 +107,7 @@ export const TeacherClassDetail: React.FC<TeacherClassDetailProps> = ({ classId 
         showToast('Thiếu thông tin', 'Vui lòng nhập Họ tên và Tên đăng nhập cho học sinh mới', 'warning');
         return;
       }
-      const res = addStudent(newStudentFullName.trim(), newStudentUsername.trim(), newStudentPassword.trim() || '123');
+      const res = await addStudent(newStudentFullName.trim(), newStudentUsername.trim(), newStudentPassword.trim() || '123');
       if (res.success) {
         // Tự động gán vào lớp
         const created = students.find((s) => s.username === newStudentUsername.trim().toLowerCase());
