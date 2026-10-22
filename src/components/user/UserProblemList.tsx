@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useJudge } from '../../context/JudgeContext';
 import type { Problem } from '../../types/judge';
+import { isProblemInClass } from '../../types/judge';
 import {
   CheckCircle2,
   Clock,
@@ -18,10 +19,21 @@ import {
 
 interface UserProblemListProps {
   onSelectProblem: (problem: Problem) => void;
+  onBackToClasses?: () => void;
 }
 
-export const UserProblemList: React.FC<UserProblemListProps> = ({ onSelectProblem }) => {
-  const { topics, problems, getProblemStatus, submissions, isAdminAuthenticated, currentStudent } = useJudge();
+export const UserProblemList: React.FC<UserProblemListProps> = ({ onSelectProblem, onBackToClasses }) => {
+  const {
+    topics,
+    problems,
+    getProblemStatus,
+    submissions,
+    isAdminAuthenticated,
+    currentStudent,
+    activeClassId,
+    activeClass,
+    setActiveClassId,
+  } = useJudge();
 
   // State điều hướng: activeTopicId === null là trang chủ đề, !== null là trang danh sách bài của chủ đề đó
   const [activeTopicId, setActiveTopicId] = useState<string | null>(null);
@@ -50,10 +62,34 @@ export const UserProblemList: React.FC<UserProblemListProps> = ({ onSelectProble
   // Chủ đề hiện đang được chọn
   const currentTopic = activeTopicId ? topics.find((t) => t.id === activeTopicId) : null;
 
+  // Lọc bài tập chỉ thuộc lớp học hiện tại nếu có activeClassId
+  const classScopedProblems = activeClassId
+    ? problems.filter((p) => isProblemInClass(p, activeClassId, topics))
+    : problems;
+
+  // Lọc chủ đề hiển thị: nếu đang trong lớp học cụ thể, chỉ hiển thị chủ đề giao cho lớp này (hỗ trợ cả mảng classIds và classId) hoặc giao cho tất cả các lớp (ALL)
+  const visibleTopics = activeClassId
+    ? topics.filter((t) => {
+        const assignedIds = t.classIds && t.classIds.length > 0
+          ? t.classIds
+          : (t.classId ? [t.classId] : ['ALL']);
+
+        if (assignedIds.includes(activeClassId)) return true;
+        if (assignedIds.includes('ALL')) {
+          // Chủ đề chung: hiển thị nếu có bài tập thuộc lớp này hoặc nếu chủ đề này chưa có bài nào
+          const hasClassProblems = classScopedProblems.some((p) => p.topicId === t.id);
+          const totalInTopic = problems.filter((p) => p.topicId === t.id).length;
+          return hasClassProblems || totalInTopic === 0;
+        }
+        return false;
+      })
+    : topics;
+
   // Danh sách bài tập hiển thị (nếu đang trong chủ đề thì chỉ lấy bài của chủ đề đó)
   const topicProblems = activeTopicId
-    ? problems.filter((p) => p.topicId === activeTopicId)
-    : problems;
+    ? classScopedProblems.filter((p) => p.topicId === activeTopicId)
+    : classScopedProblems;
+
 
   // Lọc bài tập theo từ khóa, độ khó, trạng thái
   const filteredProblems = topicProblems.filter((prob) => {
@@ -347,13 +383,37 @@ export const UserProblemList: React.FC<UserProblemListProps> = ({ onSelectProble
   // (Hiển thị các ô chủ đề, khi ấn vào ô sẽ chuyển sang trang danh sách bài)
   // ==========================================
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 animate-in fade-in duration-200">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6 animate-in fade-in duration-200">
+      {/* Nút quay lại danh sách lớp học nếu đang trong 1 lớp */}
+      {activeClass && (
+        <div className="flex items-center justify-between gap-3 pb-3 border-b border-slate-200 dark:border-slate-800">
+          <button
+            onClick={() => {
+              if (onBackToClasses) onBackToClasses();
+              else setActiveClassId(null);
+            }}
+            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 hover:text-red-500 text-xs font-bold transition-all border border-slate-300 dark:border-slate-700 cursor-pointer group"
+          >
+            <ArrowLeft className="w-4 h-4 text-red-500 group-hover:-translate-x-0.5 transition-transform" />
+            <span>Quay lại danh sách lớp học</span>
+          </button>
+
+          <div className="flex items-center gap-2 text-xs">
+            <span className="text-slate-500 dark:text-slate-400 font-medium hidden sm:inline">Lớp học hiện tại:</span>
+            <span className="px-3 py-1 rounded-xl bg-red-500/15 text-red-600 dark:text-red-400 font-black border border-red-500/20">
+              {activeClass.className}
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* Hero Banner FAMINH */}
       <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-red-950 via-slate-900 to-slate-900 p-8 border border-red-500/20 shadow-2xl flex flex-col md:flex-row items-center justify-between gap-6">
         <div className="relative z-10 max-w-2xl">
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-red-500/20 text-red-300 border border-red-500/30 mb-3">
             <Sparkles className="w-3.5 h-3.5 text-red-400" /> Hệ thống Luyện thi FAMINH JUDGE
           </span>
+
           <h1 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight leading-tight">
             Nền Tảng Luyện Code & Chấm Điểm Chuẩn Themis
           </h1>
@@ -389,25 +449,25 @@ export const UserProblemList: React.FC<UserProblemListProps> = ({ onSelectProble
             </p>
           </div>
           <span className="text-xs font-mono text-slate-700 dark:text-slate-400 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-3 py-1.5 rounded-xl shadow-sm">
-            {topics.length} chủ đề • {problems.length} bài tập
+            {visibleTopics.length} chủ đề • {classScopedProblems.length} bài tập
           </span>
         </div>
 
         {/* Lưới các ô Chủ Đề (Bấm vào để chuyển trang danh sách bài) */}
-        {topics.length === 0 ? (
+        {visibleTopics.length === 0 ? (
           <div className="bg-slate-900/60 border border-slate-800 rounded-3xl p-12 text-center shadow-lg">
             <div className="w-16 h-16 rounded-2xl bg-slate-800 border border-slate-700 text-slate-400 flex items-center justify-center mx-auto mb-4">
               <Layers className="w-8 h-8 text-blue-400 opacity-60" />
             </div>
-            <h4 className="text-lg font-bold text-slate-200">Chưa có chủ đề bài tập nào</h4>
+            <h4 className="text-lg font-bold text-slate-200">Chưa có chủ đề bài tập nào cho lớp học này</h4>
             <p className="text-xs text-slate-400 mt-2 max-w-md mx-auto leading-relaxed">
-              Hệ thống hiện tại chưa có chủ đề bài tập nào được tạo. Giáo viên / Quản trị viên vui lòng đăng nhập để bắt đầu tạo chủ đề và thêm bài tập.
+              Giáo viên chưa giao chủ đề bài tập nào vào lớp này. Khi giáo viên tạo hoặc gán chủ đề vào lớp, các chủ đề sẽ xuất hiện ở đây.
             </p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {topics.map((topic) => {
-              const topicProblems = problems.filter((p) => p.topicId === topic.id);
+            {visibleTopics.map((topic) => {
+              const topicProblems = classScopedProblems.filter((p) => p.topicId === topic.id);
               const solvedInTopic = topicProblems.filter(
                 (p) => getProblemStatus(p.id) === 'SOLVED'
               ).length;

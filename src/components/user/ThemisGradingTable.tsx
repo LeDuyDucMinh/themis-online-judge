@@ -29,11 +29,18 @@ export const ThemisGradingTable: React.FC<ThemisGradingTableProps> = ({
   totalTestsToRun = 0,
   showDetails,
 }) => {
-  const { theme, isAdminAuthenticated } = useJudge();
+  const { theme } = useJudge();
   const [expandedTestId, setExpandedTestId] = useState<string | null>(null);
 
-  // Chỉ cho phép xem chi tiết I/O khi là Giáo viên (Admin), ẩn hoàn toàn bên Học sinh
-  const canViewDetails = showDetails ?? isAdminAuthenticated;
+  // Mở rộng chi tiết I/O cho mọi người dùng (học sinh & giáo viên), trừ khi bị truyền showDetails={false}
+  const canViewDetails = showDetails !== false;
+
+  const formatOutput = (str?: string | null): string => {
+    if (!str) return 'Không có dữ liệu';
+    return str.length > 1000
+      ? str.substring(0, 1000) + '\n\n... [Dữ liệu quá dài, đã được ẩn bớt]'
+      : str;
+  };
 
   const formatPoint = (val: number) => {
     const rounded = Number(val.toFixed(2));
@@ -122,6 +129,13 @@ export const ThemisGradingTable: React.FC<ThemisGradingTableProps> = ({
           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-slate-500/20 text-slate-300 border border-slate-500/30">
             <FileCode2 className="w-3.5 h-3.5" />
             LỖI BIÊN DỊCH (CE)
+          </span>
+        );
+      case 'SYS':
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-purple-500/15 text-purple-400 border border-purple-500/30">
+            <AlertOctagon className="w-3.5 h-3.5" />
+            LỖI MÁY CHẤM (SYS)
           </span>
         );
       default:
@@ -364,7 +378,7 @@ export const ThemisGradingTable: React.FC<ThemisGradingTableProps> = ({
               <th className="py-3 px-4">Thời gian</th>
               <th className="py-3 px-4">Bộ nhớ</th>
               <th className="py-3 px-4 text-right">Điểm số</th>
-              {canViewDetails && <th className="py-3 px-3 text-center">Chi tiết</th>}
+              {canViewDetails && <th className="py-3 px-3 text-center w-16">Chi tiết</th>}
             </tr>
           </thead>
           <tbody
@@ -375,17 +389,33 @@ export const ThemisGradingTable: React.FC<ThemisGradingTableProps> = ({
             }`}
           >
             {submission.testResults.map((tr: TestResult, idx: number) => {
-              const isExpanded = expandedTestId === tr.testId;
+              const testKey = tr.testId || `test_${idx}`;
+              const isExpanded = canViewDetails && expandedTestId === testKey;
               const isPassed = tr.verdict === 'AC';
+              const isError =
+                tr.verdict === 'RTE' ||
+                tr.verdict === 'CE' ||
+                tr.verdict === 'MLE' ||
+                tr.verdict === 'SYS' ||
+                Boolean(tr.errorLog) ||
+                Boolean(tr.errorMessage);
+
+              const handleToggle = () => {
+                if (!canViewDetails) return;
+                setExpandedTestId(isExpanded ? null : testKey);
+              };
 
               return (
-                <React.Fragment key={tr.testId || idx}>
+                <React.Fragment key={testKey}>
                   <tr
+                    onClick={handleToggle}
                     className={`transition-colors ${
+                      canViewDetails ? 'cursor-pointer select-none' : ''
+                    } ${
                       theme === 'light'
                         ? isPassed
-                          ? 'hover:bg-emerald-50/60 bg-white'
-                          : 'hover:bg-rose-50/60 bg-white'
+                          ? 'hover:bg-emerald-50/70 bg-white'
+                          : 'hover:bg-rose-50/70 bg-white'
                         : isPassed
                         ? 'hover:bg-slate-800/40 bg-emerald-950/5'
                         : 'hover:bg-slate-800/40 bg-rose-950/5'
@@ -396,7 +426,20 @@ export const ThemisGradingTable: React.FC<ThemisGradingTableProps> = ({
                         theme === 'light' ? 'text-slate-950' : 'text-slate-200'
                       }`}
                     >
-                      {tr.testName}
+                      <div className="flex items-center gap-2">
+                        {canViewDetails && (
+                          <span
+                            className={`p-0.5 rounded transition-transform duration-200 ${
+                              isExpanded
+                                ? 'text-blue-500 rotate-180'
+                                : 'text-slate-400'
+                            }`}
+                          >
+                            <ChevronDown className="w-3.5 h-3.5" />
+                          </span>
+                        )}
+                        <span>{tr.testName}</span>
+                      </div>
                     </td>
                     <td className="py-3 px-4">{getVerdictBadge(tr.verdict)}</td>
                     <td
@@ -435,18 +478,22 @@ export const ThemisGradingTable: React.FC<ThemisGradingTableProps> = ({
                     {canViewDetails && (
                       <td className="py-3 px-3 text-center">
                         <button
-                          onClick={() =>
-                            setExpandedTestId(isExpanded ? null : tr.testId)
-                          }
-                          className={`p-1 rounded transition-colors cursor-pointer ${
-                            theme === 'light'
-                              ? 'hover:bg-slate-200 text-slate-600'
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleToggle();
+                          }}
+                          className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                            isExpanded
+                              ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400'
+                              : theme === 'light'
+                              ? 'hover:bg-slate-200 text-slate-500 hover:text-slate-800'
                               : 'hover:bg-slate-700/50 text-slate-400 hover:text-white'
                           }`}
-                          title="Xem chi tiết I/O test này (Chỉ Giáo viên)"
+                          title={isExpanded ? 'Thu gọn chi tiết' : 'Xem chi tiết kết quả test này'}
                         >
                           {isExpanded ? (
-                            <ChevronUp className="w-4 h-4" />
+                            <ChevronUp className="w-4 h-4 text-blue-500" />
                           ) : (
                             <ChevronDown className="w-4 h-4" />
                           )}
@@ -455,7 +502,7 @@ export const ThemisGradingTable: React.FC<ThemisGradingTableProps> = ({
                     )}
                   </tr>
 
-                  {/* Expanded Row for debugging I/O (Chỉ giáo viên xem được) */}
+                  {/* Expanded Row for viewing Actual vs Expected Output */}
                   {canViewDetails && isExpanded && (
                     <tr
                       className={
@@ -464,58 +511,72 @@ export const ThemisGradingTable: React.FC<ThemisGradingTableProps> = ({
                           : 'bg-slate-950/80 border-y border-slate-800/80'
                       }
                     >
-                      <td colSpan={6} className="p-4">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div>
-                            <span
-                              className={`text-[11px] font-bold uppercase tracking-wide block mb-1 ${
+                      <td colSpan={6} className="p-4 sm:p-5">
+                        <div className="space-y-3.5">
+                          {/* Block Thông báo lỗi (Error Log) nếu là RTE, CE hoặc có errorMessage/errorLog */}
+                          {isError && (
+                            <div
+                              className={`p-3.5 rounded-xl border ${
                                 theme === 'light'
-                                  ? 'text-slate-700'
-                                  : 'text-slate-400'
+                                  ? 'bg-rose-50 border-rose-200 text-rose-900'
+                                  : 'bg-rose-950/30 border-rose-900/50 text-rose-300'
                               }`}
                             >
-                              Đáp án mong đợi (Expected Output):
-                            </span>
-                            <pre
-                              className={`p-2.5 rounded-lg font-mono text-xs overflow-x-auto max-h-32 border ${
-                                theme === 'light'
-                                  ? 'bg-white text-emerald-800 border-slate-200'
-                                  : 'bg-slate-900 text-emerald-400 border-slate-800'
-                              }`}
-                            >
-                              {tr.expectedOutput || '(Ẩn do cấu hình bảo mật đề thi)'}
-                            </pre>
-                          </div>
-                          <div>
-                            <span
-                              className={`text-[11px] font-bold uppercase tracking-wide block mb-1 ${
-                                theme === 'light'
-                                  ? 'text-slate-700'
-                                  : 'text-slate-400'
-                              }`}
-                            >
-                              Kết quả code của bạn (Your Output):
-                            </span>
-                            <pre
-                              className={`p-2.5 rounded-lg font-mono text-xs overflow-x-auto max-h-32 border ${
-                                theme === 'light'
-                                  ? `bg-white border-slate-200 ${
-                                      isPassed
-                                        ? 'text-emerald-800'
-                                        : 'text-rose-800'
-                                    }`
-                                  : `bg-slate-900 border-slate-800 ${
-                                      isPassed
-                                        ? 'text-emerald-400'
-                                        : 'text-rose-400'
-                                    }`
-                              }`}
-                            >
-                              {tr.actualOutput ||
-                                (tr.errorMessage
-                                  ? `Lỗi: ${tr.errorMessage}`
-                                  : '(Không có dữ liệu ra)')}
-                            </pre>
+                              <div className="flex items-center gap-1.5 font-bold text-xs uppercase tracking-wide mb-1.5 text-rose-700 dark:text-rose-400">
+                                <AlertOctagon className="w-4 h-4 shrink-0" />
+                                <span>Thông báo lỗi (Error Log)</span>
+                              </div>
+                              <pre className="font-mono text-xs whitespace-pre-wrap break-all overflow-x-auto max-h-40 leading-relaxed">
+                                {formatOutput(tr.errorLog || tr.errorMessage || 'Lỗi thực thi (Runtime Error)')}
+                              </pre>
+                            </div>
+                          )}
+
+                          {/* Khu vực chi tiết chia làm 2 cột cạnh nhau */}
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {/* Cột trái: Đầu ra của bạn (Actual Output) */}
+                            <div>
+                              <span
+                                className={`text-[11px] font-bold uppercase tracking-wide block mb-1.5 ${
+                                  theme === 'light' ? 'text-slate-700' : 'text-slate-400'
+                                }`}
+                              >
+                                Đầu ra của bạn (Actual Output):
+                              </span>
+                              <pre
+                                className={`p-3 rounded-xl font-mono text-xs overflow-x-auto max-h-48 whitespace-pre-wrap break-all border leading-relaxed ${
+                                  theme === 'light'
+                                    ? `bg-white border-slate-200 ${
+                                        isPassed ? 'text-emerald-800' : 'text-rose-800'
+                                      }`
+                                    : `bg-slate-900 border-slate-800 ${
+                                        isPassed ? 'text-emerald-400' : 'text-rose-400'
+                                      }`
+                                }`}
+                              >
+                                {formatOutput(tr.actualOutput)}
+                              </pre>
+                            </div>
+
+                            {/* Cột phải: Đầu ra mong muốn (Expected Output) */}
+                            <div>
+                              <span
+                                className={`text-[11px] font-bold uppercase tracking-wide block mb-1.5 ${
+                                  theme === 'light' ? 'text-slate-700' : 'text-slate-400'
+                                }`}
+                              >
+                                Đầu ra mong muốn (Expected Output):
+                              </span>
+                              <pre
+                                className={`p-3 rounded-xl font-mono text-xs overflow-x-auto max-h-48 whitespace-pre-wrap break-all border leading-relaxed ${
+                                  theme === 'light'
+                                    ? 'bg-white text-emerald-800 border-slate-200'
+                                    : 'bg-slate-900 text-emerald-400 border-slate-800'
+                                }`}
+                              >
+                                {formatOutput(tr.expectedOutput)}
+                              </pre>
+                            </div>
                           </div>
                         </div>
                       </td>

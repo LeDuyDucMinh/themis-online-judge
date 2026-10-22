@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useJudge } from '../../context/JudgeContext';
 import type { Problem } from '../../types/judge';
+import { isProblemInClass } from '../../types/judge';
 import { ProblemEditorModal } from './ProblemEditorModal';
 import { TestCaseManagerModal } from './TestCaseManagerModal';
 import { VideoConfigModal } from './VideoConfigModal';
@@ -18,8 +19,14 @@ import {
   HardDrive,
 } from 'lucide-react';
 
-export const AdminDashboard: React.FC = () => {
-  const { problems, topics, deleteProblem, openConfirmModal } = useJudge();
+interface AdminDashboardProps {
+  classId?: string;
+  hideHeader?: boolean;
+}
+
+export const AdminDashboard: React.FC<AdminDashboardProps> = ({ classId, hideHeader = false }) => {
+  const { problems, topics, deleteProblem, openConfirmModal, activeClassId } = useJudge();
+  const currentClassId = classId || activeClassId;
 
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedTopicId, setSelectedTopicId] = useState<string | 'ALL'>('ALL');
@@ -30,8 +37,12 @@ export const AdminDashboard: React.FC = () => {
   const [managingTestsProblem, setManagingTestsProblem] = useState<Problem | null>(null);
   const [configuringVideoProblem, setConfiguringVideoProblem] = useState<Problem | null>(null);
 
-  // Filter problems
-  const filteredProblems = problems.filter((prob) => {
+  // Filter problems scoped by classId
+  const scopedProblems = currentClassId
+    ? problems.filter((prob) => isProblemInClass(prob, currentClassId, topics))
+    : problems;
+
+  const filteredProblems = scopedProblems.filter((prob) => {
     const matchSearch =
       prob.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
       prob.code.toLowerCase().includes(searchTerm.toLowerCase());
@@ -40,35 +51,38 @@ export const AdminDashboard: React.FC = () => {
   });
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
       {/* Top Header */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-500 dark:text-amber-400 flex items-center justify-center">
-              <ShieldCheck className="w-5 h-5" />
+      {!hideHeader && (
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-500 dark:text-amber-400 flex items-center justify-center">
+                <ShieldCheck className="w-5 h-5" />
+              </div>
+              <h2 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">
+                Khu Vực Quản Trị Đề Bài & Bộ Test (Admin Center)
+              </h2>
             </div>
-            <h2 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">
-              Khu Vực Quản Trị Đề Bài & Bộ Test (Admin Center)
-            </h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+              Soạn thảo đề bài, nạp bộ test case chuẩn Themis, gắn video bài giảng và quản lý thang điểm
+            </p>
           </div>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-            Soạn thảo đề bài, nạp bộ test case chuẩn Themis, gắn video bài giảng và quản lý thang điểm
-          </p>
-        </div>
 
-        <div className="flex items-center gap-2">
-          {/* Create new Problem button */}
-          <button
-            onClick={() => setIsCreatingNew(true)}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold transition-all shadow-lg shadow-blue-600/20"
-          >
-            <Plus className="w-4 h-4" /> Tạo đề bài mới
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setIsCreatingNew(true)}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold transition-all shadow-lg shadow-blue-600/20"
+            >
+              <Plus className="w-4 h-4" /> Tạo đề bài mới
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Filter and Search Bar */}
+
+
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-4 shadow-sm">
         <div className="flex-1 min-w-[240px] relative">
           <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -85,7 +99,7 @@ export const AdminDashboard: React.FC = () => {
           <select
             value={selectedTopicId}
             onChange={(e) => setSelectedTopicId(e.target.value)}
-            className="bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 text-xs rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 text-xs rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-red-500"
           >
             <option value="ALL">Tất cả chủ đề</option>
             {topics.map((t) => (
@@ -94,6 +108,16 @@ export const AdminDashboard: React.FC = () => {
               </option>
             ))}
           </select>
+
+          {hideHeader && (
+            <button
+              onClick={() => setIsCreatingNew(true)}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold transition-all shadow-md shadow-red-600/20 cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Tạo đề bài mới</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -120,6 +144,13 @@ export const AdminDashboard: React.FC = () => {
                     <p className="text-xs text-slate-400 mt-1">
                       Nhấn vào nút "Tạo đề bài mới" ở trên để bắt đầu thêm bài tập vào hệ thống.
                     </p>
+                    <button
+                      onClick={() => setIsCreatingNew(true)}
+                      className="mt-3 inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold transition-all shadow-sm shadow-red-600/20 cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Tạo đề bài mới</span>
+                    </button>
                   </td>
                 </tr>
               ) : (
@@ -234,6 +265,7 @@ export const AdminDashboard: React.FC = () => {
       {(isCreatingNew || editingProblem) && (
         <ProblemEditorModal
           problem={editingProblem}
+          classId={currentClassId || undefined}
           initialTopicId={selectedTopicId !== 'ALL' ? selectedTopicId : undefined}
           onClose={() => {
             setIsCreatingNew(false);
@@ -241,6 +273,7 @@ export const AdminDashboard: React.FC = () => {
           }}
         />
       )}
+
 
       {managingTestsProblem && (
         <ErrorBoundary

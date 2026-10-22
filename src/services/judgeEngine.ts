@@ -447,6 +447,141 @@ export function parseThemisBashOutput(rawOutput: string): {
   };
 }
 
+export const DEFAULT_JUDGE0_URL =
+  (typeof process !== 'undefined' && (process.env.JUDGE0_API_URL || process.env.VITE_JUDGE0_API_URL)) ||
+  'http://103.149.170.5:2358';
+
+export const DEFAULT_JUDGE0_TOKEN =
+  (typeof process !== 'undefined' && (process.env.JUDGE0_API_TOKEN || process.env.VITE_JUDGE0_API_TOKEN)) ||
+  'faminh_secret_api_token';
+
+export const JUDGE0_LANGUAGE_MAP: Record<SupportedLanguage, number> = {
+  cpp: 54,     // C++ (GCC 9.2.0)
+  python: 71,  // Python (3.8.1)
+  pascal: 67,  // Pascal (FPC 3.0.4)
+  java: 62,    // Java (OpenJDK 13.0.1)
+};
+
+export function getJudge0Url(): string {
+  if (typeof window !== 'undefined') {
+    const custom = localStorage.getItem('faminh_judge0_api_url');
+    if (custom && custom.trim()) return custom.trim();
+  }
+  const envUrl = (typeof process !== 'undefined' && (process.env.JUDGE0_API_URL || process.env.VITE_JUDGE0_API_URL));
+  if (envUrl && envUrl.trim()) return envUrl.trim();
+  return DEFAULT_JUDGE0_URL;
+}
+
+export function getJudge0Token(): string {
+  if (typeof window !== 'undefined') {
+    const custom = localStorage.getItem('faminh_judge0_api_token');
+    if (custom && custom.trim()) return custom.trim();
+  }
+  return DEFAULT_JUDGE0_TOKEN;
+}
+
+export function setJudge0Url(url: string): void {
+  if (typeof window !== 'undefined') {
+    localStorage.setItem('faminh_judge0_api_url', url.trim());
+  }
+}
+
+export async function testJudge0Connection(url?: string): Promise<{ success: boolean; version?: string; message: string }> {
+  const target = (url || getJudge0Url()).replace(/\/+$/, '');
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+    const headers: Record<string, string> = {};
+    const token = getJudge0Token();
+    if (token) {
+      headers['X-Auth-Token'] = token;
+    }
+    const res = await fetch(`${target}/about`, { headers, signal: controller.signal });
+    clearTimeout(timeout);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    return { success: true, version: data.version || '1.13.1', message: 'Kết nối máy chủ VPS Judge0 thành công!' };
+  } catch (err: unknown) {
+    return { success: false, message: (err as Error)?.message || 'Không thể kết nối đến máy chủ VPS' };
+  }
+}
+
+export interface Judge0ExecutionResult {
+  stdout: string;
+  stderr: string;
+  compileOutput?: string;
+  timeSec: number;
+  memoryKb: number;
+  statusId: number;
+  statusDesc: string;
+}
+
+export async function executeWithJudge0(
+  code: string,
+  stdin: string,
+  timeLimitSec: number,
+  language: SupportedLanguage,
+  endpoint?: string
+): Promise<Judge0ExecutionResult> {
+  const serverUrl = (endpoint || getJudge0Url()).replace(/\/+$/, '');
+  let sourceCode = code;
+
+  // Với Java trên Judge0, tên public class phải là Main
+  if (language === 'java') {
+    sourceCode = sourceCode.replace(/public\s+class\s+\w+/g, 'public class Main');
+  }
+
+  const langId = JUDGE0_LANGUAGE_MAP[language] || 54;
+  const controller = new AbortController();
+  const timeoutMs = Math.max(10000, Math.ceil(timeLimitSec * 1000) + 10000);
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    const token = getJudge0Token();
+    if (token) {
+      headers['X-Auth-Token'] = token;
+    }
+
+    const res = await fetch(`${serverUrl}/submissions?base64_encoded=false&wait=true`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        source_code: sourceCode,
+        language_id: langId,
+        stdin: stdin || '',
+        cpu_time_limit: timeLimitSec > 0 ? timeLimitSec : 1.0,
+      }),
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(`Judge0 API HTTP ${res.status}: ${errText.slice(0, 120)}`);
+    }
+
+    const data = await res.json();
+    const statusId = data.status?.id ?? 0;
+    const statusDesc = data.status?.description ?? 'Unknown';
+
+    return {
+      stdout: data.stdout || '',
+      stderr: data.stderr || '',
+      compileOutput: data.compile_output || '',
+      timeSec: data.time ? parseFloat(data.time) : 0,
+      memoryKb: data.memory ? parseInt(data.memory, 10) : 0,
+      statusId,
+      statusDesc,
+    };
+  } catch (err: unknown) {
+    clearTimeout(timeoutId);
+    throw err;
+  }
+}
+
 /**
  * Danh sách endpoint Piston ưu tiên (hỗ trợ local Piston Docker & remote Piston)
  */
@@ -653,8 +788,209 @@ async function executeWithWandboxFallback(
   }
 }
 
+/**
+ * Gọi API Wandbox với cơ chế Tự động thử lại (Auto Retry) chống HTTP 429 và Network Error:
+ * - Nếu gặp lỗi HTTP 429 hoặc lỗi mạng, tự động đợi 3000ms (3 giây) và thử lại tối đa 3 lần
+ */
+async function executeWithWandboxFallbackWithRetry(
+  cleanedCode: string,
+  stdin: string,
+  timeLimitSec: number,
+  language: SupportedLanguage,
+  maxRetries = 3
+): Promise<{ stdout: string; stderr: string; isCE: boolean; isTLE: boolean; isRTE: boolean; timeSec: number }> {
+  let attempt = 0;
+  while (true) {
+    try {
+      return await executeWithWandboxFallback(cleanedCode, stdin, timeLimitSec, language);
+    } catch (err: unknown) {
+      const error = err as Error;
+      const errMsg = error.message || '';
+      const isRateLimitOrNetwork =
+        errMsg.includes('429') ||
+        errMsg.includes('Wandbox error') ||
+        errMsg.includes('Failed to fetch') ||
+        errMsg.includes('NetworkError') ||
+        errMsg.includes('network') ||
+        error.name === 'TypeError';
+
+      if (isRateLimitOrNetwork && attempt < maxRetries) {
+        attempt++;
+        console.warn(
+          `[Wandbox Fallback] Gặp lỗi API / HTTP 429 (${errMsg}). Đang đợi 3000ms để thử lại (Lần ${attempt}/${maxRetries})...`
+        );
+        await new Promise((resolve) => setTimeout(resolve, 3000));
+        continue;
+      }
+      throw error;
+    }
+  }
+}
+
 export interface GradingProgressCallback {
   (currentTestIndex: number, totalTests: number, partialResult: TestResult): void;
+}
+
+/**
+ * Chấm điểm bài nộp thông qua VPS Judge0 riêng của FAMINH
+ */
+export async function gradeWithJudge0(
+  problem: Problem,
+  cleanedCode: string,
+  testCases: Array<{ id: string; name?: string; input: string; expectedOutput?: string; output?: string; points?: number }>,
+  timeLimit: number,
+  language: SupportedLanguage,
+  judge0Url: string,
+  onProgress?: GradingProgressCallback
+): Promise<{
+  testResults: TestResult[];
+  totalPointsEarned: number;
+  maxExecutionTime: number;
+  peakMemory: number;
+  isCompilationFailed: boolean;
+  compilationMessage?: string;
+}> {
+  const totalTests = testCases.length;
+  const testResults: TestResult[] = [];
+  let totalPointsEarned = 0;
+  let maxExecutionTime = 0;
+  let peakMemory = 0;
+  let isCompilationFailed = false;
+  let compilationMessage: string | undefined = undefined;
+
+  let testIndex = 0;
+  for (const test of testCases) {
+    const i = testIndex;
+    const testPoints =
+      test.points !== undefined && !isNaN(test.points) && test.points > 0
+        ? test.points
+        : +(problem.totalPoints / totalTests).toFixed(2);
+
+    const testExpected = test.expectedOutput !== undefined ? test.expectedOutput : (test.output || '');
+    const testName = test.name || `Test #${String(i + 1).padStart(2, '0')}`;
+
+    if (isCompilationFailed) {
+      const ceResult: TestResult = {
+        testId: test.id,
+        testName,
+        verdict: 'CE',
+        time: 0,
+        memory: 0,
+        pointsEarned: 0,
+        maxPoints: testPoints,
+        actualOutput: '',
+        expectedOutput: testExpected,
+        errorMessage: compilationMessage,
+        errorLog: compilationMessage,
+      };
+      testResults.push(ceResult);
+      if (onProgress) {
+        onProgress(i + 1, totalTests, ceResult);
+      }
+      testIndex++;
+      continue;
+    }
+
+    const j0Res = await executeWithJudge0(
+      cleanedCode,
+      test.input,
+      timeLimit,
+      language,
+      judge0Url
+    );
+
+    if (j0Res.statusId === 6) {
+      isCompilationFailed = true;
+      compilationMessage = j0Res.compileOutput || j0Res.stderr || 'Lỗi biên dịch chương trình (Compilation Error)';
+
+      for (let j = i; j < totalTests; j++) {
+        const remTest = testCases[j];
+        const remPoints =
+          remTest.points !== undefined && !isNaN(remTest.points) && remTest.points > 0
+            ? remTest.points
+            : +(problem.totalPoints / totalTests).toFixed(2);
+        const remExp = remTest.expectedOutput !== undefined ? remTest.expectedOutput : (remTest.output || '');
+        const remName = remTest.name || `Test #${String(j + 1).padStart(2, '0')}`;
+
+        const ceRem: TestResult = {
+          testId: remTest.id,
+          testName: remName,
+          verdict: 'CE',
+          time: 0,
+          memory: 0,
+          pointsEarned: 0,
+          maxPoints: remPoints,
+          actualOutput: '',
+          expectedOutput: remExp,
+          errorMessage: compilationMessage,
+          errorLog: compilationMessage,
+        };
+        testResults.push(ceRem);
+        if (onProgress) {
+          onProgress(j + 1, totalTests, ceRem);
+        }
+      }
+      break;
+    }
+
+    let verdict: Verdict = 'WA';
+    let errorMessage: string | undefined = undefined;
+    let testTime = Math.max(0.001, j0Res.timeSec || 0.005);
+    let testMemory = j0Res.memoryKb > 0 ? +(j0Res.memoryKb / 1024).toFixed(1) : generateRealisticMemory(i + 1, language);
+
+    if (j0Res.statusId === 5) {
+      verdict = 'TLE';
+      testTime = timeLimit;
+      errorMessage = `Quá thời gian thực thi (${timeLimit}s)`;
+    } else if (j0Res.statusId >= 7 && j0Res.statusId <= 12) {
+      verdict = 'RTE';
+      errorMessage = j0Res.stderr || j0Res.statusDesc || 'Lỗi thực thi (Runtime Error)';
+    } else {
+      const isMatch = compareThemisOutputs(j0Res.stdout, testExpected);
+      verdict = isMatch ? 'AC' : 'WA';
+      if (!isMatch) {
+        errorMessage = 'Kết quả không khớp với đáp án mẫu';
+      }
+    }
+
+    const pointsEarned = verdict === 'AC' ? testPoints : 0;
+    totalPointsEarned += pointsEarned;
+    maxExecutionTime = Math.max(maxExecutionTime, testTime);
+    peakMemory = Math.max(peakMemory, testMemory);
+
+    const singleResult: TestResult = {
+      testId: test.id,
+      testName,
+      verdict,
+      time: testTime,
+      memory: testMemory,
+      pointsEarned,
+      maxPoints: testPoints,
+      actualOutput: j0Res.stdout || '',
+      expectedOutput: testExpected,
+      errorMessage,
+      errorLog: verdict === 'RTE' ? (j0Res.stderr || errorMessage) : undefined,
+    };
+
+    testResults.push(singleResult);
+    if (onProgress) {
+      onProgress(i + 1, totalTests, singleResult);
+    }
+
+    if (i < totalTests - 1) {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    testIndex++;
+  }
+
+  return {
+    testResults,
+    totalPointsEarned,
+    maxExecutionTime,
+    peakMemory,
+    isCompilationFailed,
+    compilationMessage,
+  };
 }
 
 /**
@@ -731,7 +1067,62 @@ export async function gradeSubmission(
   let compilationMessage: string | undefined = undefined;
   let isCompilationFailed = false;
 
-  // 2. Tạo Driver Script run.sh tự động
+  // 1B. Ưu tiên #1: Chấm điểm bài nộp thông qua VPS Judge0 riêng của FAMINH
+  const judge0Url = getJudge0Url();
+  if (judge0Url) {
+    try {
+      const j0Outcome = await gradeWithJudge0(
+        problem,
+        cleanedCode,
+        testCases,
+        timeLimit,
+        language,
+        judge0Url,
+        onProgress
+      );
+
+      const passedCount = j0Outcome.testResults.filter((r) => r.verdict === 'AC').length;
+      let overallVerdict: Verdict = 'WA';
+
+      if (j0Outcome.isCompilationFailed) {
+        overallVerdict = 'CE';
+      } else if (passedCount === totalTests && totalTests > 0) {
+        overallVerdict = 'AC';
+      } else if (passedCount > 0) {
+        overallVerdict = 'AC';
+      } else {
+        const firstNonAc = j0Outcome.testResults.find((r) => r.verdict !== 'AC');
+        overallVerdict = firstNonAc ? firstNonAc.verdict : 'WA';
+      }
+
+      return {
+        id: submissionId,
+        problemId: problem.id,
+        problemCode: problem.code,
+        problemTitle: problem.title,
+        userId,
+        userName,
+        language,
+        sourceCode: rawCode,
+        submittedAt,
+        status: 'COMPLETED',
+        totalPointsEarned: +j0Outcome.totalPointsEarned.toFixed(2),
+        maxTotalPoints: problem.totalPoints || 10,
+        passedCount,
+        totalTests,
+        overallVerdict,
+        executionTime: j0Outcome.maxExecutionTime,
+        memory: j0Outcome.peakMemory,
+        compilationMessage: j0Outcome.compilationMessage,
+        testResults: j0Outcome.testResults,
+        freopenHandled,
+      };
+    } catch (j0Err: unknown) {
+      console.warn('[Themis Engine] Không thể kết nối VPS Judge0, chuyển sang Piston/Wandbox fallback:', j0Err);
+    }
+  }
+
+  // 2. Tạo Driver Script run.sh tự động (Môi trường dự phòng)
   const runScript = generateThemisRunScript(totalTests, timeLimit, language);
 
   // 3. Chuẩn bị danh sách files gửi lên API
@@ -797,7 +1188,10 @@ export async function gradeSubmission(
           memory: 0,
           pointsEarned: 0,
           maxPoints: testPoints,
+          actualOutput: '',
+          expectedOutput: test.expectedOutput || '',
           errorMessage: compilationMessage,
+          errorLog: compilationMessage,
         };
         testResults.push(ceResult);
         if (onProgress) {
@@ -864,9 +1258,10 @@ export async function gradeSubmission(
           memory: testMemory,
           pointsEarned,
           maxPoints: testPoints,
-          actualOutput: actualOutput.slice(0, 500),
-          expectedOutput: test.expectedOutput.slice(0, 500),
+          actualOutput: actualOutput || '',
+          expectedOutput: test.expectedOutput || '',
           errorMessage,
+          errorLog: verdict === 'RTE' ? (errorMessage || 'Lỗi thực thi (Runtime Error)') : undefined,
         };
 
         testResults.push(singleResult);
@@ -876,9 +1271,10 @@ export async function gradeSubmission(
       }
     }
   } else {
-    // 5B. Môi trường thực thi dự phòng (Wandbox sạch, 100% không fork, không #undef)
-    for (let i = 0; i < totalTests; i++) {
-      const test = testCases[i];
+    // 5B. Môi trường thực thi dự phòng (Wandbox tuần tự từng test case bằng vòng lặp for...of với Auto-Retry)
+    let testIndex = 0;
+    for (const test of testCases) {
+      const i = testIndex;
       const testPoints =
         test.points !== undefined && !isNaN(test.points) && test.points > 0
           ? test.points
@@ -893,25 +1289,27 @@ export async function gradeSubmission(
           memory: 0,
           pointsEarned: 0,
           maxPoints: testPoints,
+          actualOutput: '',
+          expectedOutput: test.expectedOutput || '',
           errorMessage: compilationMessage,
+          errorLog: compilationMessage,
         };
         testResults.push(ceResult);
         if (onProgress) {
           onProgress(i + 1, totalTests, ceResult);
         }
+        testIndex++;
         continue;
       }
 
-      if (i > 0) {
-        await new Promise((r) => setTimeout(r, 200));
-      }
-
       try {
-        const execRes = await executeWithWandboxFallback(
+        // Thực thi tuần tự từng test với cơ chế Auto-Retry tối đa 3 lần khi gặp HTTP 429 hoặc Network Error
+        const execRes = await executeWithWandboxFallbackWithRetry(
           cleanedCode,
           test.input,
           timeLimit,
-          language
+          language,
+          3
         );
 
         if (execRes.isCE) {
@@ -933,7 +1331,10 @@ export async function gradeSubmission(
               memory: 0,
               pointsEarned: 0,
               maxPoints: remPoints,
+              actualOutput: '',
+              expectedOutput: remTest.expectedOutput || '',
               errorMessage: compilationMessage,
+              errorLog: compilationMessage,
             };
             testResults.push(ceRem);
             if (onProgress) {
@@ -982,9 +1383,10 @@ export async function gradeSubmission(
           memory: testMemory,
           pointsEarned,
           maxPoints: testPoints,
-          actualOutput: execRes.stdout.slice(0, 500),
-          expectedOutput: test.expectedOutput.slice(0, 500),
+          actualOutput: execRes.stdout || '',
+          expectedOutput: test.expectedOutput || '',
           errorMessage,
+          errorLog: verdict === 'RTE' ? (execRes.stderr || errorMessage || 'Lỗi thực thi (Runtime Error)') : undefined,
         };
 
         testResults.push(singleResult);
@@ -992,22 +1394,32 @@ export async function gradeSubmission(
           onProgress(i + 1, totalTests, singleResult);
         }
       } catch (err: unknown) {
+        // Tuyệt đối không gán lỗi API/Mạng thành lỗi RTE hay TLE của học sinh
         const errMsg = (err as Error)?.message || 'Lỗi kết nối máy chủ thực thi';
         const failResult: TestResult = {
           testId: test.id,
           testName: test.name || `Test #${String(i + 1).padStart(2, '0')}`,
-          verdict: 'RTE',
+          verdict: 'SYS', // Trả về rõ ràng trạng thái LỖI MÁY CHẤM (SYS)
           time: 0,
           memory: 0,
           pointsEarned: 0,
           maxPoints: testPoints,
-          errorMessage: errMsg,
+          actualOutput: '',
+          expectedOutput: test.expectedOutput || '',
+          errorMessage: `[LỖI MÁY CHẤM (SYS)] ${errMsg}`,
+          errorLog: `[LỖI MÁY CHẤM (SYS)] Máy chủ chấm bài gặp sự cố hoặc quá tải API (${errMsg}). Đây KHÔNG PHẢI lỗi code của học sinh, vui lòng thử lại sau.`,
         };
         testResults.push(failResult);
         if (onProgress) {
           onProgress(i + 1, totalTests, failResult);
         }
       }
+
+      // Sát sau mỗi lần có kết quả từ API của 1 test case, BẮT BUỘC chèn delay nghỉ ít nhất 1500ms trước khi chấm test tiếp theo
+      if (i < totalTests - 1) {
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+      }
+      testIndex++;
     }
   }
 

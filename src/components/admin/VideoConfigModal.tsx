@@ -43,19 +43,23 @@ export const VideoConfigModal: React.FC<VideoConfigModalProps> = ({ problem, onC
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [onClose]);
 
-  const handleSave = () => {
-    updateProblem(problem.id, {
-      videoConfig: {
-        enabled,
-        type,
-        url: url.trim(),
-        title: title.trim() || `Video Hướng dẫn: [${problem.code}] ${problem.title}`,
-        unlockRule,
-      },
-    });
+  const handleSave = async () => {
+    try {
+      await updateProblem(problem.id, {
+        videoConfig: {
+          enabled,
+          type,
+          url: url.trim(),
+          title: title.trim() || `Video Hướng dẫn: [${problem.code}] ${problem.title}`,
+          unlockRule,
+        },
+      });
 
-    showToast('Đã lưu Video bài giảng', `Cập nhật cấu hình video cho bài [${problem.code}]`, 'success');
-    onClose();
+      showToast('Đã lưu Video bài giảng', `Cập nhật cấu hình video cho bài [${problem.code}]`, 'success');
+      onClose();
+    } catch (err: unknown) {
+      console.error('[VideoConfigModal] Lỗi lưu video:', err);
+    }
   };
 
   return (

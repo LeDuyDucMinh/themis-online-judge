@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useJudge } from '../../context/JudgeContext';
-import type { Topic, Problem } from '../../types/judge';
+import type { Topic, Problem, Classroom } from '../../types/judge';
 import { ProblemEditorModal } from './ProblemEditorModal';
 import { TestCaseManagerModal } from './TestCaseManagerModal';
 import { VideoConfigModal } from './VideoConfigModal';
@@ -20,12 +20,22 @@ import {
   FilePlus,
   Clock,
   HardDrive,
+  GraduationCap,
+  Globe,
+  Filter,
 } from 'lucide-react';
 
-export const TopicManager: React.FC = () => {
+interface TopicManagerProps {
+  initialClassId?: string;
+}
+
+export const TopicManager: React.FC<TopicManagerProps> = ({ initialClassId }) => {
   const {
     topics,
     problems,
+    classes,
+    getStudentsInClass,
+    activeClassId,
     addTopic,
     updateTopic,
     deleteTopic,
@@ -38,6 +48,9 @@ export const TopicManager: React.FC = () => {
   const [editingTopicId, setEditingTopicId] = useState<string | null>(null);
   const [expandedTopicId, setExpandedTopicId] = useState<string | null>(null);
 
+  // Bộ lọc chủ đề theo lớp học
+  const [selectedClassFilter, setSelectedClassFilter] = useState<string>(initialClassId || 'ALL');
+
   // Drag and drop state để kéo thả sắp xếp chủ đề
   const [draggedIdx, setDraggedIdx] = useState<number | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
@@ -45,6 +58,8 @@ export const TopicManager: React.FC = () => {
   // Form states for Topic
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
+  // Danh sách các classId được tích chọn (Hỗ trợ chọn nhiều lớp)
+  const [selectedClassIds, setSelectedClassIds] = useState<string[]>(initialClassId ? [initialClassId] : ['ALL']);
 
   // Modals for Problem Actions
   const [creatingForTopicId, setCreatingForTopicId] = useState<string | null>(null);
@@ -52,11 +67,70 @@ export const TopicManager: React.FC = () => {
   const [managingTestsProblem, setManagingTestsProblem] = useState<Problem | null>(null);
   const [configuringVideoProblem, setConfiguringVideoProblem] = useState<Problem | null>(null);
 
+  // Helper kiểm tra một chủ đề có thuộc lớp học được lọc không
+  const isTopicInClass = (t: Topic, filterClassId: string): boolean => {
+    if (filterClassId === 'ALL') return true;
+    const ids = t.classIds && t.classIds.length > 0
+      ? t.classIds
+      : (t.classId ? [t.classId] : ['ALL']);
+    if (ids.includes('ALL')) return true;
+    return ids.includes(filterClassId);
+  };
+
+  // Danh sách các lớp học hợp lệ thực tế đang được chọn
+  const selectedClassObjects: Classroom[] = useMemo(() => {
+    if (selectedClassIds.includes('ALL')) {
+      return classes;
+    }
+    const idSet = new Set(selectedClassIds);
+    return classes.filter((c: Classroom) => idSet.has(c.id));
+  }, [classes, selectedClassIds]);
+
+  const isAllClasses =
+    selectedClassIds.includes('ALL') ||
+    (classes.length > 0 && selectedClassObjects.length === classes.length);
+
+  const handleToggleClass = (classIdToToggle: string) => {
+    setSelectedClassIds((prev) => {
+      const validClassIdSet = new Set(classes.map((c) => c.id));
+      const currentlySelected = prev.includes('ALL')
+        ? classes.map((c) => c.id)
+        : prev.filter((id) => validClassIdSet.has(id));
+
+      if (currentlySelected.includes(classIdToToggle)) {
+        return currentlySelected.filter((id) => id !== classIdToToggle);
+      } else {
+        const next = [...currentlySelected, classIdToToggle];
+        if (next.length >= classes.length && classes.length > 0) {
+          return ['ALL'];
+        }
+        return next;
+      }
+    });
+  };
+
+  const handleSelectAllClasses = () => {
+    setSelectedClassIds(['ALL']);
+  };
+
+  const handleClearAllClasses = () => {
+    setSelectedClassIds([]);
+  };
+
   const handleStartAddTopic = () => {
     setIsAddingTopic(true);
     setEditingTopicId(null);
     setName('');
     setDescription('');
+    if (initialClassId) {
+      setSelectedClassIds([initialClassId]);
+    } else if (selectedClassFilter !== 'ALL') {
+      setSelectedClassIds([selectedClassFilter]);
+    } else if (activeClassId) {
+      setSelectedClassIds([activeClassId]);
+    } else {
+      setSelectedClassIds(['ALL']);
+    }
   };
 
   const handleStartEditTopic = (t: Topic) => {
@@ -64,27 +138,61 @@ export const TopicManager: React.FC = () => {
     setIsAddingTopic(false);
     setName(t.name);
     setDescription(t.description);
+
+    const validClassIdSet = new Set(classes.map((c) => c.id));
+    if (t.classIds && t.classIds.length > 0) {
+      if (t.classIds.includes('ALL')) {
+        setSelectedClassIds(['ALL']);
+      } else {
+        const valid = t.classIds.filter((id) => validClassIdSet.has(id));
+        setSelectedClassIds(valid.length > 0 ? valid : (classes.length > 0 ? [classes[0].id] : ['ALL']));
+      }
+    } else if (t.classId) {
+      if (t.classId === 'ALL') {
+        setSelectedClassIds(['ALL']);
+      } else if (validClassIdSet.has(t.classId)) {
+        setSelectedClassIds([t.classId]);
+      } else {
+        setSelectedClassIds(classes.length > 0 ? [classes[0].id] : ['ALL']);
+      }
+    } else {
+      setSelectedClassIds(['ALL']);
+    }
   };
 
   const handleSaveTopic = () => {
     if (!name.trim()) return;
+
+    if (!isAllClasses && selectedClassObjects.length === 0) {
+      return;
+    }
+
+    const finalClassIds = isAllClasses
+      ? ['ALL']
+      : selectedClassObjects.map((c: Classroom) => c.id);
+    const primaryClassId = finalClassIds.includes('ALL') ? 'ALL' : (finalClassIds[0] || 'ALL');
 
     if (isAddingTopic) {
       addTopic({
         name: name.trim(),
         description: description.trim(),
         order: topics.length + 1,
+        classId: primaryClassId,
+        classIds: finalClassIds,
       });
       setIsAddingTopic(false);
     } else if (editingTopicId) {
       updateTopic(editingTopicId, {
         name: name.trim(),
         description: description.trim(),
+        classId: primaryClassId,
+        classIds: finalClassIds,
       });
       setEditingTopicId(null);
     }
     setName('');
     setDescription('');
+    setSelectedClassIds(initialClassId ? [initialClassId] : ['ALL']);
   };
 
   const handleCancelTopic = () => {
@@ -92,6 +200,7 @@ export const TopicManager: React.FC = () => {
     setEditingTopicId(null);
     setName('');
     setDescription('');
+    setSelectedClassIds(initialClassId ? [initialClassId] : ['ALL']);
   };
 
   const handleDragStart = (e: React.DragEvent, index: number) => {
@@ -130,6 +239,9 @@ export const TopicManager: React.FC = () => {
     setDragOverIdx(null);
   };
 
+  // Danh sách chủ đề sau khi áp dụng bộ lọc theo lớp
+  const displayedTopics = topics.filter((t) => isTopicInClass(t, selectedClassFilter));
+
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
       {/* Header */}
@@ -140,7 +252,7 @@ export const TopicManager: React.FC = () => {
             Quản lý Chủ đề & Bài tập (Topics & Problems)
           </h2>
           <p className="text-xs text-slate-400 mt-1">
-            Tạo chủ đề, thêm bài tập cụ thể vào từng chủ đề, nạp test case và quản lý thứ tự giảng dạy
+            Tạo chủ đề, tích chọn các lớp học được giao, thêm bài tập cụ thể vào từng chủ đề và quản lý thứ tự giảng dạy
           </p>
         </div>
 
@@ -166,12 +278,45 @@ export const TopicManager: React.FC = () => {
         </div>
       </div>
 
+      {/* Bộ lọc chủ đề theo lớp */}
+      <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-slate-900 border border-slate-800 rounded-2xl">
+        <div className="flex items-center gap-2">
+          <Filter className="w-4 h-4 text-red-400" />
+          <span className="text-xs font-semibold text-slate-300">Lọc chủ đề theo lớp:</span>
+          <select
+            value={selectedClassFilter}
+            onChange={(e) => setSelectedClassFilter(e.target.value)}
+            className="px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:ring-1 focus:ring-red-500 font-medium cursor-pointer"
+          >
+            <option value="ALL">🌐 Tất cả lớp học ({topics.length} chủ đề)</option>
+            {classes.map((cls) => {
+              const count = topics.filter((t) => isTopicInClass(t, cls.id)).length;
+              return (
+                <option key={cls.id} value={cls.id}>
+                  🏫 {cls.className} ({count} chủ đề)
+                </option>
+              );
+            })}
+          </select>
+        </div>
+
+        <span className="text-xs text-slate-400">
+          Đang hiển thị <b className="text-white font-mono">{displayedTopics.length}</b> / <b className="text-slate-300 font-mono">{topics.length}</b> chủ đề
+        </span>
+      </div>
+
       {/* Add / Edit Form Box for Topic */}
       {(isAddingTopic || editingTopicId) && (
         <div className="bg-slate-900 border border-red-500/40 rounded-2xl p-6 shadow-2xl space-y-4 animate-in fade-in duration-200">
-          <h4 className="text-sm font-bold text-red-300">
-            {isAddingTopic ? 'Tạo chủ đề bài tập mới' : 'Chỉnh sửa chủ đề'}
-          </h4>
+          <div className="flex items-center justify-between">
+            <h4 className="text-sm font-bold text-red-300 flex items-center gap-2">
+              <Plus className="w-4 h-4" />
+              {isAddingTopic ? 'Tạo chủ đề bài tập mới' : 'Chỉnh sửa chủ đề'}
+            </h4>
+            <span className="text-xs text-slate-400 font-medium">
+              Tích chọn 1 hoặc nhiều lớp bên dưới để giao chủ đề cùng lúc
+            </span>
+          </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -182,10 +327,11 @@ export const TopicManager: React.FC = () => {
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Ví dụ: Mảng 1 chiều, Nhập xuất và điều kiện..."
+                placeholder="Ví dụ: Mảng 1 chiều, Quy hoạch động, Số học..."
                 className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-red-500"
               />
             </div>
+
             <div>
               <label className="block text-xs font-semibold text-slate-300 mb-1">
                 Mô tả ngắn về chủ đề:
@@ -200,18 +346,129 @@ export const TopicManager: React.FC = () => {
             </div>
           </div>
 
+          {/* KHUNG TÍCH CHỌN CÁC LỚP HỌC (MULTI-CLASSROOM CHECKBOX GROUP) */}
+          <div className="space-y-2.5 pt-3 border-t border-slate-800">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <label className="block text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                <GraduationCap className="w-4 h-4 text-red-400" />
+                <span>Giao vào các Lớp học (Tích chọn một hoặc nhiều lớp): *</span>
+              </label>
+
+              {/* Thao tác chọn nhanh */}
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleSelectAllClasses}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all flex items-center gap-1 cursor-pointer border ${
+                    isAllClasses
+                      ? 'bg-blue-600 text-white border-blue-500 shadow-sm'
+                      : 'bg-slate-800 text-slate-300 hover:text-white border-slate-700 hover:bg-slate-700'
+                  }`}
+                  title="Giao cho tất cả học sinh ở mọi lớp học"
+                >
+                  <Globe className="w-3.5 h-3.5" />
+                  <span>Tất cả các lớp</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleClearAllClasses}
+                  className="px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-400 hover:text-slate-200 bg-slate-800/80 hover:bg-slate-800 border border-slate-700 transition-colors cursor-pointer"
+                >
+                  Bỏ chọn tất cả
+                </button>
+              </div>
+            </div>
+
+            {/* Lưới các thẻ Lớp học kèm Checkbox */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
+              {classes.map((cls) => {
+                const isSelected = isAllClasses || selectedClassObjects.some((c: Classroom) => c.id === cls.id);
+                const studentCount = getStudentsInClass(cls.id).length;
+
+                return (
+                  <div
+                    key={cls.id}
+                    onClick={() => handleToggleClass(cls.id)}
+                    className={`p-3 rounded-xl border transition-all cursor-pointer flex items-center justify-between gap-3 select-none ${
+                      isSelected
+                        ? 'bg-red-500/15 border-red-500/50 shadow-sm shadow-red-500/10 text-white'
+                        : 'bg-slate-800/60 border-slate-700/80 hover:border-slate-600 text-slate-300 hover:text-white'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      {/* Checkbox Icon */}
+                      <div className={`w-5 h-5 rounded-md flex items-center justify-center border transition-colors shrink-0 ${
+                        isSelected
+                          ? 'bg-red-600 border-red-500 text-white'
+                          : 'border-slate-600 bg-slate-900'
+                      }`}>
+                        {isSelected && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                      </div>
+
+                      <div className="truncate">
+                        <div className="text-xs font-bold truncate flex items-center gap-1.5">
+                          <GraduationCap className="w-3.5 h-3.5 text-red-400 shrink-0" />
+                          <span className="truncate">{cls.className}</span>
+                        </div>
+                        <div className="text-[10px] text-slate-400 font-mono mt-0.5">
+                          Mã: <span className="text-slate-300 font-bold">{cls.joinCode}</span> • {studentCount} HS
+                        </div>
+                      </div>
+                    </div>
+
+                    {isSelected && (
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-600 text-white shrink-0">
+                        Đã chọn
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Thanh hiển thị trạng thái số lớp đã chọn */}
+            <div className="p-2.5 rounded-xl bg-slate-950/60 border border-slate-800 text-xs">
+              {isAllClasses ? (
+                <div className="text-blue-400 flex items-center gap-1.5 font-medium">
+                  <Globe className="w-4 h-4 text-blue-400 shrink-0" />
+                  <span>Chủ đề này đang được giao công khai cho <b>Tất cả các lớp ({classes.length} lớp học)</b>.</span>
+                </div>
+              ) : selectedClassObjects.length > 0 ? (
+                <div className="text-red-400 flex items-center gap-1.5 font-medium">
+                  <Check className="w-4 h-4 text-red-400 shrink-0" />
+                  <span>
+                    Đang giao cho <b>{selectedClassObjects.length} lớp</b>:{' '}
+                    <span className="text-slate-200 font-semibold">
+                      {selectedClassObjects.map((c: Classroom) => c.className).join(', ')}
+                    </span>
+                  </span>
+                </div>
+              ) : (
+                <div className="text-amber-400 flex items-center gap-1.5 font-medium">
+                  <span>⚠️ Bạn chưa tích chọn lớp nào. Vui lòng bấm vào lớp muốn giao bài hoặc chọn "Tất cả các lớp".</span>
+                </div>
+              )}
+            </div>
+          </div>
+
           <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
             <button
               onClick={handleCancelTopic}
-              className="px-3 py-1.5 rounded-xl bg-slate-800 text-slate-400 hover:text-white text-xs font-semibold transition-colors flex items-center gap-1.5"
+              className="px-3 py-1.5 rounded-xl bg-slate-800 text-slate-400 hover:text-white text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer"
             >
               <X className="w-3.5 h-3.5" /> Hủy
             </button>
             <button
               onClick={handleSaveTopic}
-              className="px-4 py-1.5 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold transition-colors flex items-center gap-1.5"
+              disabled={!isAllClasses && selectedClassObjects.length === 0}
+              className={`px-4 py-1.5 rounded-xl text-white text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer shadow-lg shadow-red-600/20 ${
+                !isAllClasses && selectedClassObjects.length === 0
+                  ? 'bg-slate-700 opacity-50 cursor-not-allowed'
+                  : 'bg-red-600 hover:bg-red-500'
+              }`}
             >
-              <Check className="w-3.5 h-3.5" /> Lưu chủ đề
+              <Check className="w-4 h-4" /> Lưu chủ đề
             </button>
           </div>
         </div>
@@ -225,24 +482,25 @@ export const TopicManager: React.FC = () => {
               <tr className="border-b border-slate-200 dark:border-slate-800 text-[11px] font-bold uppercase text-slate-600 dark:text-slate-400 bg-slate-100/90 dark:bg-slate-800/40">
                 <th className="py-3 px-4 w-16 text-center" title="Kéo thả hàng để sắp xếp thứ tự">STT</th>
                 <th className="py-3 px-4">Tên chủ đề</th>
+                <th className="py-3 px-4 text-center">Lớp được giao</th>
                 <th className="py-3 px-4">Mô tả</th>
                 <th className="py-3 px-4 text-center">Số bài tập</th>
                 <th className="py-3 px-4 text-right">Thao tác</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 dark:divide-slate-800/60">
-              {topics.length === 0 ? (
+              {displayedTopics.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="py-12 text-center text-slate-500">
+                  <td colSpan={6} className="py-12 text-center text-slate-500">
                     <Layers className="w-10 h-10 mx-auto text-slate-400 mb-2 opacity-50" />
-                    <p className="font-semibold text-sm">Chưa có chủ đề nào được tạo</p>
+                    <p className="font-semibold text-sm">Chưa có chủ đề nào phù hợp</p>
                     <p className="text-xs text-slate-400 mt-1">
-                      Nhấp vào nút "+ Thêm chủ đề mới" ở trên để bắt đầu tạo chủ đề và thêm bài tập.
+                      Nhấp vào nút "+ Thêm chủ đề mới" ở trên để bắt đầu tạo chủ đề và giao vào lớp học.
                     </p>
                   </td>
                 </tr>
               ) : (
-                topics.map((t, idx) => {
+                displayedTopics.map((t, idx) => {
                 const topicProblems = problems.filter((p) => p.topicId === t.id);
                 const isExpanded = expandedTopicId === t.id;
 
@@ -290,6 +548,46 @@ export const TopicManager: React.FC = () => {
                           </div>
                           <span className="text-slate-950 dark:text-white font-bold text-sm tracking-tight">{t.name}</span>
                         </div>
+                      </td>
+                      <td className="py-3 px-4 text-center" onClick={(e) => e.stopPropagation()}>
+                        {(() => {
+                          const ids = t.classIds && t.classIds.length > 0
+                            ? t.classIds
+                            : (t.classId ? [t.classId] : ['ALL']);
+
+                          if (ids.includes('ALL')) {
+                            return (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20 text-[11px] font-semibold">
+                                <Globe className="w-3 h-3" />
+                                <span>Tất cả các lớp</span>
+                              </span>
+                            );
+                          }
+
+                          const targetClasses = classes.filter((c) => ids.includes(c.id));
+                          if (targetClasses.length === 0) {
+                            return (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-800 text-slate-400 border border-slate-700 text-[11px]">
+                                Lớp đã xóa
+                              </span>
+                            );
+                          }
+
+                          return (
+                            <div className="flex flex-wrap items-center justify-center gap-1.5 max-w-xs mx-auto">
+                              {targetClasses.map((c) => (
+                                <span
+                                  key={c.id}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-red-500/15 text-red-400 border border-red-500/30 text-[11px] font-bold shadow-sm"
+                                  title={`Mã vào lớp: ${c.joinCode}`}
+                                >
+                                  <GraduationCap className="w-3 h-3 shrink-0" />
+                                  <span>{c.className}</span>
+                                </span>
+                              ))}
+                            </div>
+                          );
+                        })()}
                       </td>
                       <td className="py-3 px-4 text-slate-600 dark:text-slate-400 max-w-xs truncate">
                         {t.description || 'Chưa có mô tả'}
@@ -339,7 +637,7 @@ export const TopicManager: React.FC = () => {
                     {/* EXPANDED VIEW: Danh sách bài tập cụ thể trong chủ đề này */}
                     {isExpanded && (
                       <tr className="bg-slate-50 dark:bg-slate-950/90 border-y border-slate-200 dark:border-slate-800">
-                        <td colSpan={5} className="p-4 sm:p-5">
+                        <td colSpan={6} className="p-4 sm:p-5">
                           <div className="space-y-3">
                             <div className="flex items-center justify-between pb-2 border-b border-slate-200 dark:border-slate-800">
                               <h5 className="font-bold text-xs uppercase tracking-wider text-slate-800 dark:text-slate-300 flex items-center gap-2">
@@ -476,6 +774,18 @@ export const TopicManager: React.FC = () => {
         <ProblemEditorModal
           problem={editingProblem}
           initialTopicId={creatingForTopicId || undefined}
+          classId={
+            creatingForTopicId
+              ? (() => {
+                  const targetTopic = topics.find((t) => t.id === creatingForTopicId);
+                  if (!targetTopic) return undefined;
+                  const ids = targetTopic.classIds && targetTopic.classIds.length > 0
+                    ? targetTopic.classIds
+                    : (targetTopic.classId ? [targetTopic.classId] : ['ALL']);
+                  return ids[0] !== 'ALL' ? ids[0] : undefined;
+                })()
+              : undefined
+          }
           onClose={() => {
             setCreatingForTopicId(null);
             setEditingProblem(null);

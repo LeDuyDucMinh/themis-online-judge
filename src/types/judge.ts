@@ -8,7 +8,7 @@ export interface StudentUser {
   createdAt: string;
 }
 
-export type Verdict = 'AC' | 'WA' | 'TLE' | 'RTE' | 'MLE' | 'CE' | 'PENDING' | 'RUNNING';
+export type Verdict = 'AC' | 'WA' | 'TLE' | 'RTE' | 'MLE' | 'CE' | 'SYS' | 'PENDING' | 'RUNNING';
 
 export interface TestCase {
   id: string;
@@ -35,10 +35,26 @@ export interface SampleIO {
   explanation?: string;
 }
 
+export interface Classroom {
+  id: string;
+  className: string;
+  description: string;
+  teacherId: string;
+  joinCode: string; // Mã tham gia lớp (6 ký tự viết hoa)
+  createdAt: string;
+}
+
+export interface ClassStudent {
+  classId: string;
+  studentId: string;
+  joinedAt: string;
+}
+
 export interface Problem {
   id: string;
   code: string; // Mã bài, ví dụ: "TONG2SO", "PRIME", "SUBARRAY"
   title: string;
+  classId?: string; // ID lớp học sở hữu bài tập này (Multi-Classroom)
   topicId: string;
   difficulty: string; // Tự do cho Admin đặt (Dễ, Trung bình, Khó, HSG Tỉnh, Olympic...)
   timeLimit: number; // Giây, e.g. 1.0
@@ -77,6 +93,8 @@ export interface Topic {
   description: string;
   order: number;
   icon?: string;
+  classId?: string; // (Tương thích ngược) ID lớp học nếu chỉ gán 1 lớp ('ALL' là tất cả các lớp)
+  classIds?: string[]; // Danh sách các ID lớp học được giao chủ đề này (Hỗ trợ tích chọn nhiều lớp)
 }
 
 export interface TestResult {
@@ -90,6 +108,7 @@ export interface TestResult {
   actualOutput?: string;
   expectedOutput?: string;
   errorMessage?: string;
+  errorLog?: string;
 }
 
 export interface Submission {
@@ -97,6 +116,7 @@ export interface Submission {
   problemId: string;
   problemCode: string;
   problemTitle: string;
+  classId?: string; // Lớp học liên kết với bài nộp
   userId: string;
   userName: string;
   language: 'cpp' | 'python' | 'pascal' | 'java';
@@ -121,4 +141,43 @@ export interface UserStats {
   totalSubmissions: number;
   pointsAccumulated: number;
 }
+
+/**
+ * Kiểm tra xem một bài tập có hiển thị trong lớp học cụ thể hay không:
+ * 1. Khớp trực tiếp problem.classId
+ * 2. Thuộc về chủ đề (Topic) được giao cho lớp này (hỗ trợ cả topic.classIds và topic.classId === 'ALL')
+ * 3. Lớp mặc định nếu bài tập chưa được phân loại
+ */
+export function isProblemInClass(
+  problem: Problem,
+  classId?: string | null,
+  topics: Topic[] = []
+): boolean {
+  if (!classId) return true;
+
+  // 1. Trực tiếp khớp classId của bài tập
+  if (problem.classId === classId) return true;
+
+  // 2. Kế thừa từ chủ đề (Topic) chứa bài tập
+  if (problem.topicId) {
+    const parentTopic = topics.find((t) => t.id === problem.topicId);
+    if (parentTopic) {
+      const topicClassIds = parentTopic.classIds && parentTopic.classIds.length > 0
+        ? parentTopic.classIds
+        : (parentTopic.classId ? [parentTopic.classId] : ['ALL']);
+
+      if (topicClassIds.includes('ALL') || topicClassIds.includes(classId)) {
+        return true;
+      }
+    }
+  }
+
+  // 3. Fallback cho lớp mặc định nếu bài tập chưa được gán lớp cụ thể
+  if (!problem.classId && classId === 'class_default_faminh') {
+    return true;
+  }
+
+  return false;
+}
+
 

@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useJudge } from '../../context/JudgeContext';
 import type { Problem, TestCase } from '../../types/judge';
+import { idbService } from '../../services/db';
+import { apiService } from '../../services/apiService';
 import {
   parseThemisZipTestcases,
   parseThemisFileList,
@@ -57,6 +59,22 @@ export const TestCaseManagerModal: React.FC<TestCaseManagerModalProps> = ({
   const [loadingProgress, setLoadingProgress] = useState<{ current: number; total: number } | null>(null);
   const [parseError, setParseError] = useState<string | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
+
+  // Tự động nạp test cases từ IndexedDB nếu problem trong props chưa có test cases
+  useEffect(() => {
+    let isMounted = true;
+    (async () => {
+      if (!problem.testCases || problem.testCases.length === 0) {
+        const dbTests = await idbService.getTestCases(problem.id);
+        if (isMounted && dbTests && dbTests.length > 0) {
+          setTestCases(dbTests);
+        }
+      }
+    })();
+    return () => {
+      isMounted = false;
+    };
+  }, [problem.id, problem.testCases]);
 
   // Lắng nghe phím ESC để đóng modal
   useEffect(() => {
@@ -178,20 +196,30 @@ export const TestCaseManagerModal: React.FC<TestCaseManagerModalProps> = ({
   };
 
   // Lưu toàn bộ cấu hình vào problem
-  const handleSaveAll = () => {
+  const handleSaveAll = async () => {
     try {
-      updateProblem(problem.id, {
+      setIsLoadingTests(true);
+      setParseError(null);
+
+      // 1. BẮT BUỘC AWAIT: Lưu trực tiếp vào Database thực tế (Supabase Cloud REST API / IndexedDB)
+      await apiService.saveTestCases(problem.id, testCases);
+
+      // 2. Chỉ khi Database lưu thành công mới gọi cập nhật state bài tập trong React
+      await updateProblem(problem.id, {
         timeLimit: Number(timeLimit) || 1.0,
         memoryLimit: Number(memoryLimit) || 256,
         totalPoints: Number(totalPoints) || 10,
         testCases,
       });
-      showToast('Đã lưu Test Case', `Đã cập nhật ${testCases.length} bộ test case cho bài [${problem.code}]`, 'success');
+
+      showToast('Đã lưu Test Case', `Đã lưu thành công ${testCases.length} bộ test case cho bài [${problem.code}] vào Database`, 'success');
       onClose();
     } catch (err: unknown) {
-      const msg = (err as Error)?.message || 'Lỗi lưu trữ test case';
+      const msg = (err as Error)?.message || 'Lỗi lưu trữ test case vào Database';
       setParseError(`Không thể lưu cấu hình test: ${msg}`);
       showToast('Lỗi lưu test case', msg, 'error');
+    } finally {
+      setIsLoadingTests(false);
     }
   };
 

@@ -14,11 +14,12 @@ import {
   Users,
   GraduationCap,
   LogIn,
+  Server,
 } from 'lucide-react';
 
 interface NavbarProps {
-  currentTab: 'problems' | 'admin_topics' | 'admin_problems' | 'submissions';
-  setCurrentTab: (tab: 'problems' | 'admin_topics' | 'admin_problems' | 'submissions') => void;
+  currentTab: 'classes' | 'problems' | 'admin_classes' | 'admin_topics' | 'submissions';
+  setCurrentTab: (tab: 'classes' | 'problems' | 'admin_classes' | 'admin_topics' | 'submissions') => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab }) => {
@@ -30,11 +31,14 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab }) => 
     setAuthModalTab,
     setIsAuthModalOpen,
     setIsChangePasswordModalOpen,
+    setIsServerConfigModalOpen,
     logoutAdmin,
     resetAllData,
     theme,
     toggleTheme,
     openConfirmModal,
+    activeClass,
+    setActiveClassId,
   } = useJudge();
 
   const handleResetConfirm = () => {
@@ -46,12 +50,25 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab }) => 
     });
   };
 
+  const handleBrandClick = () => {
+    setActiveClassId(null);
+    if (isAdminAuthenticated) {
+      setCurrentTab('admin_classes');
+    } else {
+      setCurrentTab('classes');
+    }
+  };
+
   return (
     <header className="bg-slate-900 border-b border-slate-800 text-white sticky top-0 z-40">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
         {/* Brand / Logo FAMINH */}
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-slate-800 border border-red-500/30 overflow-hidden shadow-lg shadow-red-500/10 flex items-center justify-center p-0.5">
+        <div
+          onClick={handleBrandClick}
+          className="flex items-center gap-3 cursor-pointer group"
+          title="Trang chủ FAMINH Online Judge"
+        >
+          <div className="w-10 h-10 rounded-xl bg-slate-800 border border-red-500/30 overflow-hidden shadow-lg shadow-red-500/10 flex items-center justify-center p-0.5 group-hover:scale-105 transition-transform">
             <img
               src="/faminh-logo.jpg"
               alt="FAMINH Logo"
@@ -71,55 +88,117 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab }) => 
               </span>
             </div>
             <p className="text-[11px] text-slate-400 hidden sm:block">
-              Hệ thống luyện thi & Chấm bài tự động Themis
+              {activeClass ? (
+                <span className="text-red-400 font-semibold flex items-center gap-1">
+                  <span>Lớp:</span>
+                  <span className="truncate max-w-[150px]">{activeClass.className}</span>
+                </span>
+              ) : (
+                'Hệ thống luyện thi & Chấm bài tự động Themis'
+              )}
             </p>
           </div>
         </div>
 
         {/* Navigation Tabs based on Role */}
         <div className="hidden md:flex items-center gap-1 bg-slate-800/80 p-1 rounded-xl border border-slate-700/60">
-          {/* Tab Luyện tập (Bài tập): Chỉ hiển thị cho Học sinh/User */}
+          {/* HỌC SINH: Tab Lớp học của tôi */}
           {!isAdminAuthenticated && (
             <button
-              onClick={() => setCurrentTab('problems')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-2 transition-all ${
-                currentTab === 'problems'
+              onClick={() => {
+                setCurrentTab('classes');
+                setActiveClassId(null);
+              }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-2 transition-all cursor-pointer ${
+                currentTab === 'classes' && !activeClass
+                  ? 'bg-red-600 text-white shadow'
+                  : 'text-slate-300 hover:text-white hover:bg-slate-700/50'
+              }`}
+            >
+              <GraduationCap className="w-4 h-4 text-red-400" />
+              <span>Lớp học của tôi</span>
+            </button>
+          )}
+
+          {/* HỌC SINH: Tab Luyện tập khi đang ở trong một lớp */}
+          {!isAdminAuthenticated && activeClass && (
+            <button
+              onClick={() => setCurrentTab('classes')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-2 transition-all cursor-pointer ${
+                currentTab === 'classes' && activeClass
                   ? 'bg-red-600 text-white shadow'
                   : 'text-slate-300 hover:text-white hover:bg-slate-700/50'
               }`}
             >
               <Code2 className="w-4 h-4" />
-              Luyện tập (Bài tập)
+              <span>Bài tập lớp</span>
             </button>
           )}
 
-          {/* Admin tabs - CHỈ HIỂN THỊ KHI LÀ GIÁO VIÊN (ADMIN) */}
+          {/* GIÁO VIÊN: Tab Quản lý Lớp học (Mặc định) */}
           {isAdminAuthenticated && (
             <button
-              onClick={() => setCurrentTab('admin_topics')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-2 transition-all ${
+              onClick={() => {
+                setCurrentTab('admin_classes');
+                setActiveClassId(null);
+              }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-2 transition-all cursor-pointer ${
+                currentTab === 'admin_classes' && !activeClass
+                  ? 'bg-red-600 text-white shadow'
+                  : 'text-slate-300 hover:text-white hover:bg-slate-700/50'
+              }`}
+            >
+              <GraduationCap className="w-4 h-4 text-red-400" />
+              <span>Quản lý Lớp học</span>
+            </button>
+          )}
+
+          {/* GIÁO VIÊN: Tab Chi tiết lớp khi đang chọn lớp */}
+          {isAdminAuthenticated && activeClass && (
+            <button
+              onClick={() => setCurrentTab('admin_classes')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-2 transition-all cursor-pointer ${
+                currentTab === 'admin_classes' && activeClass
+                  ? 'bg-red-600 text-white shadow'
+                  : 'text-slate-300 hover:text-white hover:bg-slate-700/50'
+              }`}
+            >
+              <ListTree className="w-4 h-4" />
+              <span>{activeClass.className}</span>
+            </button>
+          )}
+
+          {/* GIÁO VIÊN: Tab Quản lý Chủ đề chung */}
+          {isAdminAuthenticated && (
+            <button
+              onClick={() => {
+                setCurrentTab('admin_topics');
+              }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-2 transition-all cursor-pointer ${
                 currentTab === 'admin_topics'
                   ? 'bg-red-600 text-white shadow'
                   : 'text-slate-300 hover:text-white hover:bg-slate-700/50'
               }`}
             >
               <ListTree className="w-4 h-4" />
-              Quản lý Chủ đề & Đề
+              <span>Quản lý Chủ đề</span>
             </button>
           )}
 
+          {/* Tab Lịch sử nộp bài */}
           <button
             onClick={() => setCurrentTab('submissions')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-2 transition-all ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-2 transition-all cursor-pointer ${
               currentTab === 'submissions'
                 ? 'bg-red-600 text-white shadow'
                 : 'text-slate-300 hover:text-white hover:bg-slate-700/50'
             }`}
           >
-            <Trophy className="w-4 h-4" />
-            Lịch sử nộp bài
+            <Trophy className="w-4 h-4 text-amber-400" />
+            <span>Lịch sử nộp bài</span>
           </button>
         </div>
+
 
         {/* Theme Toggle & Role Actions */}
         <div className="flex items-center gap-2 sm:gap-3">
@@ -153,6 +232,16 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab }) => 
               >
                 <Users className="w-3.5 h-3.5 text-blue-400" />
                 <span className="hidden lg:inline">Quản lý Học sinh</span>
+              </button>
+
+              {/* Nút Cấu hình Máy chủ Chấm bài VPS */}
+              <button
+                onClick={() => setIsServerConfigModalOpen(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-700 text-xs font-semibold transition-colors cursor-pointer"
+                title="Cấu hình Máy chủ Chấm bài VPS (Judge0)"
+              >
+                <Server className="w-3.5 h-3.5 text-emerald-400" />
+                <span className="hidden lg:inline">Server Chấm VPS</span>
               </button>
 
               {/* Đổi mật khẩu */}

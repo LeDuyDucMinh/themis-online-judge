@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useJudge } from '../../context/JudgeContext';
-import type { Problem, SampleIO } from '../../types/judge';
+import type { Problem, SampleIO, TestCase } from '../../types/judge';
+import { idbService } from '../../services/db';
 import { MathRenderer } from '../common/MathRenderer';
 import {
   parseDocxFile,
@@ -23,20 +24,50 @@ import {
   Sparkles,
   Columns,
   PenLine,
+  GraduationCap,
 } from 'lucide-react';
 
 interface ProblemEditorModalProps {
   problem: Problem | null; // null nếu là tạo mới
   initialTopicId?: string;
+  classId?: string;
   onClose: () => void;
 }
 
 export const ProblemEditorModal: React.FC<ProblemEditorModalProps> = ({
   problem,
   initialTopicId,
+  classId,
   onClose,
 }) => {
-  const { topics, addProblem, updateProblem, showToast, theme } = useJudge();
+  const { topics, classes, addProblem, updateProblem, showToast, theme, activeClassId } = useJudge();
+
+  const [selectedClassId, setSelectedClassId] = useState<string>(() => {
+    if (problem?.classId) return problem.classId;
+    if (classId) return classId;
+    if (activeClassId) return activeClassId;
+    const initialTopic = topics.find((t) => t.id === (initialTopicId || topics[0]?.id));
+    if (initialTopic) {
+      const ids = initialTopic.classIds && initialTopic.classIds.length > 0
+        ? initialTopic.classIds
+        : (initialTopic.classId ? [initialTopic.classId] : ['ALL']);
+      if (ids[0] && ids[0] !== 'ALL') return ids[0];
+    }
+    return classes[0]?.id || 'class_default_faminh';
+  });
+
+  const handleTopicChange = (newTopicId: string) => {
+    setTopicId(newTopicId);
+    const parentTopic = topics.find((t) => t.id === newTopicId);
+    if (parentTopic) {
+      const ids = parentTopic.classIds && parentTopic.classIds.length > 0
+        ? parentTopic.classIds
+        : (parentTopic.classId ? [parentTopic.classId] : ['ALL']);
+      if (ids[0] && ids[0] !== 'ALL') {
+        setSelectedClassId(ids[0]);
+      }
+    }
+  };
 
   // Mode Tab: 'manual' (Tự soạn thảo / Paste) vs 'file' (Đính kèm File)
   const [inputMode, setInputMode] = useState<'manual' | 'file'>('manual');
@@ -72,6 +103,23 @@ export const ProblemEditorModal: React.FC<ProblemEditorModalProps> = ({
   const [isImporting, setIsImporting] = useState(false);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const [testCases, setTestCases] = useState<TestCase[]>(problem?.testCases || []);
+
+  useEffect(() => {
+    let isMounted = true;
+    (async () => {
+      if (problem && (!problem.testCases || problem.testCases.length === 0)) {
+        const dbTests = await idbService.getTestCases(problem.id);
+        if (isMounted && dbTests && dbTests.length > 0) {
+          setTestCases(dbTests);
+        }
+      }
+    })();
+    return () => {
+      isMounted = false;
+    };
+  }, [problem?.id, problem?.testCases]);
 
   // Lắng nghe phím ESC để đóng modal
   useEffect(() => {
@@ -245,7 +293,7 @@ Cho dãy số nguyên $A = (a_1, a_2, \\dots, a_n)$. Hãy tìm...
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!code.trim() || !title.trim()) {
@@ -258,12 +306,28 @@ Cho dãy số nguyên $A = (a_1, a_2, \\dots, a_n)$. Hãy tìm...
       (s) => s.input.trim().length > 0 || s.output.trim().length > 0
     );
 
+    let targetClassId = selectedClassId || problem?.classId || classId || activeClassId;
+    if (!targetClassId || targetClassId === 'class_default_faminh') {
+      const parentTopic = topics.find((t) => t.id === topicId);
+      if (parentTopic) {
+        const ids = parentTopic.classIds && parentTopic.classIds.length > 0
+          ? parentTopic.classIds
+          : (parentTopic.classId ? [parentTopic.classId] : ['ALL']);
+        if (ids[0] && ids[0] !== 'ALL') {
+          targetClassId = ids[0];
+        }
+      }
+    }
+    if (!targetClassId) targetClassId = 'class_default_faminh';
+
     const problemData = {
       code: code.trim().toUpperCase().replace(/\s+/g, '_'),
       title: title.trim(),
+      classId: targetClassId,
       author: author.trim() || 'Thầy Minh (FAMINH)',
       topicId,
       difficulty: difficulty.trim() || 'Trung bình',
+
       timeLimit: Number(timeLimit) || 1.0,
       memoryLimit: Number(memoryLimit) || 256,
       totalPoints: Number(totalPoints) || 10,
@@ -273,7 +337,7 @@ Cho dãy số nguyên $A = (a_1, a_2, \\dots, a_n)$. Hãy tìm...
       constraints: problem?.constraints || '',
       samples: validSamples,
       attachedFile,
-      testCases: problem?.testCases || [],
+      testCases: testCases.length > 0 ? testCases : (problem?.testCases || []),
       videoConfig: problem?.videoConfig || {
         enabled: false,
         type: 'youtube',
@@ -283,15 +347,16 @@ Cho dãy số nguyên $A = (a_1, a_2, \\dots, a_n)$. Hãy tìm...
       starterCode: problem?.starterCode,
     };
 
-    if (problem) {
-      updateProblem(problem.id, problemData);
-      showToast('Cập nhật thành công', `Đã lưu thay đổi cho bài [${problemData.code}]`, 'success');
-    } else {
-      addProblem(problemData);
-      showToast('Tạo bài tập thành công', `Đã tạo bài tập mới [${problemData.code}]`, 'success');
+    try {
+      if (problem) {
+        await updateProblem(problem.id, problemData);
+      } else {
+        await addProblem(problemData);
+      }
+      onClose();
+    } catch (err: unknown) {
+      console.error('[ProblemEditorModal] Lỗi lưu bài tập:', err);
     }
-
-    onClose();
   };
 
   return (
@@ -456,8 +521,8 @@ Cho dãy số nguyên $A = (a_1, a_2, \\dots, a_n)$. Hãy tìm...
           )}
 
           <form id="problem-form" onSubmit={handleSubmit} className="space-y-6">
-            {/* Thông tin cơ bản: Mã bài, Tiêu đề, Chủ đề */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            {/* Thông tin cơ bản: Mã bài, Tiêu đề */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-300 mb-1">
                   Mã bài (Code - Admin tự đặt): *
@@ -485,15 +550,37 @@ Cho dãy số nguyên $A = (a_1, a_2, \\dots, a_n)$. Hãy tìm...
                   className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-red-500"
                 />
               </div>
+            </div>
+
+            {/* Row 2: Lớp học được giao, Chủ đề */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1 flex items-center gap-1.5">
+                  <GraduationCap className="w-3.5 h-3.5 text-red-400" />
+                  Giao vào Lớp học: *
+                </label>
+                <select
+                  value={selectedClassId}
+                  onChange={(e) => setSelectedClassId(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:ring-1 focus:ring-red-500 font-medium cursor-pointer"
+                >
+                  {classes.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      🏫 {c.className} (Mã: {c.joinCode})
+                    </option>
+                  ))}
+                </select>
+              </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                <label className="block text-xs font-semibold text-slate-300 mb-1 flex items-center gap-1.5">
+                  <FileText className="w-3.5 h-3.5 text-blue-400" />
                   Chủ đề (Topic):
                 </label>
                 <select
                   value={topicId}
-                  onChange={(e) => setTopicId(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:ring-1 focus:ring-red-500"
+                  onChange={(e) => handleTopicChange(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:ring-1 focus:ring-red-500 font-medium cursor-pointer"
                 >
                   {topics.length === 0 && (
                     <option value="">(Chưa có chủ đề - Vui lòng tạo chủ đề trước)</option>

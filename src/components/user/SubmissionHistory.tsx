@@ -17,12 +17,26 @@ import {
   BarChart3,
   BookOpen,
   Users,
+  GraduationCap,
 } from 'lucide-react';
 import { ThemisGradingTable } from './ThemisGradingTable';
 
 export const SubmissionHistory: React.FC = () => {
-  const { submissions, problems, topics, theme, isAdminAuthenticated, currentStudent, students } = useJudge();
+  const {
+    submissions,
+    problems,
+    topics,
+    classes,
+    theme,
+    isAdminAuthenticated,
+    currentStudent,
+    students,
+    getStudentsInClass,
+  } = useJudge();
   const [selectedSub, setSelectedSub] = useState<Submission | null>(null);
+
+  // Bộ lọc theo Lớp học (Multi-Classroom)
+  const [selectedClassId, setSelectedClassId] = useState<string>('ALL');
 
   // Chế độ xem dành riêng cho GIÁO VIÊN: 'log' = Nhật ký từng lần nộp, 'topic_grades' = Bảng điểm theo Chủ đề
   const [viewMode, setViewMode] = useState<'log' | 'topic_grades'>('log');
@@ -37,24 +51,31 @@ export const SubmissionHistory: React.FC = () => {
     }
   }, [topics, selectedTopicId]);
 
-  // Lọc danh sách bài nộp theo đúng phân quyền:
-  // - GIÁO VIÊN (ADMIN): Hiển thị đầy đủ 100% tất cả các bài nộp của mọi học sinh và của giáo viên
-  // - HỌC SINH (USER): CHỈ hiển thị những bài nộp có tên trùng khớp với tên Học sinh đang đăng nhập hiện tại
+  // Lọc danh sách bài nộp theo đúng phân quyền và Lớp học:
   const displayedSubmissions = useMemo(() => {
-    if (isAdminAuthenticated) {
-      return submissions;
+    let list = submissions;
+    if (!isAdminAuthenticated) {
+      if (!currentStudent) {
+        return [];
+      }
+      list = list.filter((sub) => {
+        const matchName = sub.userName && currentStudent.fullName &&
+          sub.userName.trim().toLowerCase() === currentStudent.fullName.trim().toLowerCase();
+        const matchUser = sub.userId && currentStudent.username &&
+          sub.userId.trim().toLowerCase() === currentStudent.username.trim().toLowerCase();
+        return Boolean(matchName || matchUser);
+      });
     }
-    if (!currentStudent) {
-      return [];
+
+    if (selectedClassId !== 'ALL') {
+      list = list.filter(
+        (sub) => sub.classId === selectedClassId || (!sub.classId && selectedClassId === 'class_default_faminh')
+      );
     }
-    return submissions.filter((sub) => {
-      const matchName = sub.userName && currentStudent.fullName &&
-        sub.userName.trim().toLowerCase() === currentStudent.fullName.trim().toLowerCase();
-      const matchUser = sub.userId && currentStudent.username &&
-        sub.userId.trim().toLowerCase() === currentStudent.username.trim().toLowerCase();
-      return Boolean(matchName || matchUser);
-    });
-  }, [submissions, isAdminAuthenticated, currentStudent]);
+
+    return list;
+  }, [submissions, isAdminAuthenticated, currentStudent, selectedClassId]);
+
 
   // Dữ liệu cho Chế độ 2: Bảng điểm theo Chủ đề
   const currentGradeTopic = topics.find((t) => t.id === selectedTopicId) || topics[0];
@@ -62,6 +83,74 @@ export const SubmissionHistory: React.FC = () => {
     ? problems.filter((p) => p.topicId === currentGradeTopic.id)
     : [];
   const topicMaxTotalPoints = topicProblems.reduce((sum, p) => sum + (p.totalPoints || 10), 0);
+
+  // Tập hợp các ID lớp học được phân bổ cho chủ đề này
+  const topicClassIds = useMemo(() => {
+    if (!currentGradeTopic) return ['ALL'];
+
+    // Nếu chủ đề được phân vào 'ALL' hoặc mảng classIds chứa 'ALL' -> Mở cho tất cả các lớp
+    if (
+      (currentGradeTopic.classIds && currentGradeTopic.classIds.includes('ALL')) ||
+      currentGradeTopic.classId === 'ALL'
+    ) {
+      return ['ALL'];
+    }
+
+    // Nếu chủ đề có danh sách lớp cụ thể
+    if (currentGradeTopic.classIds && currentGradeTopic.classIds.length > 0) {
+      const existingClassIds = new Set(classes.map((c) => c.id));
+      const valid = currentGradeTopic.classIds.filter((id) => existingClassIds.has(id));
+      return valid.length > 0 ? valid : ['ALL'];
+    }
+
+    if (currentGradeTopic.classId && currentGradeTopic.classId !== 'ALL') {
+      const existingClassIds = new Set(classes.map((c) => c.id));
+      if (existingClassIds.has(currentGradeTopic.classId)) {
+        return [currentGradeTopic.classId];
+      }
+    }
+
+    return ['ALL'];
+  }, [currentGradeTopic, classes]);
+
+  // Chỉ lấy những học sinh ĐƯỢC LÀM chủ đề này (thuộc các lớp được giao chủ đề)
+  const topicEligibleStudents = useMemo(() => {
+    if (!currentGradeTopic) return [];
+
+    // Nếu người dùng chọn lọc 1 lớp cụ thể trên dropdown:
+    if (selectedClassId !== 'ALL') {
+      // Nếu chủ đề này không giao cho lớp đang chọn -> không có học sinh
+      if (!topicClassIds.includes('ALL') && !topicClassIds.includes(selectedClassId)) {
+        return [];
+      }
+      const classStudents = getStudentsInClass(selectedClassId);
+      const eligibleIds = new Set(classStudents.map((s) => s.id));
+      return students.filter((s) => eligibleIds.has(s.id));
+    }
+
+    // Nếu selectedClassId === 'ALL':
+    // 1. Nếu chủ đề được giao cho các lớp cụ thể:
+    if (!topicClassIds.includes('ALL')) {
+      const eligibleIds = new Set<string>();
+      topicClassIds.forEach((cId) => {
+        getStudentsInClass(cId).forEach((s) => eligibleIds.add(s.id));
+      });
+      return students.filter((s) => eligibleIds.has(s.id));
+    }
+
+    // 2. Nếu chủ đề giao cho tất cả các lớp ('ALL'):
+    // Chỉ lấy những học sinh đang tham gia ít nhất 1 lớp học trong hệ thống
+    const enrolledIds = new Set<string>();
+    classes.forEach((c) => {
+      getStudentsInClass(c.id).forEach((s) => enrolledIds.add(s.id));
+    });
+
+    if (classes.length > 0) {
+      return students.filter((s) => enrolledIds.has(s.id));
+    }
+
+    return students;
+  }, [currentGradeTopic, topicClassIds, selectedClassId, students, classes, getStudentsInClass]);
 
   // Helper: Tìm bài nộp có điểm số cao nhất của 1 học sinh đối với 1 bài tập cụ thể
   const getStudentProblemBest = (student: StudentUser, problemId: string): Submission | null => {
@@ -163,6 +252,14 @@ export const SubmissionHistory: React.FC = () => {
         </span>
       );
     }
+    if (sub.overallVerdict === 'SYS') {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-purple-500/15 text-purple-400 border border-purple-500/30">
+          <AlertOctagon className="w-3.5 h-3.5" />
+          LỖI MÁY CHẤM (SYS)
+        </span>
+      );
+    }
     return (
       <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-rose-500/15 text-rose-400 border border-rose-500/30">
         <XCircle className="w-3.5 h-3.5" />
@@ -188,9 +285,26 @@ export const SubmissionHistory: React.FC = () => {
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
+          {/* Bộ lọc theo Lớp học */}
+          <div className="flex items-center gap-1.5">
+            <select
+              value={selectedClassId}
+              onChange={(e) => setSelectedClassId(e.target.value)}
+              className="bg-slate-800 border border-slate-700 text-slate-200 text-xs rounded-xl px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-red-500 font-medium"
+            >
+              <option value="ALL">Tất cả lớp học ({classes.length})</option>
+              {classes.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.className}
+                </option>
+              ))}
+            </select>
+          </div>
+
           {/* 2 Nút chuyển chế độ xem dành riêng cho Giáo viên */}
           {isAdminAuthenticated && (
             <div className="flex items-center p-1 bg-slate-800/80 rounded-2xl border border-slate-700/60 shadow-sm">
+
               <button
                 type="button"
                 onClick={() => setViewMode('log')}
@@ -219,7 +333,7 @@ export const SubmissionHistory: React.FC = () => {
           )}
 
           <span className="text-xs font-mono text-slate-400 bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-700">
-            {viewMode === 'log' ? `${displayedSubmissions.length} bài nộp` : `${students.length} học sinh`}
+            {viewMode === 'log' ? `${displayedSubmissions.length} bài nộp` : `${topicEligibleStudents.length} học sinh được giao`}
           </span>
         </div>
       </div>
@@ -333,12 +447,28 @@ export const SubmissionHistory: React.FC = () => {
             </div>
 
             <div className="flex flex-wrap items-center gap-3">
-              <span className="text-xs font-mono text-slate-300 bg-slate-800/80 px-3 py-1.5 rounded-xl border border-slate-700/80">
-                <span className="text-slate-400">Số bài trong chủ đề:</span>{' '}
-                <b className="text-blue-400">{topicProblems.length} bài</b>
+              <span className="text-xs font-mono text-slate-300 bg-slate-800/80 px-3 py-1.5 rounded-xl border border-slate-700/80 flex items-center gap-1.5">
+                <GraduationCap className="w-3.5 h-3.5 text-indigo-400" />
+                <span className="text-slate-400">Giao cho:</span>{' '}
+                <b className="text-indigo-300 font-sans">
+                  {topicClassIds.includes('ALL')
+                    ? 'Tất cả các lớp'
+                    : topicClassIds
+                        .map((id) => classes.find((c) => c.id === id)?.className || id)
+                        .join(', ')}
+                </b>
+              </span>
+              <span className="text-xs font-mono text-slate-300 bg-slate-800/80 px-3 py-1.5 rounded-xl border border-slate-700/80 flex items-center gap-1.5">
+                <Users className="w-3.5 h-3.5 text-emerald-400" />
+                <span className="text-slate-400">Học sinh được làm:</span>{' '}
+                <b className="text-emerald-400">{topicEligibleStudents.length} HS</b>
               </span>
               <span className="text-xs font-mono text-slate-300 bg-slate-800/80 px-3 py-1.5 rounded-xl border border-slate-700/80">
-                <span className="text-slate-400">Tổng điểm tối đa:</span>{' '}
+                <span className="text-slate-400">Số bài:</span>{' '}
+                <b className="text-blue-400">{topicProblems.length}</b>
+              </span>
+              <span className="text-xs font-mono text-slate-300 bg-slate-800/80 px-3 py-1.5 rounded-xl border border-slate-700/80">
+                <span className="text-slate-400">Điểm tối đa:</span>{' '}
                 <b className="text-amber-400">{topicMaxTotalPoints}đ</b>
               </span>
             </div>
@@ -359,6 +489,16 @@ export const SubmissionHistory: React.FC = () => {
               <h5 className="font-semibold text-slate-300">Chủ đề này chưa có bài tập nào</h5>
               <p className="text-xs text-slate-500 mt-1">
                 Vui lòng vào mục &quot;Quản lý Chủ đề&quot; để thêm bài tập vào chuyên đề này.
+              </p>
+            </div>
+          ) : topicEligibleStudents.length === 0 ? (
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-12 text-center text-slate-400">
+              <Users className="w-10 h-10 mx-auto text-slate-600 mb-2" />
+              <h5 className="font-semibold text-slate-300">Không có học sinh nào được giao chủ đề này</h5>
+              <p className="text-xs text-slate-500 mt-1">
+                {selectedClassId !== 'ALL'
+                  ? `Lớp hiện tại không thuộc danh sách lớp được giao chuyên đề "${currentGradeTopic?.name}". Hãy chọn "Tất cả lớp học" hoặc lớp được giao.`
+                  : `Chuyên đề "${currentGradeTopic?.name}" hiện chưa có học sinh nào thuộc các lớp được giao làm bài.`}
               </p>
             </div>
           ) : (
@@ -395,7 +535,7 @@ export const SubmissionHistory: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800/60 font-mono">
-                    {students.map((st, idx) => {
+                    {topicEligibleStudents.map((st, idx) => {
                       let attemptedCount = 0;
                       let totalPointsEarned = 0;
 

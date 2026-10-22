@@ -28,7 +28,8 @@ interface ProblemViewProps {
 }
 
 export const ProblemView: React.FC<ProblemViewProps> = ({ problem, onBackToList }) => {
-  const { submitCode, submissions, theme, isAdminAuthenticated, currentStudent } = useJudge();
+  const { submitCode, submissions, theme, isAdminAuthenticated, currentStudent, activeClass, showToast } = useJudge();
+
 
   const [language, setLanguage] = useState<SupportedLanguage>('cpp');
   const [code, setCode] = useState<string>(() => {
@@ -107,13 +108,15 @@ export const ProblemView: React.FC<ProblemViewProps> = ({ problem, onBackToList 
         problem.id,
         code,
         language,
-        (currentIdx) => {
+        (currentIdx: number) => {
           setCurrentRunningIndex(currentIdx);
         }
       );
       setLatestSubmission(sub);
     } catch (err: unknown) {
       console.error(err);
+      const msg = (err as Error)?.message || 'Có lỗi xảy ra khi nộp bài hoặc lưu vào cơ sở dữ liệu';
+      showToast('Lỗi nộp bài', msg, 'error');
     } finally {
       setIsGrading(false);
     }
@@ -136,14 +139,26 @@ export const ProblemView: React.FC<ProblemViewProps> = ({ problem, onBackToList 
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
-      {/* Top action bar */}
+      {/* Top action bar with Breadcrumb */}
       <div className="flex items-center justify-between">
-        <button
-          onClick={onBackToList}
-          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-semibold transition-all border border-slate-700"
-        >
-          <ArrowLeft className="w-4 h-4" /> Danh sách bài tập
-        </button>
+        <div className="flex items-center gap-2 text-xs">
+          <button
+            onClick={onBackToList}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white font-semibold transition-all border border-slate-700 cursor-pointer"
+          >
+            <ArrowLeft className="w-4 h-4 text-red-500" />
+            <span>{activeClass ? `Lớp ${activeClass.className}` : 'Danh sách bài tập'}</span>
+          </button>
+          {activeClass && (
+            <>
+              <span className="text-slate-500">/</span>
+              <span className="font-mono font-bold text-red-400 bg-red-500/10 px-2 py-0.5 rounded border border-red-500/20">
+                {problem.code}
+              </span>
+            </>
+          )}
+        </div>
+
 
         <div className="flex items-center gap-2">
           <span className="text-xs text-slate-400">Độ khó:</span>
