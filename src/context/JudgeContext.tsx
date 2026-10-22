@@ -71,13 +71,13 @@ interface JudgeContextType {
   setActiveClassId: (id: string | null) => void;
   activeClass: Classroom | null;
   studentClasses: Classroom[];
-  createClass: (className: string, description: string) => Classroom;
-  updateClass: (id: string, data: Partial<Classroom>) => void;
-  deleteClass: (id: string) => void;
-  joinClassByCode: (joinCode: string) => { success: boolean; message: string; classroom?: Classroom };
+  createClass: (className: string, description: string) => Promise<Classroom>;
+  updateClass: (id: string, data: Partial<Classroom>) => Promise<void>;
+  deleteClass: (id: string) => Promise<void>;
+  joinClassByCode: (joinCode: string) => Promise<{ success: boolean; message: string; classroom?: Classroom }>;
   getStudentsInClass: (classId: string) => StudentUser[];
-  enrollStudentToClass: (classId: string, studentId: string) => void;
-  removeStudentFromClass: (classId: string, studentId: string) => void;
+  enrollStudentToClass: (classId: string, studentId: string) => Promise<void>;
+  removeStudentFromClass: (classId: string, studentId: string) => Promise<void>;
 
   // Data
   topics: Topic[];
@@ -93,10 +93,10 @@ interface JudgeContextType {
   removeToast: (id: string) => void;
 
   // Actions
-  addTopic: (topic: Omit<Topic, 'id'>) => void;
-  updateTopic: (id: string, topic: Partial<Topic>) => void;
-  deleteTopic: (id: string) => void;
-  reorderTopics: (topicIds: string[]) => void;
+  addTopic: (topic: Omit<Topic, 'id'>) => Promise<Topic>;
+  updateTopic: (id: string, topic: Partial<Topic>) => Promise<void>;
+  deleteTopic: (id: string) => Promise<void>;
+  reorderTopics: (topicIds: string[]) => Promise<void>;
 
   addProblem: (problem: Omit<Problem, 'id' | 'createdAt' | 'updatedAt'>) => Promise<Problem>;
   updateProblem: (id: string, problem: Partial<Problem>) => Promise<void>;
@@ -208,27 +208,39 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     return classes.filter((c) => classIds.has(c.id));
   }, [currentStudent, classStudents, classes]);
 
-  const createClass = (className: string, description: string): Classroom => {
+  const createClass = async (className: string, description: string): Promise<Classroom> => {
     const newClass = storageService.addClass({ className, description });
-    apiService.saveClassroom(newClass).catch(() => {});
+    try {
+      await apiService.saveClassroom(newClass);
+    } catch (e) {
+      console.warn('Lỗi lưu lớp học lên Cloud:', e);
+    }
     setClasses(storageService.getClasses());
     showToast('Tạo lớp thành công', `Đã tạo lớp "${newClass.className}" - Mã tham gia: ${newClass.joinCode}`, 'success');
     return newClass;
   };
 
-  const updateClass = (id: string, data: Partial<Classroom>) => {
+  const updateClass = async (id: string, data: Partial<Classroom>): Promise<void> => {
     storageService.updateClass(id, data);
     const updated = storageService.getClassById(id);
     if (updated) {
-      apiService.saveClassroom(updated).catch(() => {});
+      try {
+        await apiService.saveClassroom(updated);
+      } catch (e) {
+        console.warn('Lỗi cập nhật lớp học lên Cloud:', e);
+      }
     }
     setClasses(storageService.getClasses());
     showToast('Cập nhật thành công', 'Đã lưu thay đổi thông tin lớp học', 'success');
   };
 
-  const deleteClass = (id: string) => {
+  const deleteClass = async (id: string): Promise<void> => {
     storageService.deleteClass(id);
-    apiService.deleteClassroom(id).catch(() => {});
+    try {
+      await apiService.deleteClassroom(id);
+    } catch (e) {
+      console.warn('Lỗi xóa lớp học trên Cloud:', e);
+    }
     setClasses(storageService.getClasses());
     setClassStudents(storageService.getClassStudents());
     setTopics(storageService.getTopics());
@@ -239,7 +251,7 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     showToast('Đã xóa lớp học', 'Đã xóa lớp học thành công', 'info');
   };
 
-  const joinClassByCode = (joinCode: string): { success: boolean; message: string; classroom?: Classroom } => {
+  const joinClassByCode = async (joinCode: string): Promise<{ success: boolean; message: string; classroom?: Classroom }> => {
     if (!currentStudent) {
       return { success: false, message: 'Vui lòng đăng nhập tài khoản học sinh trước khi tham gia lớp!' };
     }
@@ -248,7 +260,11 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       const updatedRelations = storageService.getClassStudents();
       setClassStudents(updatedRelations);
       setClasses(storageService.getClasses());
-      apiService.saveClassStudents(updatedRelations).catch(() => {});
+      try {
+        await apiService.saveClassStudents(updatedRelations);
+      } catch (e) {
+        console.warn('Lỗi lưu quan hệ học sinh lên Cloud:', e);
+      }
       showToast(res.message, `Lớp: ${res.classroom?.className}`, 'success');
     } else {
       showToast('Không thể tham gia', res.message, 'error');
@@ -260,19 +276,27 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     return storageService.getStudentsInClass(classId);
   };
 
-  const enrollStudentToClass = (classId: string, studentId: string) => {
+  const enrollStudentToClass = async (classId: string, studentId: string): Promise<void> => {
     storageService.enrollStudentToClass(classId, studentId);
     const updatedRelations = storageService.getClassStudents();
     setClassStudents(updatedRelations);
-    apiService.saveClassStudents(updatedRelations).catch(() => {});
+    try {
+      await apiService.saveClassStudents(updatedRelations);
+    } catch (e) {
+      console.warn('Lỗi ghi liên kết lớp lên Cloud:', e);
+    }
     showToast('Thành công', 'Đã thêm học sinh vào lớp', 'success');
   };
 
-  const removeStudentFromClass = (classId: string, studentId: string) => {
+  const removeStudentFromClass = async (classId: string, studentId: string): Promise<void> => {
     storageService.removeStudentFromClass(classId, studentId);
     const updatedRelations = storageService.getClassStudents();
     setClassStudents(updatedRelations);
-    apiService.saveClassStudents(updatedRelations).catch(() => {});
+    try {
+      await apiService.saveClassStudents(updatedRelations);
+    } catch (e) {
+      console.warn('Lỗi ghi hủy liên kết lớp lên Cloud:', e);
+    }
     showToast('Đã đưa ra khỏi lớp', 'Đã xóa học sinh khỏi danh sách lớp này', 'info');
   };
 
@@ -306,45 +330,24 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         apiService.fetchSubmissions(),
       ]);
 
-      if (cloudClasses && cloudClasses.length > 0) {
+      if (cloudClasses) {
         setClasses(cloudClasses);
       }
       if (cloudRelations) {
         setClassStudents(cloudRelations);
       }
-      if (cloudStudents && cloudStudents.length > 0) {
+      if (cloudStudents) {
         setStudents(cloudStudents);
       }
-      if (cloudTopics && cloudTopics.length > 0) {
+      if (cloudTopics) {
         setTopics(cloudTopics);
       }
-      if (cloudProblems && cloudProblems.length > 0) {
-        setProblems((prev) => {
-          const mergedMap = new Map<string, Problem>();
-          cloudProblems.forEach((p) => mergedMap.set(p.id, p));
-          prev.forEach((p) => {
-            const existing = mergedMap.get(p.id);
-            if (!existing) {
-              mergedMap.set(p.id, p);
-            } else {
-              const existingHasRealTests = (existing.testCases || []).some(
-                (t) => (t.input && t.input.trim().length > 0) || (t.expectedOutput && t.expectedOutput.trim().length > 0)
-              );
-              const prevHasRealTests = (p.testCases || []).some(
-                (t) => (t.input && t.input.trim().length > 0) || (t.expectedOutput && t.expectedOutput.trim().length > 0)
-              );
-              if (!existingHasRealTests && prevHasRealTests) {
-                mergedMap.set(p.id, { ...existing, testCases: p.testCases });
-              }
-            }
-          });
-          return Array.from(mergedMap.values());
-        });
-
+      if (cloudProblems) {
+        setProblems(cloudProblems);
         setActiveProblem((curr) => {
           if (!curr) return cloudProblems[0] || null;
           const updated = cloudProblems.find((p) => p.id === curr.id);
-          return updated || curr;
+          return updated || cloudProblems[0] || null;
         });
       }
       if (cloudSubs) {
@@ -671,10 +674,10 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     }
   };
 
-  const addTopic = (topicData: Omit<Topic, 'id'>) => {
+  const addTopic = async (topicData: Omit<Topic, 'id'>): Promise<Topic> => {
     if (!isAdminAuthenticated) {
       showToast('Không có quyền', 'Chỉ quản trị viên mới được tạo chủ đề', 'error');
-      return;
+      throw new Error('Chỉ quản trị viên mới được tạo chủ đề');
     }
     const classIds = topicData.classIds && topicData.classIds.length > 0
       ? topicData.classIds
@@ -687,37 +690,53 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       classIds,
     };
     const nextTopics = [...topics, newTopic];
+    try {
+      await apiService.saveTopics(nextTopics);
+    } catch (e) {
+      console.warn('Lỗi lưu chủ đề lên Cloud:', e);
+    }
     setTopics(nextTopics);
     showToast('Thành công', `Đã tạo chủ đề "${newTopic.name}"`, 'success');
+    return newTopic;
   };
 
-  const updateTopic = (id: string, updated: Partial<Topic>) => {
+  const updateTopic = async (id: string, updated: Partial<Topic>): Promise<void> => {
     if (!isAdminAuthenticated) return;
-    setTopics((prev) =>
-      prev.map((t) => {
-        if (t.id !== id) return t;
-        const classIds = updated.classIds !== undefined
-          ? updated.classIds
-          : (updated.classId ? [updated.classId] : t.classIds || (t.classId ? [t.classId] : ['ALL']));
-        const classId = updated.classId || classIds[0] || t.classId || 'ALL';
-        return {
-          ...t,
-          ...updated,
-          classId,
-          classIds,
-        };
-      })
-    );
+    const nextTopics = topics.map((t) => {
+      if (t.id !== id) return t;
+      const classIds = updated.classIds !== undefined
+        ? updated.classIds
+        : (updated.classId ? [updated.classId] : t.classIds || (t.classId ? [t.classId] : ['ALL']));
+      const classId = updated.classId || classIds[0] || t.classId || 'ALL';
+      return {
+        ...t,
+        ...updated,
+        classId,
+        classIds,
+      };
+    });
+    try {
+      await apiService.saveTopics(nextTopics);
+    } catch (e) {
+      console.warn('Lỗi cập nhật chủ đề lên Cloud:', e);
+    }
+    setTopics(nextTopics);
     showToast('Thành công', 'Đã cập nhật chủ đề', 'success');
   };
 
-  const deleteTopic = (id: string) => {
+  const deleteTopic = async (id: string): Promise<void> => {
     if (!isAdminAuthenticated) return;
-    setTopics((prev) => prev.filter((t) => t.id !== id));
+    const nextTopics = topics.filter((t) => t.id !== id);
+    try {
+      await apiService.saveTopics(nextTopics);
+    } catch (e) {
+      console.warn('Lỗi xóa chủ đề trên Cloud:', e);
+    }
+    setTopics(nextTopics);
     showToast('Đã xóa', 'Đã xóa chủ đề được chọn', 'info');
   };
 
-  const reorderTopics = (topicIds: string[]) => {
+  const reorderTopics = async (topicIds: string[]): Promise<void> => {
     if (!isAdminAuthenticated) return;
     const topicMap = new Map(topics.map((t) => [t.id, t]));
     const reordered: Topic[] = [];
@@ -727,6 +746,11 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         reordered.push({ ...item, order: idx + 1 });
       }
     });
+    try {
+      await apiService.saveTopics(reordered);
+    } catch (e) {
+      console.warn('Lỗi lưu thứ tự chủ đề lên Cloud:', e);
+    }
     setTopics(reordered);
   };
 

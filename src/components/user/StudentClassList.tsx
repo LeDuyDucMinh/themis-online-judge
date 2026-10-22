@@ -70,20 +70,22 @@ export const StudentClassList: React.FC = () => {
     return count;
   }, [studentClasses, problems, topics, getProblemStatus]);
 
-  const handleJoinClass = (e: React.FormEvent) => {
+  const handleJoinClass = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!joinCodeInput.trim()) return;
 
     setIsSubmitting(true);
-    const res = joinClassByCode(joinCodeInput.trim());
-    setIsSubmitting(false);
-
-    if (res.success) {
-      setIsJoinModalOpen(false);
-      setJoinCodeInput('');
-      if (res.classroom) {
-        setActiveClassId(res.classroom.id);
+    try {
+      const res = await joinClassByCode(joinCodeInput.trim());
+      if (res.success) {
+        setIsJoinModalOpen(false);
+        setJoinCodeInput('');
+        if (res.classroom) {
+          setActiveClassId(res.classroom.id);
+        }
       }
+    } finally {
+      setIsSubmitting(false);
     }
   };
 

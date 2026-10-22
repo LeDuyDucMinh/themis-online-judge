@@ -89,7 +89,6 @@ export const apiService = {
    * Lấy danh sách Lớp học (Classrooms) từ Database đám mây (Anti-cache real-time)
    */
   async fetchClassrooms(): Promise<Classroom[]> {
-    let cloudClasses: Classroom[] = [];
     if (isSupabaseConfigured()) {
       try {
         const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/classrooms?order=created_at.asc&_t=${Date.now()}`;
@@ -100,7 +99,7 @@ export const apiService = {
         if (res.ok) {
           const data = await res.json();
           if (Array.isArray(data)) {
-            cloudClasses = data
+            const cloudClasses = data
               .filter((c: any) => c.id && !c.id.startsWith('__system_'))
               .map((c: any): Classroom => ({
                 id: c.id,
@@ -110,16 +109,13 @@ export const apiService = {
                 joinCode: c.join_code || 'OXYZ',
                 createdAt: c.created_at || new Date().toISOString(),
               }));
+            storageService.saveClasses(cloudClasses);
+            return cloudClasses;
           }
         }
       } catch (err) {
         console.warn('[apiService] Lỗi fetch classrooms từ Supabase Cloud:', err);
       }
-    }
-
-    if (cloudClasses.length > 0) {
-      storageService.saveClasses(cloudClasses);
-      return cloudClasses;
     }
 
     return storageService.getClasses();
@@ -132,8 +128,8 @@ export const apiService = {
     if (!cls || !cls.id) return;
     if (!isSupabaseConfigured()) return;
     try {
-      const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/classrooms`;
-      await fetch(targetUrl, {
+      const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/classrooms?on_conflict=id`;
+      const res = await fetch(targetUrl, {
         method: 'POST',
         headers: {
           ...this.getAntiCacheHeaders(),
@@ -148,8 +144,13 @@ export const apiService = {
           updated_at: new Date().toISOString(),
         }),
       });
+      if (!res.ok) {
+        const detail = await res.text();
+        throw new Error(`Lỗi lưu lớp học (${res.status}): ${detail.slice(0, 150)}`);
+      }
     } catch (e) {
-      console.warn('[apiService] saveClassroom warn:', e);
+      console.error('[apiService] saveClassroom error:', e);
+      throw e;
     }
   },
 
@@ -159,7 +160,14 @@ export const apiService = {
   async ensureClassroom(classId: string, className?: string, joinCode?: string): Promise<void> {
     if (!isSupabaseConfigured() || !classId) return;
     try {
-      const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/classrooms`;
+      const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/classrooms?on_conflict=id`;
+      const defaultName = classId === 'class_default_faminh'
+        ? 'Lớp Học Mặc Định'
+        : (classId === 'ALL' ? 'Tất cả các lớp' : 'Lớp Học FAMINH');
+      const defaultCode = classId === 'class_default_faminh'
+        ? 'OXYZ'
+        : (classId === 'ALL' ? 'ALL' : 'OXYZ');
+
       await fetch(targetUrl, {
         method: 'POST',
         headers: {
@@ -169,9 +177,9 @@ export const apiService = {
         },
         body: JSON.stringify({
           id: classId,
-          class_name: className || 'Lớp Học FAMINH',
+          class_name: className || defaultName,
           description: 'Lớp học lập trình FAMINH',
-          join_code: joinCode || 'OXYZ',
+          join_code: joinCode || defaultCode,
           updated_at: new Date().toISOString(),
         }),
       });
@@ -197,14 +205,28 @@ export const apiService = {
         body: JSON.stringify({ class_id: null }),
       });
 
-      // 2. Xóa dòng lớp học trong bảng classrooms
+      // 2. Dọn liên kết học sinh của lớp này
+      try {
+        const relations = await this.fetchClassStudents();
+        const updatedRelations = relations.filter((r) => r.classId !== classId);
+        await this.saveClassStudents(updatedRelations);
+      } catch {
+        // Tiếp tục xóa lớp nếu dọn quan hệ lỗi
+      }
+
+      // 3. Xóa dòng lớp học trong bảng classrooms
       const deleteUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/classrooms?id=eq.${classId}`;
-      await fetch(deleteUrl, {
+      const res = await fetch(deleteUrl, {
         method: 'DELETE',
         headers: this.getAntiCacheHeaders(),
       });
+      if (!res.ok) {
+        const detail = await res.text();
+        throw new Error(`Lỗi xóa lớp học (${res.status}): ${detail.slice(0, 150)}`);
+      }
     } catch (e) {
-      console.warn('[apiService] deleteClassroom warning:', e);
+      console.error('[apiService] deleteClassroom error:', e);
+      throw e;
     }
   },
 
@@ -243,8 +265,8 @@ export const apiService = {
     storageService.saveClassStudents(list);
     if (!isSupabaseConfigured()) return;
     try {
-      const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/classrooms`;
-      await fetch(targetUrl, {
+      const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/classrooms?on_conflict=id`;
+      const res = await fetch(targetUrl, {
         method: 'POST',
         headers: {
           ...this.getAntiCacheHeaders(),
@@ -259,8 +281,13 @@ export const apiService = {
           updated_at: new Date().toISOString(),
         }),
       });
+      if (!res.ok) {
+        const detail = await res.text();
+        throw new Error(`Lỗi lưu quan hệ học sinh-lớp (${res.status}): ${detail.slice(0, 150)}`);
+      }
     } catch (e) {
-      console.warn('[apiService] saveClassStudents warn:', e);
+      console.error('[apiService] saveClassStudents warn:', e);
+      throw e;
     }
   },
 
@@ -279,7 +306,7 @@ export const apiService = {
           const rows = await res.json();
           if (Array.isArray(rows) && rows.length > 0 && rows[0].description) {
             const parsed = JSON.parse(rows[0].description);
-            if (Array.isArray(parsed) && parsed.length > 0) {
+            if (Array.isArray(parsed)) {
               storageService.saveStudents(parsed);
               return parsed;
             }
@@ -299,8 +326,8 @@ export const apiService = {
     storageService.saveStudents(list);
     if (!isSupabaseConfigured()) return;
     try {
-      const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/classrooms`;
-      await fetch(targetUrl, {
+      const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/classrooms?on_conflict=id`;
+      const res = await fetch(targetUrl, {
         method: 'POST',
         headers: {
           ...this.getAntiCacheHeaders(),
@@ -315,8 +342,13 @@ export const apiService = {
           updated_at: new Date().toISOString(),
         }),
       });
+      if (!res.ok) {
+        const detail = await res.text();
+        throw new Error(`Lỗi lưu danh sách học sinh (${res.status}): ${detail.slice(0, 150)}`);
+      }
     } catch (e) {
-      console.warn('[apiService] saveStudents warn:', e);
+      console.error('[apiService] saveStudents warn:', e);
+      throw e;
     }
   },
 
@@ -335,7 +367,7 @@ export const apiService = {
           const rows = await res.json();
           if (Array.isArray(rows) && rows.length > 0 && rows[0].description) {
             const parsed = JSON.parse(rows[0].description);
-            if (Array.isArray(parsed) && parsed.length > 0) {
+            if (Array.isArray(parsed)) {
               storageService.saveTopics(parsed);
               return parsed;
             }
@@ -355,8 +387,8 @@ export const apiService = {
     storageService.saveTopics(list);
     if (!isSupabaseConfigured()) return;
     try {
-      const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/classrooms`;
-      await fetch(targetUrl, {
+      const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/classrooms?on_conflict=id`;
+      const res = await fetch(targetUrl, {
         method: 'POST',
         headers: {
           ...this.getAntiCacheHeaders(),
@@ -371,8 +403,13 @@ export const apiService = {
           updated_at: new Date().toISOString(),
         }),
       });
+      if (!res.ok) {
+        const detail = await res.text();
+        throw new Error(`Lỗi lưu danh sách chủ đề (${res.status}): ${detail.slice(0, 150)}`);
+      }
     } catch (e) {
-      console.warn('[apiService] saveTopics warn:', e);
+      console.error('[apiService] saveTopics warn:', e);
+      throw e;
     }
   },
 
@@ -673,12 +710,10 @@ export const apiService = {
     if (isSupabaseConfigured()) {
       try {
         const targetClassId = problem.classId || 'class_default_faminh';
-        // Đảm bảo lớp học tồn tại trên Supabase để không dính lỗi foreign key
-        if (targetClassId && targetClassId !== 'class_default_faminh') {
-          await this.ensureClassroom(targetClassId);
-        }
+        // Đảm bảo lớp học luôn tồn tại trên Supabase để tránh lỗi Foreign Key Constraint 409
+        await this.ensureClassroom(targetClassId);
 
-        const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/problems`;
+        const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/problems?on_conflict=id`;
         const payload = {
           id: problem.id,
           code: problem.code,
@@ -704,8 +739,7 @@ export const apiService = {
         const res = await fetch(targetUrl, {
           method: 'POST',
           headers: {
-            apikey: ENV.SUPABASE_ANON_KEY,
-            Authorization: `Bearer ${ENV.SUPABASE_ANON_KEY}`,
+            ...this.getAntiCacheHeaders(),
             'Content-Type': 'application/json',
             Prefer: 'resolution=merge-duplicates',
           },
@@ -733,13 +767,21 @@ export const apiService = {
 
     if (isSupabaseConfigured()) {
       try {
+        // 1. Xóa các test cases của bài tập này trên Supabase để giải phóng ràng buộc
+        try {
+          await fetch(`${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/test_cases?problem_id=eq.${problemId}`, {
+            method: 'DELETE',
+            headers: this.getAntiCacheHeaders(),
+          });
+        } catch {
+          // Bỏ qua lỗi xóa test case nếu không tồn tại
+        }
+
+        // 2. Xóa bài tập khỏi bảng problems trên Supabase
         const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/problems?id=eq.${problemId}`;
         const res = await fetch(targetUrl, {
           method: 'DELETE',
-          headers: {
-            apikey: ENV.SUPABASE_ANON_KEY,
-            Authorization: `Bearer ${ENV.SUPABASE_ANON_KEY}`,
-          },
+          headers: this.getAntiCacheHeaders(),
         });
         if (!res.ok) {
           const errDetail = await res.text();
@@ -753,10 +795,9 @@ export const apiService = {
   },
 
   /**
-   * Lấy danh sách toàn bộ bài tập từ Database
+   * Lấy danh sách toàn bộ bài tập từ Database (Cloud Single Source of Truth)
    */
   async fetchProblems(): Promise<Problem[]> {
-    let cloudProblems: Problem[] = [];
     if (isSupabaseConfigured()) {
       try {
         const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/problems?order=code.asc&_t=${Date.now()}`;
@@ -767,7 +808,7 @@ export const apiService = {
         if (res.ok) {
           const list = await res.json();
           if (Array.isArray(list)) {
-            cloudProblems = list.map((item: any): Problem => ({
+            const cloudProblems = list.map((item: any): Problem => ({
               id: item.id,
               code: item.code,
               title: item.title,
@@ -794,14 +835,21 @@ export const apiService = {
               updatedAt: item.updated_at || new Date().toISOString(),
               testCases: [],
             }));
+
+            // ĐỒNG BỘ CHUẨN TỪ CLOUD (SINGLE SOURCE OF TRUTH):
+            // Supabase Cloud là chân lý. Ghi đè vào cache client để dọn sạch các bài đã bị xóa trên Cloud,
+            // ngăn chặn hoàn toàn lỗi Zombie Resurrect (hồi sinh bài cũ).
+            await idbService.saveProblems(cloudProblems);
+            storageService.saveProblems(cloudProblems);
+            return cloudProblems;
           }
         }
       } catch (err) {
-        console.warn('[apiService] Lỗi tải problems từ Supabase Cloud:', err);
+        console.warn('[apiService] Lỗi tải problems từ Supabase Cloud, dùng local cache:', err);
       }
     }
 
-    // Lấy bài tập cục bộ từ cả IndexedDB và localStorage (đề phòng dữ liệu nằm trong localStorage trước khi nâng cấp)
+    // Fallback: chỉ dùng IndexedDB / LocalStorage khi mất kết nối mạng
     const [idbProblems, storageProblems] = await Promise.all([
       idbService.getAllProblems(),
       Promise.resolve(storageService.getProblems()),
@@ -811,47 +859,7 @@ export const apiService = {
     storageProblems.forEach((p) => {
       if (!localMap.has(p.id)) localMap.set(p.id, p);
     });
-    const localProblems = Array.from(localMap.values());
-
-    const mergedMap = new Map<string, Problem>();
-    localProblems.forEach((p) => mergedMap.set(p.id, p));
-    cloudProblems.forEach((p) => {
-      const existing = mergedMap.get(p.id);
-      if (existing) {
-        mergedMap.set(p.id, {
-          ...p,
-          testCases: existing.testCases && existing.testCases.length > 0 ? existing.testCases : p.testCases,
-        });
-      } else {
-        mergedMap.set(p.id, p);
-      }
-    });
-
-    const result = Array.from(mergedMap.values());
-    if (cloudProblems.length > 0) {
-      idbService.saveProblems(result).catch(() => {});
-    }
-
-    // TỰ ĐỘNG ĐỒNG BỘ 2 CHIỀU:
-    // Nếu trên máy này có bài tập trong IndexedDB/localStorage nhưng trên Supabase Cloud chưa có:
-    // Tự động đẩy ngay bài tập và bộ test case lên Supabase để điện thoại và các máy khác thấy ngay lập tức!
-    if (isSupabaseConfigured() && localProblems.length > 0) {
-      for (const p of localProblems) {
-        if (!cloudProblems.some((cp) => cp.id === p.id)) {
-          this.saveProblem(p)
-            .then(async () => {
-              const tests = (await idbService.getTestCases(p.id)) || p.testCases;
-              if (tests && tests.length > 0) {
-                await this.saveTestCases(p.id, tests);
-              }
-              console.log(`[apiService] Đã tự động đồng bộ bài tập ${p.code} lên Cloud`);
-            })
-            .catch((err) => console.warn('[apiService] Auto-sync problem error:', err));
-        }
-      }
-    }
-
-    return result;
+    return Array.from(localMap.values());
   },
 
   /**
