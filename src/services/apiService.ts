@@ -405,6 +405,22 @@ export const apiService = {
       idbService.saveProblems(result).catch(() => {});
     }
 
+    // TỰ ĐỘNG ĐỒNG BỘ 2 CHIỀU:
+    // Nếu trên máy này có bài tập trong IndexedDB nhưng trên Supabase Cloud chưa có:
+    // Tự động đẩy ngay bài tập và bộ test case lên Supabase để điện thoại và các máy khác thấy ngay lập tức!
+    if (isSupabaseConfigured() && localProblems.length > 0) {
+      for (const p of localProblems) {
+        if (!cloudProblems.some((cp) => cp.id === p.id)) {
+          this.saveProblem(p).catch((err) => console.warn('[apiService] Auto-sync problem error:', err));
+          idbService.getTestCases(p.id).then((tests) => {
+            if (tests && tests.length > 0) {
+              this.saveTestCases(p.id, tests).catch((err) => console.warn('[apiService] Auto-sync testCases error:', err));
+            }
+          }).catch(() => {});
+        }
+      }
+    }
+
     return result;
   },
 };
