@@ -163,18 +163,19 @@ export const apiService = {
    */
   async ensureClassroom(classId: string, className?: string, joinCode?: string): Promise<void> {
     if (!isSupabaseConfigured() || !classId) return;
-    if (classId === 'class_default_faminh') return;
+    // Lớp 'ALL' và 'class_default_faminh' là hệ thống và đã tồn tại, không bao giờ ghi đè tránh làm mất tên lớp người dùng đã đổi
+    if (classId === 'ALL' || classId === 'class_default_faminh') return;
     try {
       const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/classrooms?on_conflict=id`;
-      const defaultName = classId === 'ALL' ? 'Tất cả các lớp' : 'Lớp Học FAMINH';
-      const defaultCode = classId === 'ALL' ? 'ALL' : 'OXYZ';
+      const defaultName = 'Lớp Học FAMINH';
+      const defaultCode = 'OXYZ';
 
       await fetch(targetUrl, {
         method: 'POST',
         headers: {
           ...this.getAntiCacheHeaders(),
           'Content-Type': 'application/json',
-          Prefer: 'resolution=merge-duplicates',
+          Prefer: 'resolution=ignore-duplicates',
         },
         body: JSON.stringify({
           id: classId,

@@ -76,9 +76,11 @@ export const ProblemEditorModal: React.FC<ProblemEditorModalProps> = ({
   const [code, setCode] = useState(problem?.code || '');
   const [title, setTitle] = useState(problem?.title || '');
   const [author, setAuthor] = useState(problem?.author || 'Thầy Minh (FAMINH)');
-  const [topicId, setTopicId] = useState(
-    problem?.topicId || initialTopicId || topics[0]?.id || ''
-  );
+  const [topicId, setTopicId] = useState(() => {
+    if (problem) return problem.topicId || '';
+    if (initialTopicId !== undefined) return initialTopicId;
+    return topics[0]?.id || '';
+  });
   const [difficulty, setDifficulty] = useState<string>(
     problem?.difficulty || 'Trung bình'
   );
@@ -582,12 +584,10 @@ Cho dãy số nguyên $A = (a_1, a_2, \\dots, a_n)$. Hãy tìm...
                   onChange={(e) => handleTopicChange(e.target.value)}
                   className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:ring-1 focus:ring-red-500 font-medium cursor-pointer"
                 >
-                  {topics.length === 0 && (
-                    <option value="">(Chưa có chủ đề - Vui lòng tạo chủ đề trước)</option>
-                  )}
+                  <option value="">-- Chưa phân vào chủ đề (Lưu trữ / Để sau) --</option>
                   {topics.map((t) => (
                     <option key={t.id} value={t.id}>
-                      {t.name}
+                      📁 {t.name}
                     </option>
                   ))}
                 </select>
