@@ -91,7 +91,7 @@ export const apiService = {
   async fetchClassrooms(): Promise<Classroom[]> {
     if (isSupabaseConfigured()) {
       try {
-        const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/classrooms?order=created_at.asc&_t=${Date.now()}`;
+        const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/classrooms?order=created_at.asc`;
         const res = await fetch(targetUrl, {
           headers: this.getAntiCacheHeaders(),
           cache: 'no-store',
@@ -253,7 +253,7 @@ export const apiService = {
   async fetchClassStudents(): Promise<ClassStudent[]> {
     if (isSupabaseConfigured()) {
       try {
-        const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/classrooms?id=eq.__system_class_students__&_t=${Date.now()}`;
+        const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/classrooms?id=eq.__system_class_students__`;
         const res = await fetch(targetUrl, {
           headers: this.getAntiCacheHeaders(),
           cache: 'no-store',
@@ -315,7 +315,7 @@ export const apiService = {
     const localStudents = storageService.getStudents();
     if (isSupabaseConfigured()) {
       try {
-        const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/classrooms?id=eq.__system_students__&_t=${Date.now()}`;
+        const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/classrooms?id=eq.__system_students__`;
         const res = await fetch(targetUrl, {
           headers: this.getAntiCacheHeaders(),
           cache: 'no-store',
@@ -396,7 +396,7 @@ export const apiService = {
   async fetchTopics(): Promise<Topic[]> {
     if (isSupabaseConfigured()) {
       try {
-        const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/classrooms?id=eq.__system_topics__&_t=${Date.now()}`;
+        const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/classrooms?id=eq.__system_topics__`;
         const res = await fetch(targetUrl, {
           headers: this.getAntiCacheHeaders(),
           cache: 'no-store',
@@ -458,7 +458,7 @@ export const apiService = {
   async getAdminPasswordFromDatabase(): Promise<string> {
     if (isSupabaseConfigured()) {
       try {
-        const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/classrooms?id=eq.__system_admin_auth__&_t=${Date.now()}`;
+        const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/classrooms?id=eq.__system_admin_auth__`;
         const res = await fetch(targetUrl, {
           headers: this.getAntiCacheHeaders(),
           cache: 'no-store',
@@ -466,17 +466,21 @@ export const apiService = {
         if (res.ok) {
           const rows = await res.json();
           if (Array.isArray(rows) && rows.length > 0 && rows[0].description) {
-            return rows[0].description.trim();
+            const dbPass = rows[0].description.trim();
+            storageService.setAdminPassword(dbPass);
+            return dbPass;
+          }
+          if (Array.isArray(rows) && rows.length === 0) {
+            // Chỉ khi bảng xác thực rỗng thực sự trên Cloud mới khởi tạo mặc định
+            await this.updateAdminPasswordInDatabase(DEFAULT_ADMIN_PASSWORD);
+            return DEFAULT_ADMIN_PASSWORD;
           }
         }
-        // Nếu dòng __system_admin_auth__ chưa tồn tại trên database, tự động khởi tạo mặc định
-        await this.updateAdminPasswordInDatabase(DEFAULT_ADMIN_PASSWORD);
-        return DEFAULT_ADMIN_PASSWORD;
       } catch (err) {
         console.warn('[apiService] Lỗi kết nối Supabase Cloud khi lấy Admin Password:', err);
       }
     }
-    return DEFAULT_ADMIN_PASSWORD;
+    return storageService.getAdminPassword();
   },
 
   /**
@@ -680,7 +684,7 @@ export const apiService = {
     let cloudSubmissions: Submission[] = [];
     if (isSupabaseConfigured()) {
       try {
-        const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/submissions?order=submitted_at.desc&limit=150&_t=${Date.now()}`;
+        const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/submissions?order=submitted_at.desc&limit=150`;
         const res = await fetch(targetUrl, {
           headers: this.getAntiCacheHeaders(),
           cache: 'no-store',
@@ -837,7 +841,7 @@ export const apiService = {
   async fetchProblems(): Promise<Problem[]> {
     if (isSupabaseConfigured()) {
       try {
-        const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/problems?order=code.asc&_t=${Date.now()}`;
+        const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/problems?order=code.asc`;
         const res = await fetch(targetUrl, {
           headers: this.getAntiCacheHeaders(),
           cache: 'no-store',
