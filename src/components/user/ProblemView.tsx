@@ -9,6 +9,8 @@ import {
   LANGUAGE_CONFIG,
   type SupportedLanguage,
 } from '../../services/judgeEngine';
+import { apiService } from '../../services/apiService';
+import { idbService } from '../../services/db';
 import {
   Play,
   RotateCcw,
@@ -38,6 +40,7 @@ export const ProblemView: React.FC<ProblemViewProps> = ({ problem, onBackToList 
 
   const [isGrading, setIsGrading] = useState<boolean>(false);
   const [currentRunningIndex, setCurrentRunningIndex] = useState<number>(0);
+  const [totalTestsRunning, setTotalTestsRunning] = useState<number>(problem.testCases?.length || 0);
   const [latestSubmission, setLatestSubmission] = useState<Submission | null>(null);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
@@ -97,22 +100,51 @@ export const ProblemView: React.FC<ProblemViewProps> = ({ problem, onBackToList 
     }
   };
 
+  // Tự động kiểm tra và nạp số lượng test cases thực tế từ IndexedDB hoặc Database
+  useEffect(() => {
+    let isMounted = true;
+    (async () => {
+      if (!problem.testCases || problem.testCases.length === 0) {
+        let dbTests = await idbService.getTestCases(problem.id);
+        if (!dbTests || dbTests.length === 0) {
+          dbTests = await apiService.fetchTestCases(problem.id);
+        }
+        if (isMounted && dbTests && dbTests.length > 0) {
+          setTotalTestsRunning(dbTests.length);
+        }
+      } else {
+        setTotalTestsRunning(problem.testCases.length);
+      }
+    })();
+    return () => {
+      isMounted = false;
+    };
+  }, [problem.id, problem.testCases]);
+
   // Nộp bài và chạy chấm điểm Themis
   const handleSubmit = async () => {
     if (isGrading) return;
     setIsGrading(true);
     setCurrentRunningIndex(0);
+    const initialTests = problem.testCases?.length || totalTestsRunning || 0;
+    setTotalTestsRunning(initialTests);
 
     try {
       const sub = await submitCode(
         problem.id,
         code,
         language,
-        (currentIdx: number) => {
+        (currentIdx: number, totalTests?: number) => {
           setCurrentRunningIndex(currentIdx);
+          if (totalTests && totalTests > 0) {
+            setTotalTestsRunning(totalTests);
+          }
         }
       );
       setLatestSubmission(sub);
+      if (sub.totalTests > 0) {
+        setTotalTestsRunning(sub.totalTests);
+      }
     } catch (err: unknown) {
       console.error(err);
       const msg = (err as Error)?.message || 'Có lỗi xảy ra khi nộp bài hoặc lưu vào cơ sở dữ liệu';
@@ -517,7 +549,7 @@ export const ProblemView: React.FC<ProblemViewProps> = ({ problem, onBackToList 
             submission={latestSubmission}
             isGrading={isGrading}
             currentRunningIndex={currentRunningIndex}
-            totalTestsToRun={problem.testCases?.length || 5}
+            totalTestsToRun={totalTestsRunning || problem.testCases?.length || (latestSubmission?.totalTests || 0)}
           />
         </section>
       </div>

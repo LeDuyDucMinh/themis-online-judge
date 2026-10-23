@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useJudge } from '../../context/JudgeContext';
 import type { Problem } from '../../types/judge';
 import { isProblemInClass } from '../../types/judge';
+import { idbService } from '../../services/db';
 import { ProblemEditorModal } from './ProblemEditorModal';
 import { TestCaseManagerModal } from './TestCaseManagerModal';
 import { VideoConfigModal } from './VideoConfigModal';
@@ -36,6 +37,29 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ classId, hideHea
   const [isCreatingNew, setIsCreatingNew] = useState(false);
   const [managingTestsProblem, setManagingTestsProblem] = useState<Problem | null>(null);
   const [configuringVideoProblem, setConfiguringVideoProblem] = useState<Problem | null>(null);
+
+  // Bộ đệm số lượng test case thực tế từ IndexedDB
+  const [asyncTestCounts, setAsyncTestCounts] = useState<Record<string, number>>({});
+  useEffect(() => {
+    let isMounted = true;
+    (async () => {
+      const counts: Record<string, number> = {};
+      for (const p of problems) {
+        if (p.testCases && p.testCases.length > 0) {
+          counts[p.id] = p.testCases.length;
+        } else {
+          const dbTests = await idbService.getTestCases(p.id);
+          if (dbTests && dbTests.length > 0) {
+            counts[p.id] = dbTests.length;
+          }
+        }
+      }
+      if (isMounted) setAsyncTestCounts(counts);
+    })();
+    return () => {
+      isMounted = false;
+    };
+  }, [problems]);
 
   // Filter problems scoped by classId
   const scopedProblems = currentClassId
@@ -156,7 +180,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ classId, hideHea
               ) : (
                 filteredProblems.map((prob) => {
                   const topic = topics.find((t) => t.id === prob.topicId);
-                  const testCount = prob.testCases?.length || 0;
+                  const testCount =
+                    prob.testCases && prob.testCases.length > 0
+                      ? prob.testCases.length
+                      : (asyncTestCounts[prob.id] || 0);
                   const hasVideo = prob.videoConfig?.enabled && prob.videoConfig?.url;
 
                   return (

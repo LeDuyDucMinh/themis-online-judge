@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useMemo, useRef,
 import type { UserRole, Topic, Problem, Submission, UserStats, StudentUser, Classroom, ClassStudent } from '../types/judge';
 import { storageService, DEFAULT_CLASS } from '../services/storageService';
 import { apiService } from '../services/apiService';
+import { idbService } from '../services/db';
 import { gradeSubmission, type GradingProgressCallback, type SupportedLanguage } from '../services/judgeEngine';
 import confetti from 'canvas-confetti';
 
@@ -343,11 +344,19 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         setTopics(cloudTopics);
       }
       if (cloudProblems) {
-        setProblems(cloudProblems);
+        const enrichedProblems = cloudProblems.map((cp) => {
+          if (cp.testCases && cp.testCases.length > 0) return cp;
+          const current = problems.find((p) => p.id === cp.id);
+          if (current?.testCases && current.testCases.length > 0) {
+            return { ...cp, testCases: current.testCases };
+          }
+          return cp;
+        });
+        setProblems(enrichedProblems);
         setActiveProblem((curr) => {
-          if (!curr) return cloudProblems[0] || null;
-          const updated = cloudProblems.find((p) => p.id === curr.id);
-          return updated || cloudProblems[0] || null;
+          if (!curr) return enrichedProblems[0] || null;
+          const updated = enrichedProblems.find((p) => p.id === curr.id);
+          return updated || enrichedProblems[0] || null;
         });
       }
       if (cloudSubs) {
@@ -854,10 +863,17 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     if (!existing) return;
 
     // BẢO VỆ TEST CASES: Không bao giờ để một cập nhật bài tập thông thường làm mất bộ test case đang có
-    const mergedTestCases =
+    let mergedTestCases =
       updated.testCases && updated.testCases.length > 0
         ? updated.testCases
-        : (existing.testCases && existing.testCases.length > 0 ? existing.testCases : (updated.testCases || []));
+        : (existing.testCases && existing.testCases.length > 0 ? existing.testCases : []);
+
+    if (mergedTestCases.length === 0) {
+      const idbTests = await idbService.getTestCases(id);
+      if (idbTests && idbTests.length > 0) {
+        mergedTestCases = idbTests;
+      }
+    }
 
     const updatedProblem: Problem = {
       ...existing,
@@ -927,7 +943,10 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       (t) => (t.input && t.input.trim().length > 0) || (t.expectedOutput && t.expectedOutput.trim().length > 0)
     );
     if (!problem.testCases || problem.testCases.length === 0 || !hasRealTests) {
-      const savedTests = await apiService.fetchTestCases(problem.id);
+      let savedTests = await idbService.getTestCases(problem.id);
+      if (!savedTests || savedTests.length === 0) {
+        savedTests = await apiService.fetchTestCases(problem.id);
+      }
       if (savedTests && savedTests.length > 0) {
         problem = { ...problem, testCases: savedTests };
         setProblems((prev) =>

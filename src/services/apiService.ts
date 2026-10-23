@@ -872,6 +872,64 @@ export const apiService = {
               idbService.getAllProblems(),
               Promise.resolve(storageService.getProblems()),
             ]);
+
+            // Tải toàn bộ test cases từ Supabase Cloud để gộp vào cloudProblems
+            const cloudTcMap = new Map<string, TestCase[]>();
+            try {
+              const tcUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/test_cases?select=id,problem_id,test_name,input,expected_output,points,is_hidden,order_index&order=order_index.asc`;
+              const tcRes = await fetch(tcUrl, {
+                headers: {
+                  ...this.getAntiCacheHeaders(),
+                  apikey: ENV.SUPABASE_ANON_KEY,
+                  Authorization: `Bearer ${ENV.SUPABASE_ANON_KEY}`,
+                },
+                cache: 'no-store',
+              });
+              if (tcRes.ok) {
+                const allTcRows = await tcRes.json();
+                if (Array.isArray(allTcRows)) {
+                  for (const row of allTcRows) {
+                    const pid = row.problem_id;
+                    if (!cloudTcMap.has(pid)) cloudTcMap.set(pid, []);
+                    cloudTcMap.get(pid)!.push({
+                      id: row.id,
+                      name: row.test_name || `Test #${row.order_index}`,
+                      input: row.input || '',
+                      expectedOutput: row.expected_output || '',
+                      points: Number(row.points) || 1,
+                      isHidden: Boolean(row.is_hidden),
+                    });
+                  }
+                }
+              }
+            } catch (tcErr) {
+              console.warn('[apiService] Không thể fetch test_cases từ Supabase:', tcErr);
+            }
+
+            // Gộp test cases từ Cloud, IndexedDB hoặc LocalStorage vào từng bài tập trong cloudProblems
+            const idbMap = new Map(idbProblems.map((p) => [p.id, p]));
+            const storageMap = new Map(storageProblems.map((p) => [p.id, p]));
+
+            for (const cp of cloudProblems) {
+              const fromCloud = cloudTcMap.get(cp.id);
+              const fromIdb = idbMap.get(cp.id)?.testCases;
+              const fromStorage = storageMap.get(cp.id)?.testCases;
+
+              const tests = (fromCloud && fromCloud.length > 0)
+                ? fromCloud
+                : (fromIdb && fromIdb.length > 0)
+                ? fromIdb
+                : (fromStorage && fromStorage.length > 0)
+                ? fromStorage
+                : [];
+
+              cp.testCases = tests;
+
+              if (tests.length > 0) {
+                idbService.saveTestCases(cp.id, tests).catch(() => {});
+              }
+            }
+
             const unSyncedLocalProblems: Problem[] = [];
             idbProblems.forEach((p) => {
               if (!cloudIdSet.has(p.id) && !p.id.startsWith('mock_')) unSyncedLocalProblems.push(p);

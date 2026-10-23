@@ -1,6 +1,7 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useJudge } from '../../context/JudgeContext';
 import type { Topic, Problem, Classroom } from '../../types/judge';
+import { idbService } from '../../services/db';
 import { ProblemEditorModal } from './ProblemEditorModal';
 import { TestCaseManagerModal } from './TestCaseManagerModal';
 import { VideoConfigModal } from './VideoConfigModal';
@@ -77,6 +78,29 @@ export const TopicManager: React.FC<TopicManagerProps> = ({ initialClassId }) =>
   const [editingProblem, setEditingProblem] = useState<Problem | null>(null);
   const [managingTestsProblem, setManagingTestsProblem] = useState<Problem | null>(null);
   const [configuringVideoProblem, setConfiguringVideoProblem] = useState<Problem | null>(null);
+
+  // Bộ đệm số lượng test case thực tế từ IndexedDB
+  const [asyncTestCounts, setAsyncTestCounts] = useState<Record<string, number>>({});
+  useEffect(() => {
+    let isMounted = true;
+    (async () => {
+      const counts: Record<string, number> = {};
+      for (const p of problems) {
+        if (p.testCases && p.testCases.length > 0) {
+          counts[p.id] = p.testCases.length;
+        } else {
+          const dbTests = await idbService.getTestCases(p.id);
+          if (dbTests && dbTests.length > 0) {
+            counts[p.id] = dbTests.length;
+          }
+        }
+      }
+      if (isMounted) setAsyncTestCounts(counts);
+    })();
+    return () => {
+      isMounted = false;
+    };
+  }, [problems]);
 
   // Helper kiểm tra một chủ đề có thuộc lớp học được lọc không
   const isTopicInClass = (t: Topic, filterClassId: string): boolean => {
@@ -741,7 +765,10 @@ export const TopicManager: React.FC<TopicManagerProps> = ({ initialClassId }) =>
                             ) : (
                               <div className="divide-y divide-slate-200 dark:divide-slate-800/80">
                                 {topicProblems.map((prob) => {
-                                  const testCount = prob.testCases?.length || 0;
+                                  const testCount =
+                                    prob.testCases && prob.testCases.length > 0
+                                      ? prob.testCases.length
+                                      : (asyncTestCounts[prob.id] || 0);
                                   const hasVideo = prob.videoConfig?.enabled && prob.videoConfig?.url;
 
                                   return (
@@ -946,7 +973,10 @@ export const TopicManager: React.FC<TopicManagerProps> = ({ initialClassId }) =>
                     filteredProblems.map((prob, idx) => {
                       const topic = topics.find((t) => t.id === prob.topicId);
                       const targetClass = classes.find((c) => c.id === prob.classId);
-                      const testCount = prob.testCases?.length || 0;
+                      const testCount =
+                        prob.testCases && prob.testCases.length > 0
+                          ? prob.testCases.length
+                          : (asyncTestCounts[prob.id] || 0);
                       const hasVideo = prob.videoConfig?.enabled && prob.videoConfig?.url;
 
                       return (

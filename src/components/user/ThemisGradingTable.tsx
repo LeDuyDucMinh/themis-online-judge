@@ -59,7 +59,8 @@ export const ThemisGradingTable: React.FC<ThemisGradingTableProps> = ({
   };
 
   if (isGrading) {
-    const percent = totalTestsToRun > 0 ? Math.round((currentRunningIndex / totalTestsToRun) * 100) : 0;
+    const displayTotal = Math.max(totalTestsToRun || 0, currentRunningIndex);
+    const percent = displayTotal > 0 ? Math.round((currentRunningIndex / displayTotal) * 100) : 0;
     return (
       <div className="bg-slate-900 border border-blue-500/30 rounded-2xl p-6 text-white shadow-xl animate-pulse">
         <div className="flex items-center justify-between mb-4">
@@ -72,7 +73,7 @@ export const ThemisGradingTable: React.FC<ThemisGradingTableProps> = ({
                 Đang chấm bài theo cơ chế Themis...
               </h4>
               <p className="text-xs text-slate-400">
-                Đang thực thi Test #{currentRunningIndex} / {totalTestsToRun}
+                Đang thực thi Test #{currentRunningIndex} / {displayTotal}
               </p>
             </div>
           </div>

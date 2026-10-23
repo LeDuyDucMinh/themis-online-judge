@@ -71,12 +71,15 @@ export const TestCaseManagerModal: React.FC<TestCaseManagerModalProps> = ({
   const [parseError, setParseError] = useState<string | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
 
-  // Tự động nạp test cases từ IndexedDB nếu problem trong props chưa có test cases
+  // Tự động nạp test cases từ IndexedDB hoặc Cloud nếu problem trong props chưa có test cases
   useEffect(() => {
     let isMounted = true;
     (async () => {
       if (!problem.testCases || problem.testCases.length === 0) {
-        const dbTests = await idbService.getTestCases(problem.id);
+        let dbTests = await idbService.getTestCases(problem.id);
+        if (!dbTests || dbTests.length === 0) {
+          dbTests = await apiService.fetchTestCases(problem.id);
+        }
         if (isMounted && dbTests && dbTests.length > 0) {
           setTestCases(dbTests);
         }
