@@ -35,11 +35,22 @@ export const ThemisGradingTable: React.FC<ThemisGradingTableProps> = ({
   // Mở rộng chi tiết I/O cho mọi người dùng (học sinh & giáo viên), trừ khi bị truyền showDetails={false}
   const canViewDetails = showDetails !== false;
 
-  const formatOutput = (str?: string | null): string => {
-    if (!str) return 'Không có dữ liệu';
-    return str.length > 1000
-      ? str.substring(0, 1000) + '\n\n... [Dữ liệu quá dài, đã được ẩn bớt]'
-      : str;
+  const formatOutput = (str?: unknown): string => {
+    if (str === null || str === undefined) return 'Không có dữ liệu';
+    if (typeof str === 'object') {
+      try {
+        const jsonStr = JSON.stringify(str, null, 2);
+        return jsonStr.length > 1000
+          ? jsonStr.substring(0, 1000) + '\n\n... [Dữ liệu quá dài, đã được ẩn bớt]'
+          : jsonStr;
+      } catch {
+        return String(str);
+      }
+    }
+    const s = String(str);
+    return s.length > 1000
+      ? s.substring(0, 1000) + '\n\n... [Dữ liệu quá dài, đã được ẩn bớt]'
+      : s;
   };
 
   const formatPoint = (val: number) => {
@@ -225,10 +236,10 @@ export const ThemisGradingTable: React.FC<ThemisGradingTableProps> = ({
                       : 'text-white'
                   }`}
                 >
-                  {submission.problemTitle}
+                  {typeof submission.problemTitle === 'object' ? JSON.stringify(submission.problemTitle) : String(submission.problemTitle || '')}
                 </b>{' '}
                 <span className="font-mono text-blue-700 dark:text-blue-400 font-bold bg-blue-100 dark:bg-blue-500/10 px-1.5 py-0.5 rounded border border-blue-300 dark:border-blue-500/20">
-                  {submission.problemCode}
+                  {typeof submission.problemCode === 'object' ? JSON.stringify(submission.problemCode) : String(submission.problemCode || '')}
                 </span>
               </span>
               <span className={theme === 'light' ? 'text-slate-400' : 'text-slate-500'}>•</span>
@@ -239,12 +250,19 @@ export const ThemisGradingTable: React.FC<ThemisGradingTableProps> = ({
                     theme === 'light' ? 'text-slate-900' : 'text-slate-200'
                   }`}
                 >
-                  {submission.language}
+                  {typeof submission.language === 'object' ? JSON.stringify(submission.language) : String(submission.language || '')}
                 </span>
               </span>
               <span className={theme === 'light' ? 'text-slate-400' : 'text-slate-500'}>•</span>
               <span className={theme === 'light' ? 'text-slate-600' : 'text-slate-400'}>
-                {new Date(submission.submittedAt).toLocaleTimeString()}
+                {(() => {
+                  try {
+                    const d = new Date(submission.submittedAt);
+                    return isNaN(d.getTime()) ? String(submission.submittedAt || '') : d.toLocaleTimeString();
+                  } catch {
+                    return String(submission.submittedAt || '');
+                  }
+                })()}
               </span>
             </div>
           </div>
@@ -357,7 +375,7 @@ export const ThemisGradingTable: React.FC<ThemisGradingTableProps> = ({
                 : 'bg-black/60 text-rose-300 border-rose-900/40'
             }`}
           >
-            {submission.compilationMessage}
+            {typeof submission.compilationMessage === 'object' ? JSON.stringify(submission.compilationMessage, null, 2) : String(submission.compilationMessage)}
           </pre>
         </div>
       )}
@@ -438,7 +456,7 @@ export const ThemisGradingTable: React.FC<ThemisGradingTableProps> = ({
                             <ChevronDown className="w-3.5 h-3.5" />
                           </span>
                         )}
-                        <span>{tr.testName}</span>
+                        <span>{typeof tr.testName === 'object' ? JSON.stringify(tr.testName) : String(tr.testName || '')}</span>
                       </div>
                     </td>
                     <td className="py-3 px-4">{getVerdictBadge(tr.verdict)}</td>

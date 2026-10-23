@@ -37,12 +37,23 @@ interface TestCaseManagerModalProps {
  * khi hiển thị ra giao diện (để xem trước), BẮT BUỘC phải cắt ngắn chuỗi:
  * content.substring(0, 1000) + "\n... [Dữ liệu quá dài, đã ẩn bớt]"
  */
-const formatPreview = (content: string | undefined): string => {
-  if (!content) return '';
-  if (content.length > 1000) {
-    return content.substring(0, 1000) + '\n... [Dữ liệu quá dài, đã ẩn bớt]';
+const formatPreview = (content: unknown): string => {
+  if (content === null || content === undefined) return '';
+  if (typeof content === 'object') {
+    try {
+      const jsonStr = JSON.stringify(content, null, 2);
+      return jsonStr.length > 1000
+        ? jsonStr.substring(0, 1000) + '\n... [Dữ liệu quá dài, đã ẩn bớt]'
+        : jsonStr;
+    } catch {
+      return String(content);
+    }
   }
-  return content;
+  const str = String(content);
+  if (str.length > 1000) {
+    return str.substring(0, 1000) + '\n... [Dữ liệu quá dài, đã ẩn bớt]';
+  }
+  return str;
 };
 
 export const TestCaseManagerModal: React.FC<TestCaseManagerModalProps> = ({
@@ -238,10 +249,10 @@ export const TestCaseManagerModal: React.FC<TestCaseManagerModalProps> = ({
           <div>
             <div className="flex items-center gap-2 mb-1">
               <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-red-500/20 text-red-400 border border-red-500/30">
-                {problem.code}
+                {typeof problem.code === 'object' ? JSON.stringify(problem.code) : String(problem.code || '')}
               </span>
               <h3 className="text-base sm:text-lg font-bold text-white">
-                Trình Quản Lý Test Case Chuẩn Themis: {problem.title}
+                Trình Quản Lý Test Case Chuẩn Themis: {typeof problem.title === 'object' ? JSON.stringify(problem.title) : String(problem.title || '')}
               </h3>
             </div>
             <p className="text-xs text-slate-400">
@@ -423,7 +434,7 @@ export const TestCaseManagerModal: React.FC<TestCaseManagerModalProps> = ({
                 <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
                 <div>
                   <h5 className="font-bold text-xs text-rose-200">Không thể đọc file test</h5>
-                  <p className="text-xs text-rose-300/90 mt-0.5 leading-relaxed">{parseError}</p>
+                  <p className="text-xs text-rose-300/90 mt-0.5 leading-relaxed">{typeof parseError === 'object' && parseError !== null ? JSON.stringify(parseError) : String(parseError)}</p>
                 </div>
               </div>
               <button
@@ -480,8 +491,8 @@ export const TestCaseManagerModal: React.FC<TestCaseManagerModalProps> = ({
           ) : (
             <div className="space-y-4">
               {testCases.map((tc, idx) => {
-                const isInputTruncated = (tc.input?.length || 0) > 1000;
-                const isOutputTruncated = (tc.expectedOutput?.length || 0) > 1000;
+                const isInputTruncated = (typeof tc.input === 'string' ? tc.input.length : String(tc.input || '').length) > 1000;
+                const isOutputTruncated = (typeof tc.expectedOutput === 'string' ? tc.expectedOutput.length : String(tc.expectedOutput || '').length) > 1000;
 
                 return (
                   <div
@@ -496,7 +507,7 @@ export const TestCaseManagerModal: React.FC<TestCaseManagerModalProps> = ({
                         </span>
                         <input
                           type="text"
-                          value={tc.name}
+                          value={typeof tc.name === 'object' ? JSON.stringify(tc.name) : String(tc.name || '')}
                           onChange={(e) => handleUpdateTest(tc.id, 'name', e.target.value)}
                           className="bg-transparent border-0 font-bold text-xs text-white focus:ring-0 p-0 hover:underline"
                         />
@@ -549,11 +560,11 @@ export const TestCaseManagerModal: React.FC<TestCaseManagerModalProps> = ({
                       <div>
                         <div className="flex items-center justify-between mb-1">
                           <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wide">
-                            Input ({problem.code}.INP):
+                            Input ({typeof problem.code === 'string' ? problem.code : String(problem.code || '')}.INP):
                           </span>
                           {isInputTruncated && (
                             <span className="text-[10px] font-mono text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
-                              {(tc.input.length / 1024).toFixed(1)} KB (Đã ẩn bớt để tránh tràn bộ nhớ)
+                              {(((typeof tc.input === 'string' ? tc.input.length : String(tc.input || '').length)) / 1024).toFixed(1)} KB (Đã ẩn bớt để tránh tràn bộ nhớ)
                             </span>
                           )}
                         </div>
@@ -575,11 +586,11 @@ export const TestCaseManagerModal: React.FC<TestCaseManagerModalProps> = ({
                       <div>
                         <div className="flex items-center justify-between mb-1">
                           <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wide">
-                            Expected Output ({problem.code}.OUT):
+                            Expected Output ({typeof problem.code === 'string' ? problem.code : String(problem.code || '')}.OUT):
                           </span>
                           {isOutputTruncated && (
                             <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
-                              {(tc.expectedOutput.length / 1024).toFixed(1)} KB (Đã ẩn bớt để tránh tràn bộ nhớ)
+                              {(((typeof tc.expectedOutput === 'string' ? tc.expectedOutput.length : String(tc.expectedOutput || '').length)) / 1024).toFixed(1)} KB (Đã ẩn bớt để tránh tràn bộ nhớ)
                             </span>
                           )}
                         </div>

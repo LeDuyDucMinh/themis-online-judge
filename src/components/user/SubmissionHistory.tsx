@@ -752,10 +752,10 @@ export const SubmissionHistory: React.FC = () => {
               <h4 className={`text-xs font-bold uppercase tracking-wider mb-2 flex items-center gap-2 ${
                 theme === 'light' ? 'text-slate-700' : 'text-slate-300'
               }`}>
-                <Code2 className="w-4 h-4 text-blue-500 dark:text-blue-400" /> Mã nguồn đã nộp ({selectedSub.language.toUpperCase()}):
+                <Code2 className="w-4 h-4 text-blue-500 dark:text-blue-400" /> Mã nguồn đã nộp ({(typeof selectedSub.language === 'string' ? selectedSub.language : String(selectedSub.language || '')).toUpperCase()}):
               </h4>
               <pre className="p-4 bg-slate-950 rounded-2xl text-emerald-400 font-mono text-xs overflow-x-auto max-h-64 border border-slate-800">
-                {selectedSub.sourceCode}
+                {typeof selectedSub.sourceCode === 'object' ? JSON.stringify(selectedSub.sourceCode, null, 2) : String(selectedSub.sourceCode || '')}
               </pre>
             </div>
           </div>

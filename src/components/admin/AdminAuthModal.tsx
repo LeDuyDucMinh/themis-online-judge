@@ -39,6 +39,7 @@ export const AdminAuthModal: React.FC = () => {
   const [lockCountdown, setLockCountdown] = useState(0);
 
   const [errorMessage, setErrorMessage] = useState('');
+  const [isVerifying, setIsVerifying] = useState(false);
 
   // Bộ đếm thời gian khóa nếu nhập sai mật khẩu admin quá 5 lần
   useEffect(() => {
@@ -52,8 +53,6 @@ export const AdminAuthModal: React.FC = () => {
   }, [lockCountdown]);
 
   if (!isAuthModalOpen) return null;
-
-  const [isVerifying, setIsVerifying] = useState(false);
 
   // Kiểm tra xem đã có ai đăng nhập chưa (để quyết định có cho phép bấm nút X đóng hay không)
   const canClose = Boolean(isAdminAuthenticated || currentStudent);

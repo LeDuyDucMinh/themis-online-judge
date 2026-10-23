@@ -4,6 +4,7 @@ import type { Topic, Problem, Classroom } from '../../types/judge';
 import { ProblemEditorModal } from './ProblemEditorModal';
 import { TestCaseManagerModal } from './TestCaseManagerModal';
 import { VideoConfigModal } from './VideoConfigModal';
+import { ErrorBoundary } from '../common/ErrorBoundary';
 import {
   ListTree,
   Plus,
@@ -795,10 +796,33 @@ export const TopicManager: React.FC<TopicManagerProps> = ({ initialClassId }) =>
 
       {/* Test Case Manager Modal */}
       {managingTestsProblem && (
-        <TestCaseManagerModal
-          problem={managingTestsProblem}
-          onClose={() => setManagingTestsProblem(null)}
-        />
+        <ErrorBoundary
+          fallback={(_err, reset) => (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+              <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-sm w-full p-6 text-center shadow-2xl space-y-4">
+                <h4 className="text-sm font-bold text-white">Đã lưu trữ an toàn cấu hình</h4>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Dữ liệu bài tập của bạn đã được bảo vệ. Vui lòng thử mở lại cửa sổ test case.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    reset();
+                    setManagingTestsProblem(null);
+                  }}
+                  className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold transition-all"
+                >
+                  Đóng cửa sổ
+                </button>
+              </div>
+            </div>
+          )}
+        >
+          <TestCaseManagerModal
+            problem={managingTestsProblem}
+            onClose={() => setManagingTestsProblem(null)}
+          />
+        </ErrorBoundary>
       )}
 
       {/* Video Config Modal */}
