@@ -15,6 +15,7 @@ import {
   HardDrive,
   User,
   Filter,
+  FileCode2,
 } from 'lucide-react';
 
 interface UserProblemListProps {
@@ -85,10 +86,135 @@ export const UserProblemList: React.FC<UserProblemListProps> = ({ onSelectProble
       })
     : topics;
 
+  // Danh sách bài tập không thuộc chủ đề nào (giao trực tiếp cho lớp hoặc chưa phân chủ đề)
+  const unassignedProblems = classScopedProblems.filter((p) => {
+    if (!p.topicId || p.topicId === 'NONE' || p.topicId === '') return true;
+    return !topics.some((t) => t.id === p.topicId);
+  });
+
   // Danh sách bài tập hiển thị (nếu đang trong chủ đề thì chỉ lấy bài của chủ đề đó)
   const topicProblems = activeTopicId
     ? classScopedProblems.filter((p) => p.topicId === activeTopicId)
     : classScopedProblems;
+
+  // Render một thẻ bài tập thống nhất cho cả danh sách trong chủ đề và danh sách ngoài chủ đề
+  const renderProblemCard = (prob: Problem, index: number) => {
+    const status = getProblemStatus(prob.id);
+    const userScore = getProblemScore(prob.id);
+
+    return (
+      <div
+        key={prob.id}
+        onClick={() => onSelectProblem(prob)}
+        className="group cursor-pointer bg-slate-900 border border-slate-800 hover:border-blue-500/50 hover:bg-slate-800/60 rounded-2xl p-4 sm:p-5 transition-all shadow-md flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+      >
+        {/* Cột Trái: Thứ tự, Trạng thái, Mã bài, Tiêu đề, Tác giả */}
+        <div className="flex items-start sm:items-center gap-4">
+          {/* STT và Icon trạng thái */}
+          <div className="flex items-center gap-2.5 shrink-0">
+            <span className="font-mono text-xs font-bold text-slate-500 w-5 text-center">
+              #{index + 1}
+            </span>
+            {status === 'SOLVED' ? (
+              <div
+                className="w-10 h-10 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 flex items-center justify-center shadow-sm"
+                title="Đã giải đúng 100% (Full AC)"
+              >
+                <CheckCircle2 className="w-5 h-5" />
+              </div>
+            ) : status === 'PARTIAL' ? (
+              <div
+                className="w-10 h-10 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-400 flex items-center justify-center font-bold text-xs shadow-sm"
+                title={`Đang làm dở: ${userScore}/${prob.totalPoints}đ`}
+              >
+                {userScore}đ
+              </div>
+            ) : (
+              <div
+                className="w-10 h-10 rounded-xl bg-slate-800 border border-slate-700 text-slate-500 flex items-center justify-center"
+                title="Chưa nộp bài"
+              >
+                <Clock className="w-4 h-4" />
+              </div>
+            )}
+          </div>
+
+          <div>
+            <div className="flex flex-wrap items-center gap-2 mb-1.5">
+              <span className="font-mono text-xs font-bold text-blue-700 dark:text-blue-400 bg-blue-100 dark:bg-blue-500/15 px-2.5 py-0.5 rounded-lg border border-blue-200 dark:border-blue-500/30">
+                {prob.code}
+              </span>
+              <h4 className="font-bold text-sm sm:text-base text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-300 transition-colors">
+                {prob.title}
+              </h4>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3 text-xs text-slate-600 dark:text-slate-400">
+              <span className="flex items-center gap-1">
+                <User className="w-3.5 h-3.5 text-slate-500" />
+                <span>{prob.author || 'FAMINH Judge'}</span>
+              </span>
+              <span>•</span>
+              <span className="flex items-center gap-1 font-mono">
+                <Clock className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" /> {prob.timeLimit}s
+              </span>
+              <span>•</span>
+              <span className="flex items-center gap-1 font-mono">
+                <HardDrive className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" /> {prob.memoryLimit}MB
+              </span>
+              <span>•</span>
+              <span className="flex items-center gap-1 font-mono text-amber-600 dark:text-amber-400">
+                <Award className="w-3.5 h-3.5" /> {prob.totalPoints} điểm
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Cột Phải: Độ khó, Kết quả điểm số, Nút làm bài */}
+        <div className="flex items-center justify-between sm:justify-end gap-4 shrink-0 border-t sm:border-t-0 pt-3 sm:pt-0 border-slate-800">
+          <div className="flex items-center gap-3">
+            {/* Badge Độ khó */}
+            <span
+              className={`px-3 py-1 rounded-full text-xs font-bold ${
+                prob.difficulty === 'Dễ'
+                  ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                  : prob.difficulty === 'Trung bình'
+                  ? 'bg-blue-500/15 text-blue-400 border border-blue-500/30'
+                  : 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
+              }`}
+            >
+              {prob.difficulty}
+            </span>
+
+            {/* Điểm học sinh đạt được */}
+            <div className="text-right">
+              {status === 'SOLVED' ? (
+                <span className="inline-flex items-center gap-1.5 text-xs font-bold font-mono text-emerald-400 bg-emerald-500/15 px-3 py-1 rounded-xl border border-emerald-500/30 shadow-sm">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                  <span>{prob.totalPoints} / {prob.totalPoints} điểm - Đã hoàn thành</span>
+                </span>
+              ) : status === 'PARTIAL' ? (
+                <span className="inline-flex items-center gap-1.5 text-xs font-bold font-mono text-amber-400 bg-amber-500/15 px-3 py-1 rounded-xl border border-amber-500/30 shadow-sm">
+                  <Clock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                  <span>{userScore} / {prob.totalPoints} điểm - Đang làm</span>
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 text-xs font-medium font-mono text-slate-400 bg-slate-800/80 px-3 py-1 rounded-xl border border-slate-700/60">
+                  <span>Chưa làm</span>
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Nút Làm Bài */}
+          <button className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600/90 group-hover:bg-blue-600 text-white text-xs font-bold shadow-md shadow-blue-600/20 group-hover:scale-105 transition-all">
+            <span>Làm bài</span>
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+    );
+  };
 
 
   // Lọc bài tập theo từ khóa, độ khó, trạng thái
@@ -255,123 +381,7 @@ export const UserProblemList: React.FC<UserProblemListProps> = ({ onSelectProble
               )}
             </div>
           ) : (
-            filteredProblems.map((prob, index) => {
-              const status = getProblemStatus(prob.id);
-              const userScore = getProblemScore(prob.id);
-
-              return (
-                <div
-                  key={prob.id}
-                  onClick={() => onSelectProblem(prob)}
-                  className="group cursor-pointer bg-slate-900 border border-slate-800 hover:border-blue-500/50 hover:bg-slate-800/60 rounded-2xl p-4 sm:p-5 transition-all shadow-md flex flex-col sm:flex-row sm:items-center justify-between gap-4"
-                >
-                  {/* Cột Trái: Thứ tự, Trạng thái, Mã bài, Tiêu đề, Tác giả */}
-                  <div className="flex items-start sm:items-center gap-4">
-                    {/* STT và Icon trạng thái */}
-                    <div className="flex items-center gap-2.5 shrink-0">
-                      <span className="font-mono text-xs font-bold text-slate-500 w-5 text-center">
-                        #{index + 1}
-                      </span>
-                      {status === 'SOLVED' ? (
-                        <div
-                          className="w-10 h-10 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 flex items-center justify-center shadow-sm"
-                          title="Đã giải đúng 100% (Full AC)"
-                        >
-                          <CheckCircle2 className="w-5 h-5" />
-                        </div>
-                      ) : status === 'PARTIAL' ? (
-                        <div
-                          className="w-10 h-10 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-400 flex items-center justify-center font-bold text-xs shadow-sm"
-                          title={`Đang làm dở: ${userScore}/${prob.totalPoints}đ`}
-                        >
-                          {userScore}đ
-                        </div>
-                      ) : (
-                        <div
-                          className="w-10 h-10 rounded-xl bg-slate-800 border border-slate-700 text-slate-500 flex items-center justify-center"
-                          title="Chưa nộp bài"
-                        >
-                          <Clock className="w-4 h-4" />
-                        </div>
-                      )}
-                    </div>
-
-                    <div>
-                      <div className="flex flex-wrap items-center gap-2 mb-1.5">
-                        <span className="font-mono text-xs font-bold text-blue-700 dark:text-blue-400 bg-blue-100 dark:bg-blue-500/15 px-2.5 py-0.5 rounded-lg border border-blue-200 dark:border-blue-500/30">
-                          {prob.code}
-                        </span>
-                        <h4 className="font-bold text-sm sm:text-base text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-300 transition-colors">
-                          {prob.title}
-                        </h4>
-                      </div>
-
-                      <div className="flex flex-wrap items-center gap-3 text-xs text-slate-600 dark:text-slate-400">
-                        <span className="flex items-center gap-1">
-                          <User className="w-3.5 h-3.5 text-slate-500" />
-                          <span>{prob.author || 'FAMINH Judge'}</span>
-                        </span>
-                        <span>•</span>
-                        <span className="flex items-center gap-1 font-mono">
-                          <Clock className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" /> {prob.timeLimit}s
-                        </span>
-                        <span>•</span>
-                        <span className="flex items-center gap-1 font-mono">
-                          <HardDrive className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" /> {prob.memoryLimit}MB
-                        </span>
-                        <span>•</span>
-                        <span className="flex items-center gap-1 font-mono text-amber-600 dark:text-amber-400">
-                          <Award className="w-3.5 h-3.5" /> {prob.totalPoints} điểm
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Cột Phải: Độ khó, Kết quả điểm số, Nút làm bài */}
-                  <div className="flex items-center justify-between sm:justify-end gap-4 shrink-0 border-t sm:border-t-0 pt-3 sm:pt-0 border-slate-800">
-                    <div className="flex items-center gap-3">
-                      {/* Badge Độ khó */}
-                      <span
-                        className={`px-3 py-1 rounded-full text-xs font-bold ${
-                          prob.difficulty === 'Dễ'
-                            ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
-                            : prob.difficulty === 'Trung bình'
-                            ? 'bg-blue-500/15 text-blue-400 border border-blue-500/30'
-                            : 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
-                        }`}
-                      >
-                        {prob.difficulty}
-                      </span>
-
-                      {/* Điểm học sinh đạt được */}
-                      <div className="text-right">
-                        {status === 'SOLVED' ? (
-                          <span className="inline-flex items-center gap-1.5 text-xs font-bold font-mono text-emerald-400 bg-emerald-500/15 px-3 py-1 rounded-xl border border-emerald-500/30 shadow-sm">
-                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                            <span>{prob.totalPoints} / {prob.totalPoints} điểm - Đã hoàn thành</span>
-                          </span>
-                        ) : status === 'PARTIAL' ? (
-                          <span className="inline-flex items-center gap-1.5 text-xs font-bold font-mono text-amber-400 bg-amber-500/15 px-3 py-1 rounded-xl border border-amber-500/30 shadow-sm">
-                            <Clock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                            <span>{userScore} / {prob.totalPoints} điểm - Đang làm</span>
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1.5 text-xs font-medium font-mono text-slate-400 bg-slate-800/80 px-3 py-1 rounded-xl border border-slate-700/60">
-                            <span>Chưa làm</span>
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Nút Làm Bài */}
-                    <button className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600/90 group-hover:bg-blue-600 text-white text-xs font-bold shadow-md shadow-blue-600/20 group-hover:scale-105 transition-all">
-                      <span>Làm bài</span>
-                      <ChevronRight className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              );
-            })
+            filteredProblems.map((prob, index) => renderProblemCard(prob, index))
           )}
         </div>
       </div>
@@ -436,35 +446,25 @@ export const UserProblemList: React.FC<UserProblemListProps> = ({ onSelectProble
         </div>
       </div>
 
-      {/* Danh Sách Các Ô Chủ Đề Bài Tập */}
-      <div>
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h3 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-              <BookOpen className="w-5 h-5 text-blue-500 dark:text-blue-400" />
-              Chủ đề bài tập đã giao
-            </h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              Chọn một ô chủ đề bên dưới để xem toàn bộ danh sách bài tập và bắt đầu làm bài
-            </p>
-          </div>
-          <span className="text-xs font-mono text-slate-700 dark:text-slate-400 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-3 py-1.5 rounded-xl shadow-sm">
-            {visibleTopics.length} chủ đề • {classScopedProblems.length} bài tập
-          </span>
-        </div>
-
-        {/* Lưới các ô Chủ Đề (Bấm vào để chuyển trang danh sách bài) */}
-        {visibleTopics.length === 0 ? (
-          <div className="bg-slate-900/60 border border-slate-800 rounded-3xl p-12 text-center shadow-lg">
-            <div className="w-16 h-16 rounded-2xl bg-slate-800 border border-slate-700 text-slate-400 flex items-center justify-center mx-auto mb-4">
-              <Layers className="w-8 h-8 text-blue-400 opacity-60" />
+      {/* Danh Sách Các Ô Chủ Đề Bài Tập (nếu lớp có chủ đề) */}
+      {visibleTopics.length > 0 && (
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <BookOpen className="w-5 h-5 text-blue-500 dark:text-blue-400" />
+                Chủ đề bài tập đã giao
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                Chọn một ô chủ đề bên dưới để xem toàn bộ danh sách bài tập và bắt đầu làm bài
+              </p>
             </div>
-            <h4 className="text-lg font-bold text-slate-200">Chưa có chủ đề bài tập nào cho lớp học này</h4>
-            <p className="text-xs text-slate-400 mt-2 max-w-md mx-auto leading-relaxed">
-              Giáo viên chưa giao chủ đề bài tập nào vào lớp này. Khi giáo viên tạo hoặc gán chủ đề vào lớp, các chủ đề sẽ xuất hiện ở đây.
-            </p>
+            <span className="text-xs font-mono text-slate-700 dark:text-slate-400 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-3 py-1.5 rounded-xl shadow-sm">
+              {visibleTopics.length} chủ đề • {classScopedProblems.length} bài tập
+            </span>
           </div>
-        ) : (
+
+          {/* Lưới các ô Chủ Đề (Bấm vào để chuyển trang danh sách bài) */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             {visibleTopics.map((topic) => {
               const topicProblems = classScopedProblems.filter((p) => p.topicId === topic.id);
@@ -527,8 +527,46 @@ export const UserProblemList: React.FC<UserProblemListProps> = ({ onSelectProble
               );
             })}
           </div>
-        )}
-      </div>
+        </div>
+      )}
+
+      {/* Danh Sách Bài Tập Không Thuộc Chủ Đề Nào (Giao trực tiếp cho lớp) */}
+      {unassignedProblems.length > 0 && (
+        <div className={`space-y-4 ${visibleTopics.length > 0 ? 'pt-6 border-t border-slate-200 dark:border-slate-800' : ''}`}>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h3 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <FileCode2 className="w-5 h-5 text-amber-500" />
+                <span>Bài tập ngoài chủ đề</span>
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                Các bài tập được giáo viên giao trực tiếp cho lớp không nằm trong chủ đề nào
+              </p>
+            </div>
+            <span className="text-xs font-mono font-semibold text-amber-600 dark:text-amber-400 bg-amber-500/10 border border-amber-500/20 px-3 py-1.5 rounded-xl shadow-sm">
+              {unassignedProblems.length} bài tập
+            </span>
+          </div>
+
+          {/* Danh sách các bài tập */}
+          <div className="space-y-3">
+            {unassignedProblems.map((prob, index) => renderProblemCard(prob, index))}
+          </div>
+        </div>
+      )}
+
+      {/* Trạng thái trống: Khi lớp học chưa có bất kỳ bài tập nào */}
+      {visibleTopics.length === 0 && unassignedProblems.length === 0 && (
+        <div className="bg-slate-900/60 border border-slate-800 rounded-3xl p-12 text-center shadow-lg">
+          <div className="w-16 h-16 rounded-2xl bg-slate-800 border border-slate-700 text-slate-400 flex items-center justify-center mx-auto mb-4">
+            <Layers className="w-8 h-8 text-blue-400 opacity-60" />
+          </div>
+          <h4 className="text-lg font-bold text-slate-200">Chưa có bài tập nào cho lớp học này</h4>
+          <p className="text-xs text-slate-400 mt-2 max-w-md mx-auto leading-relaxed">
+            Giáo viên chưa giao chủ đề hoặc bài tập nào vào lớp này. Khi giáo viên tạo hoặc gán bài tập vào lớp, các bài tập sẽ xuất hiện ở đây.
+          </p>
+        </div>
+      )}
     </div>
   );
 };
