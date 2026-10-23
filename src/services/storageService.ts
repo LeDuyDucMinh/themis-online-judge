@@ -140,8 +140,8 @@ export const storageService = {
       let changed = false;
       const existingClassIds = new Set(this.getClasses().map((c) => c.id));
       const migrated = list.map((p) => {
-        // 1. Nếu bài tập đang trỏ đến ID lớp học đã bị xóa
-        if (p.classId && p.classId !== 'ALL' && !existingClassIds.has(p.classId)) {
+        // 1. Nếu bài tập đang trỏ đến ID lớp học đã bị xóa (và không phải NONE)
+        if (p.classId && p.classId !== 'ALL' && p.classId !== 'NONE' && !existingClassIds.has(p.classId)) {
           changed = true;
           if (p.topicId) {
             const parent = topics.find((t) => t.id === p.topicId);

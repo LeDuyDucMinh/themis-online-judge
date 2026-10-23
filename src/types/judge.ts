@@ -156,7 +156,7 @@ export function isProblemInClass(
   if (!classId) return true;
 
   // 1. Trực tiếp khớp classId của bài tập
-  if (problem.classId === classId) return true;
+  if (problem.classId === classId || problem.classId === 'ALL') return true;
 
   // 2. Kế thừa từ chủ đề (Topic) chứa bài tập
   if (problem.topicId) {

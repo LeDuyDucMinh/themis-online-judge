@@ -40,33 +40,16 @@ export const ProblemEditorModal: React.FC<ProblemEditorModalProps> = ({
   classId,
   onClose,
 }) => {
-  const { topics, classes, addProblem, updateProblem, showToast, theme, activeClassId } = useJudge();
+  const { topics, classes, addProblem, updateProblem, showToast, theme } = useJudge();
 
   const [selectedClassId, setSelectedClassId] = useState<string>(() => {
-    if (problem?.classId) return problem.classId;
+    if (problem) return problem.classId || 'NONE';
     if (classId) return classId;
-    if (activeClassId) return activeClassId;
-    const initialTopic = topics.find((t) => t.id === (initialTopicId || topics[0]?.id));
-    if (initialTopic) {
-      const ids = initialTopic.classIds && initialTopic.classIds.length > 0
-        ? initialTopic.classIds
-        : (initialTopic.classId ? [initialTopic.classId] : ['ALL']);
-      if (ids[0] && ids[0] !== 'ALL') return ids[0];
-    }
-    return classes[0]?.id || 'class_default_faminh';
+    return 'NONE';
   });
 
   const handleTopicChange = (newTopicId: string) => {
     setTopicId(newTopicId);
-    const parentTopic = topics.find((t) => t.id === newTopicId);
-    if (parentTopic) {
-      const ids = parentTopic.classIds && parentTopic.classIds.length > 0
-        ? parentTopic.classIds
-        : (parentTopic.classId ? [parentTopic.classId] : ['ALL']);
-      if (ids[0] && ids[0] !== 'ALL') {
-        setSelectedClassId(ids[0]);
-      }
-    }
   };
 
   // Mode Tab: 'manual' (Tự soạn thảo / Paste) vs 'file' (Đính kèm File)
@@ -308,19 +291,10 @@ Cho dãy số nguyên $A = (a_1, a_2, \\dots, a_n)$. Hãy tìm...
       (s) => s.input.trim().length > 0 || s.output.trim().length > 0
     );
 
-    let targetClassId = selectedClassId || problem?.classId || classId || activeClassId;
-    if (!targetClassId || targetClassId === 'class_default_faminh') {
-      const parentTopic = topics.find((t) => t.id === topicId);
-      if (parentTopic) {
-        const ids = parentTopic.classIds && parentTopic.classIds.length > 0
-          ? parentTopic.classIds
-          : (parentTopic.classId ? [parentTopic.classId] : ['ALL']);
-        if (ids[0] && ids[0] !== 'ALL') {
-          targetClassId = ids[0];
-        }
-      }
+    let targetClassId = selectedClassId || problem?.classId || classId || 'NONE';
+    if (targetClassId !== 'NONE' && (!targetClassId || targetClassId === 'class_default_faminh')) {
+      targetClassId = classes[0]?.id || 'NONE';
     }
-    if (!targetClassId) targetClassId = 'class_default_faminh';
 
     const problemData = {
       code: code.trim().toUpperCase().replace(/\s+/g, '_'),
@@ -566,6 +540,9 @@ Cho dãy số nguyên $A = (a_1, a_2, \\dots, a_n)$. Hãy tìm...
                   onChange={(e) => setSelectedClassId(e.target.value)}
                   className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:ring-1 focus:ring-red-500 font-medium cursor-pointer"
                 >
+                  <option value="NONE">
+                    🔒 Không giao vào lớp nào (Kho lưu trữ giáo viên, không gán lớp)
+                  </option>
                   {classes.map((c) => (
                     <option key={c.id} value={c.id}>
                       🏫 {c.className} (Mã: {c.joinCode})

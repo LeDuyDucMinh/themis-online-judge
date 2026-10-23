@@ -735,9 +735,12 @@ export const apiService = {
 
     if (isSupabaseConfigured()) {
       try {
-        const targetClassId = (problem.classId && problem.classId !== 'class_default_faminh') ? problem.classId : 'ALL';
+        const isNone = problem.classId === 'NONE' || !problem.classId;
+        const targetClassId = isNone ? null : (problem.classId !== 'class_default_faminh' ? problem.classId : 'ALL');
         // Đảm bảo lớp học luôn tồn tại trên Supabase để tránh lỗi Foreign Key Constraint 409
-        await this.ensureClassroom(targetClassId);
+        if (targetClassId) {
+          await this.ensureClassroom(targetClassId);
+        }
 
         const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/problems?on_conflict=id`;
         const payload = {
@@ -841,7 +844,7 @@ export const apiService = {
               description: item.description || '',
               difficulty: item.difficulty || 'MEDIUM',
               topicId: item.topic_id,
-              classId: item.class_id,
+              classId: item.class_id || 'NONE',
               timeLimit: Number(item.time_limit) || 1.0,
               memoryLimit: Number(item.memory_limit) || 256,
               totalPoints: Number(item.total_points) || 10,

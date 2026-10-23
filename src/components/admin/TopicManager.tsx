@@ -58,7 +58,6 @@ export const TopicManager: React.FC<TopicManagerProps> = ({ initialClassId }) =>
   // Filter & Search states cho Tab "Các bài tập"
   const [problemSearch, setProblemSearch] = useState('');
   const [problemTopicFilter, setProblemTopicFilter] = useState<string>('ALL'); // 'ALL' | '__UNASSIGNED__' | topicId
-  const [problemClassFilter, setProblemClassFilter] = useState<string>(initialClassId || 'ALL');
 
   // Bộ lọc chủ đề theo lớp học
   const [selectedClassFilter, setSelectedClassFilter] = useState<string>(initialClassId || 'ALL');
@@ -278,16 +277,9 @@ export const TopicManager: React.FC<TopicManagerProps> = ({ initialClassId }) =>
         if (p.topicId !== problemTopicFilter) return false;
       }
 
-      // 3. Lọc theo lớp học
-      if (problemClassFilter !== 'ALL') {
-        if (p.classId && p.classId !== 'ALL' && p.classId !== problemClassFilter) {
-          return false;
-        }
-      }
-
       return true;
     });
-  }, [problems, topics, problemSearch, problemTopicFilter, problemClassFilter]);
+  }, [problems, topics, problemSearch, problemTopicFilter]);
 
   // Danh sách chủ đề sau khi áp dụng bộ lọc theo lớp
   const displayedTopics = topics.filter((t) => isTopicInClass(t, selectedClassFilter));
@@ -907,23 +899,6 @@ export const TopicManager: React.FC<TopicManagerProps> = ({ initialClassId }) =>
                   })}
                 </select>
               </div>
-
-              {/* Lọc theo lớp học */}
-              <div className="flex items-center gap-1.5">
-                <GraduationCap className="w-4 h-4 text-red-400 shrink-0" />
-                <select
-                  value={problemClassFilter}
-                  onChange={(e) => setProblemClassFilter(e.target.value)}
-                  className="px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:ring-1 focus:ring-red-500 font-medium cursor-pointer"
-                >
-                  <option value="ALL">🏫 Tất cả lớp học</option>
-                  {classes.map((cls) => (
-                    <option key={cls.id} value={cls.id}>
-                      {cls.className}
-                    </option>
-                  ))}
-                </select>
-              </div>
             </div>
 
             <div className="flex items-center gap-3">
@@ -1011,7 +986,11 @@ export const TopicManager: React.FC<TopicManagerProps> = ({ initialClassId }) =>
                             )}
                           </td>
                           <td className="py-3 px-4 text-center">
-                            {!prob.classId || prob.classId === 'ALL' ? (
+                            {prob.classId === 'NONE' || !prob.classId ? (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[11px] font-semibold">
+                                🔒 Không giao lớp nào (Lưu trữ)
+                              </span>
+                            ) : prob.classId === 'ALL' ? (
                               <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20 text-[11px] font-semibold">
                                 <Globe className="w-3 h-3" />
                                 <span>Tất cả các lớp</span>
