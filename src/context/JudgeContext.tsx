@@ -361,11 +361,17 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     }
   };
 
-  // 1. Phục hồi và bổ sung dữ liệu khi khởi động
+  // 1. Phục hồi và tự động đồng bộ dữ liệu khi khởi động
   useEffect(() => {
     let isMounted = true;
     (async () => {
       try {
+        if (storageService.isAdminSessionActive() && apiService.isConfigured()) {
+          // Tự động đồng bộ ngầm toàn bộ dữ liệu từ máy này lên Cloud
+          apiService.syncAllToCloud().catch((err) => {
+            console.warn('[JudgeContext] Lỗi đồng bộ ngầm khi khởi động:', err);
+          });
+        }
         await refreshAllData();
       } catch (err) {
         if (isMounted) {
@@ -375,6 +381,22 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     })();
     return () => {
       isMounted = false;
+    };
+  }, []);
+
+  // 1.1 TỰ ĐỘNG LÀM MỚI DỮ LIỆU ĐÁM MÂY KHI CHUYỂN TAB HOẶC ĐỊNH KỲ (ĐẢM BẢO HỌC SINH & MÁY B LUÔN CÓ BÀI MỚI)
+  useEffect(() => {
+    const handleWindowFocus = () => {
+      refreshAllData().catch(() => {});
+    };
+    window.addEventListener('focus', handleWindowFocus);
+    const periodicSync = setInterval(() => {
+      refreshAllData().catch(() => {});
+    }, 45000);
+
+    return () => {
+      window.removeEventListener('focus', handleWindowFocus);
+      clearInterval(periodicSync);
     };
   }, []);
 
@@ -477,7 +499,7 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     }
 
     const found = currentList.find(
-      (s) => s.username.toLowerCase() === username.trim().toLowerCase() && s.password === password.trim()
+      (s) => s.username.toLowerCase() === username.trim().toLowerCase() && (s.password || '123') === password.trim()
     );
 
     if (found) {
@@ -582,8 +604,19 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       return { success: false, message: 'Vui lòng nhập mật mã quản trị viên!' };
     }
 
-    // Đối chiếu trực tiếp với Supabase Cloud Database qua API
-    const isValid = await apiService.verifyAdminPassword(password.trim());
+    const cleanPass = password.trim();
+    // 1. Đối chiếu trực tiếp với Supabase Cloud Database qua API
+    let isValid = await apiService.verifyAdminPassword(cleanPass);
+
+    // Nếu mật mã trên Cloud chưa khớp nhưng khớp với mật mã lưu trên máy này
+    // (do lần đổi hôm qua trên máy A chưa kịp đẩy lên Cloud) -> Tự động khôi phục và cập nhật lên Cloud!
+    if (!isValid && cleanPass === storageService.getAdminPassword().trim()) {
+      const synced = await apiService.updateAdminPasswordInDatabase(cleanPass);
+      if (synced) {
+        isValid = true;
+      }
+    }
+
     if (isValid) {
       // Dọn dẹp session học sinh nếu có
       storageService.setStudentSession(null);
@@ -592,15 +625,23 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       setIsAdminAuthenticated(true);
       setRole('ADMIN');
       storageService.setAdminSessionActive(true);
-      sessionStorage.setItem('faminh_admin_verified_pass', password.trim());
+      sessionStorage.setItem('faminh_admin_verified_pass', cleanPass);
       setIsAuthModalOpen(false);
+
+      // TỰ ĐỘNG ĐỒNG BỘ TOÀN BỘ BÀI TẬP, TEST CASE, LỚP VÀ HỌC SINH TỪ MÁY NÀY LÊN CLOUD
+      apiService.syncAllToCloud().then(async (res) => {
+        console.log('[JudgeContext] Đồng bộ tự động ngầm thành công:', res);
+        await refreshAllData();
+      }).catch((err) => {
+        console.warn('[JudgeContext] Lỗi đồng bộ ngầm sau đăng nhập:', err);
+      });
 
       // Kéo dữ liệu mới nhất từ Database
       await refreshAllData();
 
       showToast(
         'Xác thực thành công',
-        'Chào mừng Giáo viên / Quản trị viên FAMINH! Đã mở quyền quản trị hệ thống với Database.',
+        'Chào mừng Giáo viên FAMINH! Hệ thống đã tự động bật đồng bộ toàn diện trên Cloud.',
         'success'
       );
       return { success: true, message: 'Đăng nhập thành công' };
@@ -653,8 +694,11 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     oldPass: string,
     newPass: string
   ): Promise<{ success: boolean; message: string }> => {
-    // 1. Kiểm tra mật khẩu cũ trực tiếp qua Database
-    const isOldValid = await apiService.verifyAdminPassword(oldPass);
+    // 1. Kiểm tra mật khẩu cũ trực tiếp qua Database hoặc fallback mật khẩu máy này
+    let isOldValid = await apiService.verifyAdminPassword(oldPass);
+    if (!isOldValid && oldPass.trim() === storageService.getAdminPassword().trim()) {
+      isOldValid = true;
+    }
     if (!isOldValid) {
       return { success: false, message: 'Mật mã hiện tại không đúng trên Database!' };
     }
@@ -667,7 +711,7 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     if (updated) {
       sessionStorage.setItem('faminh_admin_verified_pass', newPass.trim());
       setIsChangePasswordModalOpen(false);
-      showToast('Đổi mật mã thành công', 'Mật mã quản trị FAMINH mới đã được cập nhật an toàn lên Database.', 'success');
+      showToast('Đổi mật mã thành công', 'Mật mã quản trị FAMINH mới đã được cập nhật an toàn lên Database đám mây.', 'success');
       return { success: true, message: 'Đổi mật mã thành công' };
     } else {
       return { success: false, message: 'Không thể kết nối đến Database để đổi mật mã!' };

@@ -109,8 +109,25 @@ export const apiService = {
                 joinCode: c.join_code || 'OXYZ',
                 createdAt: c.created_at || new Date().toISOString(),
               }));
-            storageService.saveClasses(cloudClasses);
-            return cloudClasses;
+
+            const localClasses = storageService.getClasses();
+            const classMap = new Map<string, Classroom>();
+            localClasses.forEach((c) => classMap.set(c.id, c));
+            cloudClasses.forEach((c) => classMap.set(c.id, c));
+            const merged = Array.from(classMap.values());
+
+            // Tự động đẩy lớp học local lên Cloud nếu chưa có và đang ở phiên Admin
+            if (storageService.isAdminSessionActive()) {
+              const cloudIds = new Set(cloudClasses.map((c) => c.id));
+              localClasses.forEach((lc) => {
+                if (!cloudIds.has(lc.id)) {
+                  this.saveClassroom(lc).catch(() => {});
+                }
+              });
+            }
+
+            storageService.saveClasses(merged);
+            return merged;
           }
         }
       } catch (err) {
@@ -295,6 +312,7 @@ export const apiService = {
    * Lấy danh sách Học sinh từ Supabase Cloud (Anti-cache real-time)
    */
   async fetchStudents(): Promise<StudentUser[]> {
+    const localStudents = storageService.getStudents();
     if (isSupabaseConfigured()) {
       try {
         const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/classrooms?id=eq.__system_students__&_t=${Date.now()}`;
@@ -307,8 +325,28 @@ export const apiService = {
           if (Array.isArray(rows) && rows.length > 0 && rows[0].description) {
             const parsed = JSON.parse(rows[0].description);
             if (Array.isArray(parsed)) {
-              storageService.saveStudents(parsed);
-              return parsed;
+              const studentMap = new Map<string, StudentUser>();
+              localStudents.forEach((s) => studentMap.set((s.username || '').toLowerCase(), s));
+              parsed.forEach((s: any) => {
+                const uName = (s.username || '').toLowerCase();
+                const existing = studentMap.get(uName);
+                studentMap.set(uName, {
+                  id: s.id || `student_${Date.now()}`,
+                  fullName: s.fullName || s.username || 'Học sinh',
+                  username: s.username,
+                  password: s.password || existing?.password || '123',
+                  createdAt: s.createdAt || new Date().toISOString(),
+                });
+              });
+              const merged = Array.from(studentMap.values()).filter((s) => s.username);
+
+              // Tự động đẩy danh sách học sinh lên Cloud nếu có học sinh mới trên máy này
+              if (storageService.isAdminSessionActive() && merged.length > parsed.length) {
+                this.saveStudents(merged).catch(() => {});
+              }
+
+              storageService.saveStudents(merged);
+              return merged;
             }
           }
         }
@@ -316,7 +354,7 @@ export const apiService = {
         console.warn('[apiService] fetchStudents warn:', e);
       }
     }
-    return storageService.getStudents();
+    return localStudents;
   },
 
   /**
@@ -460,10 +498,11 @@ export const apiService = {
    */
   async updateAdminPasswordInDatabase(newPassword: string): Promise<boolean> {
     if (!newPassword || newPassword.trim().length < 6) return false;
-    storageService.setAdminPassword(newPassword.trim());
+    const cleanPass = newPassword.trim();
+    storageService.setAdminPassword(cleanPass);
     if (isSupabaseConfigured()) {
       try {
-        const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/classrooms`;
+        const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/classrooms?on_conflict=id`;
         const res = await fetch(targetUrl, {
           method: 'POST',
           headers: {
@@ -474,7 +513,7 @@ export const apiService = {
           body: JSON.stringify({
             id: '__system_admin_auth__',
             class_name: 'ADMIN_CREDENTIAL',
-            description: newPassword.trim(),
+            description: cleanPass,
             join_code: 'ROOT',
             updated_at: new Date().toISOString(),
           }),
@@ -502,7 +541,7 @@ export const apiService = {
     // 2. Nếu đã cấu hình Supabase Cloud, gọi API PUT/POST (Upsert) lên bảng test_cases
     if (isSupabaseConfigured()) {
       try {
-        const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/test_cases`;
+        const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/test_cases?on_conflict=id`;
         const rows = testCases.map((tc, index) => ({
           id: tc.id || `${problemId}_tc_${index + 1}`,
           problem_id: problemId,
@@ -518,8 +557,7 @@ export const apiService = {
         const res = await fetch(targetUrl, {
           method: 'POST',
           headers: {
-            apikey: ENV.SUPABASE_ANON_KEY,
-            Authorization: `Bearer ${ENV.SUPABASE_ANON_KEY}`,
+            ...this.getAntiCacheHeaders(),
             'Content-Type': 'application/json',
             Prefer: 'resolution=merge-duplicates',
           },
@@ -588,7 +626,7 @@ export const apiService = {
     // 2. Nếu đã cấu hình Supabase Cloud, gọi API POST lên bảng submissions
     if (isSupabaseConfigured()) {
       try {
-        const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/submissions`;
+        const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/submissions?on_conflict=id`;
         const payload = {
           id: submission.id,
           problem_id: submission.problemId,
@@ -615,8 +653,7 @@ export const apiService = {
         const res = await fetch(targetUrl, {
           method: 'POST',
           headers: {
-            apikey: ENV.SUPABASE_ANON_KEY,
-            Authorization: `Bearer ${ENV.SUPABASE_ANON_KEY}`,
+            ...this.getAntiCacheHeaders(),
             'Content-Type': 'application/json',
             Prefer: 'resolution=merge-duplicates',
           },
@@ -837,8 +874,38 @@ export const apiService = {
             }));
 
             // ĐỒNG BỘ CHUẨN TỪ CLOUD (SINGLE SOURCE OF TRUTH):
-            // Supabase Cloud là chân lý. Ghi đè vào cache client để dọn sạch các bài đã bị xóa trên Cloud,
-            // ngăn chặn hoàn toàn lỗi Zombie Resurrect (hồi sinh bài cũ).
+            // Supabase Cloud là chân lý. Tự động đẩy các bài tập local chưa có trên Cloud nếu là phiên Admin.
+            const cloudIdSet = new Set(cloudProblems.map((p) => p.id));
+            const [idbProblems, storageProblems] = await Promise.all([
+              idbService.getAllProblems(),
+              Promise.resolve(storageService.getProblems()),
+            ]);
+            const unSyncedLocalProblems: Problem[] = [];
+            idbProblems.forEach((p) => {
+              if (!cloudIdSet.has(p.id) && !p.id.startsWith('mock_')) unSyncedLocalProblems.push(p);
+            });
+            storageProblems.forEach((p) => {
+              if (!cloudIdSet.has(p.id) && !unSyncedLocalProblems.some((u) => u.id === p.id) && !p.id.startsWith('mock_')) {
+                unSyncedLocalProblems.push(p);
+              }
+            });
+
+            if (unSyncedLocalProblems.length > 0 && storageService.isAdminSessionActive()) {
+              for (const unp of unSyncedLocalProblems) {
+                try {
+                  await this.saveProblem(unp);
+                  let tc = await idbService.getTestCases(unp.id);
+                  if (!tc || tc.length === 0) tc = unp.testCases;
+                  if (tc && tc.length > 0) {
+                    await this.saveTestCases(unp.id, tc);
+                  }
+                  cloudProblems.push(unp);
+                } catch (e) {
+                  console.warn('[apiService] Auto-sync local problem to Cloud warn:', e);
+                }
+              }
+            }
+
             await idbService.saveProblems(cloudProblems);
             storageService.saveProblems(cloudProblems);
             return cloudProblems;
@@ -871,15 +938,32 @@ export const apiService = {
       throw new Error('Supabase Cloud chưa được cấu hình địa chỉ URL và API Key');
     }
 
+    // 0. Tự động đồng bộ mật mã Admin nếu máy này đã đổi mật khẩu
+    const localPass = storageService.getAdminPassword();
+    if (localPass && localPass !== DEFAULT_ADMIN_PASSWORD && localPass.length >= 6) {
+      await this.updateAdminPasswordInDatabase(localPass);
+    }
+
     // 1. Đồng bộ Classrooms
     const localClasses = storageService.getClasses();
     for (const cls of localClasses) {
       await this.saveClassroom(cls);
     }
 
-    // 2. Đồng bộ quan hệ học sinh - lớp, danh sách học sinh và chủ đề
+    // 2. Đồng bộ quan hệ học sinh - lớp, danh sách học sinh và chủ đề (Merge an toàn)
     await this.saveClassStudents(storageService.getClassStudents());
-    await this.saveStudents(storageService.getStudents());
+    const cloudStudents = await this.fetchStudents();
+    const localStudents = storageService.getStudents();
+    const studentMap = new Map<string, StudentUser>();
+    localStudents.forEach((s) => studentMap.set((s.username || '').toLowerCase(), s));
+    cloudStudents.forEach((s) => {
+      const uName = (s.username || '').toLowerCase();
+      if (!studentMap.has(uName)) {
+        studentMap.set(uName, s);
+      }
+    });
+    const mergedStudents = Array.from(studentMap.values()).filter((s) => s.username);
+    await this.saveStudents(mergedStudents);
     await this.saveTopics(storageService.getTopics());
 
     // 3. Gom toàn bộ bài tập từ IndexedDB và localStorage
