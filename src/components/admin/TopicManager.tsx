@@ -986,21 +986,72 @@ export const TopicManager: React.FC<TopicManagerProps> = ({ initialClassId }) =>
                             )}
                           </td>
                           <td className="py-3 px-4 text-center">
-                            {prob.classId === 'NONE' || !prob.classId ? (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[11px] font-semibold">
-                                🔒 Không giao lớp nào (Lưu trữ)
-                              </span>
-                            ) : prob.classId === 'ALL' ? (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20 text-[11px] font-semibold">
-                                <Globe className="w-3 h-3" />
-                                <span>Tất cả các lớp</span>
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-800 text-slate-300 border border-slate-700 text-[11px] font-medium">
-                                <GraduationCap className="w-3 h-3 text-red-400" />
-                                <span>{targetClass?.className || prob.classId}</span>
-                              </span>
-                            )}
+                            {(() => {
+                              // 1. Nếu bài tập đã được gán vào 1 chủ đề: hiển thị các lớp được giao chủ đề đó
+                              if (topic) {
+                                const topicClassIds = topic.classIds && topic.classIds.length > 0
+                                  ? topic.classIds
+                                  : (topic.classId ? [topic.classId] : ['ALL']);
+
+                                if (topicClassIds.includes('ALL')) {
+                                  return (
+                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20 text-[11px] font-semibold">
+                                      <Globe className="w-3 h-3" />
+                                      <span>Tất cả các lớp</span>
+                                    </span>
+                                  );
+                                }
+
+                                const targetClasses = classes.filter((c) => topicClassIds.includes(c.id));
+                                if (targetClasses.length === 0) {
+                                  return (
+                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-800 text-slate-400 border border-slate-700 text-[11px]">
+                                      Chưa gán lớp cho chủ đề
+                                    </span>
+                                  );
+                                }
+
+                                return (
+                                  <div className="flex flex-wrap items-center justify-center gap-1.5 max-w-[200px] mx-auto">
+                                    {targetClasses.map((c) => (
+                                      <span
+                                        key={c.id}
+                                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-red-500/15 text-red-400 border border-red-500/30 text-[11px] font-bold shadow-sm"
+                                        title={`Mã vào lớp: ${c.joinCode}`}
+                                      >
+                                        <GraduationCap className="w-3 h-3 shrink-0" />
+                                        <span>{c.className}</span>
+                                      </span>
+                                    ))}
+                                  </div>
+                                );
+                              }
+
+                              // 2. Nếu bài tập chưa phân vào chủ đề: hiển thị lớp trực tiếp của bài hoặc lưu trữ
+                              if (prob.classId === 'ALL') {
+                                return (
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20 text-[11px] font-semibold">
+                                    <Globe className="w-3 h-3" />
+                                    <span>Tất cả các lớp</span>
+                                  </span>
+                                );
+                              }
+
+                              if (prob.classId && prob.classId !== 'NONE') {
+                                return (
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-800 text-slate-300 border border-slate-700 text-[11px] font-medium">
+                                    <GraduationCap className="w-3 h-3 text-red-400" />
+                                    <span>{targetClass?.className || prob.classId}</span>
+                                  </span>
+                                );
+                              }
+
+                              return (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[11px] font-semibold">
+                                  🔒 Không giao lớp nào (Lưu trữ)
+                                </span>
+                              );
+                            })()}
                           </td>
                           <td className="py-3 px-4">
                             <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-400">

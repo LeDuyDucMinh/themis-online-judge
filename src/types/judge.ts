@@ -58,7 +58,7 @@ export interface Problem {
   topicId: string;
   difficulty: string; // Tự do cho Admin đặt (Dễ, Trung bình, Khó, HSG Tỉnh, Olympic...)
   timeLimit: number; // Giây, e.g. 1.0
-  memoryLimit: number; // Megabytes, e.g. 256
+  memoryLimit: number; // Megabytes, e.g. 1024
   totalPoints: number; // Thang điểm: 10 hoặc 100
   description: string; // Markdown + LaTeX math ($...$, $$...$$)
   inputFormat: string;

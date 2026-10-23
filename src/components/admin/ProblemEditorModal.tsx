@@ -68,7 +68,7 @@ export const ProblemEditorModal: React.FC<ProblemEditorModalProps> = ({
     problem?.difficulty || 'Trung bình'
   );
   const [timeLimit, setTimeLimit] = useState(problem?.timeLimit || 1.0);
-  const [memoryLimit, setMemoryLimit] = useState(problem?.memoryLimit || 256);
+  const [memoryLimit, setMemoryLimit] = useState(problem?.memoryLimit || 1024);
   const [totalPoints, setTotalPoints] = useState(problem?.totalPoints || 10);
   const [description, setDescription] = useState(problem?.description || '');
   const [attachedFile, setAttachedFile] = useState<Problem['attachedFile']>(
@@ -305,7 +305,7 @@ Cho dãy số nguyên $A = (a_1, a_2, \\dots, a_n)$. Hãy tìm...
       difficulty: difficulty.trim() || 'Trung bình',
 
       timeLimit: Number(timeLimit) || 1.0,
-      memoryLimit: Number(memoryLimit) || 256,
+      memoryLimit: Number(memoryLimit) || 1024,
       totalPoints: Number(totalPoints) || 10,
       description,
       inputFormat: problem?.inputFormat || '',

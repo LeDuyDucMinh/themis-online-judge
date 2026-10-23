@@ -846,7 +846,7 @@ export const apiService = {
               topicId: item.topic_id,
               classId: item.class_id || 'NONE',
               timeLimit: Number(item.time_limit) || 1.0,
-              memoryLimit: Number(item.memory_limit) || 256,
+              memoryLimit: Number(item.memory_limit) || 1024,
               totalPoints: Number(item.total_points) || 10,
               inputFormat: item.input_format || '',
               outputFormat: item.output_format || '',

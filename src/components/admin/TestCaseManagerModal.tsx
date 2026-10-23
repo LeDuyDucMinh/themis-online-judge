@@ -63,7 +63,7 @@ export const TestCaseManagerModal: React.FC<TestCaseManagerModalProps> = ({
   const { updateProblem, showToast } = useJudge();
 
   const [timeLimit, setTimeLimit] = useState(problem.timeLimit || 1.0);
-  const [memoryLimit, setMemoryLimit] = useState(problem.memoryLimit || 256);
+  const [memoryLimit, setMemoryLimit] = useState(problem.memoryLimit || 1024);
   const [totalPoints, setTotalPoints] = useState(problem.totalPoints || 10);
   const [testCases, setTestCases] = useState<TestCase[]>(problem.testCases || []);
   const [isLoadingTests, setIsLoadingTests] = useState(false);
@@ -218,7 +218,7 @@ export const TestCaseManagerModal: React.FC<TestCaseManagerModalProps> = ({
       // 2. Chỉ khi Database lưu thành công mới gọi cập nhật state bài tập trong React
       await updateProblem(problem.id, {
         timeLimit: Number(timeLimit) || 1.0,
-        memoryLimit: Number(memoryLimit) || 256,
+        memoryLimit: Number(memoryLimit) || 1024,
         totalPoints: Number(totalPoints) || 10,
         testCases,
       });
@@ -300,7 +300,7 @@ export const TestCaseManagerModal: React.FC<TestCaseManagerModalProps> = ({
                 <input
                   type="number"
                   min="16"
-                  max="1024"
+                  max="2048"
                   value={memoryLimit}
                   onChange={(e) => setMemoryLimit(parseInt(e.target.value))}
                   className="w-full px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white font-mono focus:outline-none focus:ring-1 focus:ring-red-500"

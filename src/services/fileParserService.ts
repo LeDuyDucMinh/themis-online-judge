@@ -118,7 +118,7 @@ export async function parseExcelFile(
       const title = getVal(['title', 'tiêu đề', 'tên']) || `Bài tập ${code}`;
       const description = getVal(['mô tả', 'đề bài', 'description']) || 'Mô tả bài toán...';
       const timeLimit = parseFloat(getVal(['thời gian', 'time'])) || 1.0;
-      const memoryLimit = parseInt(getVal(['bộ nhớ', 'memory'])) || 256;
+      const memoryLimit = parseInt(getVal(['bộ nhớ', 'memory'])) || 1024;
       const totalPoints = parseInt(getVal(['điểm', 'points', 'thang điểm'])) || 10;
 
       return {
