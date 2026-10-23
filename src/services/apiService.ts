@@ -110,24 +110,11 @@ export const apiService = {
                 createdAt: c.created_at || new Date().toISOString(),
               }));
 
-            const localClasses = storageService.getClasses();
-            const classMap = new Map<string, Classroom>();
-            localClasses.forEach((c) => classMap.set(c.id, c));
-            cloudClasses.forEach((c) => classMap.set(c.id, c));
-            const merged = Array.from(classMap.values());
-
-            // Tự động đẩy lớp học local lên Cloud nếu chưa có và đang ở phiên Admin
-            if (storageService.isAdminSessionActive()) {
-              const cloudIds = new Set(cloudClasses.map((c) => c.id));
-              localClasses.forEach((lc) => {
-                if (!cloudIds.has(lc.id)) {
-                  this.saveClassroom(lc).catch(() => {});
-                }
-              });
-            }
-
-            storageService.saveClasses(merged);
-            return merged;
+            // ĐỒNG BỘ CHUẨN TỪ CLOUD (SINGLE SOURCE OF TRUTH):
+            // Supabase Cloud là chân lý duy nhất. Lớp đã xóa trên Cloud thì client PHẢI XÓA THEO!
+            // Tuyệt đối KHÔNG tự ý đẩy các lớp đã bị xóa từ local ngược lên lại Cloud (ngăn chặn Zombie Resurrect).
+            storageService.saveClasses(cloudClasses);
+            return cloudClasses;
           }
         }
       } catch (err) {
@@ -176,14 +163,11 @@ export const apiService = {
    */
   async ensureClassroom(classId: string, className?: string, joinCode?: string): Promise<void> {
     if (!isSupabaseConfigured() || !classId) return;
+    if (classId === 'class_default_faminh') return;
     try {
       const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/classrooms?on_conflict=id`;
-      const defaultName = classId === 'class_default_faminh'
-        ? 'Lớp Học Mặc Định'
-        : (classId === 'ALL' ? 'Tất cả các lớp' : 'Lớp Học FAMINH');
-      const defaultCode = classId === 'class_default_faminh'
-        ? 'OXYZ'
-        : (classId === 'ALL' ? 'ALL' : 'OXYZ');
+      const defaultName = classId === 'ALL' ? 'Tất cả các lớp' : 'Lớp Học FAMINH';
+      const defaultCode = classId === 'ALL' ? 'ALL' : 'OXYZ';
 
       await fetch(targetUrl, {
         method: 'POST',
@@ -211,7 +195,7 @@ export const apiService = {
   async deleteClassroom(classId: string): Promise<void> {
     if (!isSupabaseConfigured() || !classId) return;
     try {
-      // 1. Cập nhật các bài tập gán vào lớp này sang null để không vi phạm ràng buộc khóa ngoại (foreign key)
+      // 1. Cập nhật các bài tập gán vào lớp này sang 'ALL' để không vi phạm ràng buộc khóa ngoại (foreign key)
       const patchUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/problems?class_id=eq.${classId}`;
       await fetch(patchUrl, {
         method: 'PATCH',
@@ -219,7 +203,7 @@ export const apiService = {
           ...this.getAntiCacheHeaders(),
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ class_id: null }),
+        body: JSON.stringify({ class_id: 'ALL' }),
       });
 
       // 2. Dọn liên kết học sinh của lớp này
@@ -750,7 +734,7 @@ export const apiService = {
 
     if (isSupabaseConfigured()) {
       try {
-        const targetClassId = problem.classId || 'class_default_faminh';
+        const targetClassId = (problem.classId && problem.classId !== 'class_default_faminh') ? problem.classId : 'ALL';
         // Đảm bảo lớp học luôn tồn tại trên Supabase để tránh lỗi Foreign Key Constraint 409
         await this.ensureClassroom(targetClassId);
 
@@ -948,10 +932,13 @@ export const apiService = {
       await this.updateAdminPasswordInDatabase(localPass);
     }
 
-    // 1. Đồng bộ Classrooms
-    const localClasses = storageService.getClasses();
-    for (const cls of localClasses) {
-      await this.saveClassroom(cls);
+    // 1. Đồng bộ Classrooms: chỉ khởi tạo nếu Cloud chưa có lớp nào
+    const cloudClasses = await this.fetchClassrooms();
+    if (cloudClasses.length === 0) {
+      const localClasses = storageService.getClasses();
+      for (const cls of localClasses) {
+        await this.saveClassroom(cls);
+      }
     }
 
     // 2. Đồng bộ quan hệ học sinh - lớp, danh sách học sinh và chủ đề (Merge an toàn)
