@@ -117,7 +117,7 @@ async function main() {
   });
 
   await runTest('storageService.resetToDefault() dua topics va problems ve []', () => {
-    storageService.saveTopics([{ id: 't1', name: 'Topic 1', order: 1 }]);
+    storageService.saveTopics([{ id: 't1', name: 'Topic 1', description: 'Topic 1 description', order: 1 }]);
     storageService.saveProblems([
       createMockProblem({
         id: 'p1',

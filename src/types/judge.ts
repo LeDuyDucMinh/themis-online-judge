@@ -91,7 +91,7 @@ export interface Problem {
 export interface Topic {
   id: string;
   name: string; // e.g. "Mảng 1 chiều", "Số học & Nguyên tố", "Quy hoạch động"
-  description: string;
+  description?: string;
   order: number;
   icon?: string;
   classId?: string; // (Tương thích ngược) ID lớp học nếu chỉ gán 1 lớp ('ALL' là tất cả các lớp)

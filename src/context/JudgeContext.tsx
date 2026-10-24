@@ -853,16 +853,15 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       );
       return { success: true, message: 'Đăng nhập thành công' };
     } else {
-      // Đối chiếu sai mật khẩu: ÉP VĂNG / TỪ CHỐI
-      storageService.clearAllStorageAndCookies();
+      // Đối chiếu sai mật khẩu: Chỉ từ chối quyền Admin, tuyệt đối không xóa session học sinh
+      storageService.setAdminSessionActive(false);
       sessionStorage.removeItem('faminh_admin_verified_pass');
       try { localStorage.removeItem('faminh_admin_verified_pass'); } catch {}
       storageService.deleteCookie('faminh_admin_verified_pass');
       setIsAdminAuthenticated(false);
-      setRole('USER');
       showToast(
         'Từ chối truy cập',
-        'Mật mã quản trị viên không chính xác trên Database. Yêu cầu đăng nhập lại!',
+        'Mật mã quản trị viên không chính xác trên Database. Vui lòng thử lại!',
         'error'
       );
       return { success: false, message: 'Mật mã quản trị viên không chính xác trên Database!' };

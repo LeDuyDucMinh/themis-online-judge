@@ -172,7 +172,7 @@ export const TopicManager: React.FC<TopicManagerProps> = ({ initialClassId }) =>
     setEditingTopicId(t.id);
     setIsAddingTopic(false);
     setName(t.name);
-    setDescription(t.description);
+    setDescription(t.description || '');
 
     const validClassIdSet = new Set(classes.map((c) => c.id));
     if (t.classIds && t.classIds.length > 0) {

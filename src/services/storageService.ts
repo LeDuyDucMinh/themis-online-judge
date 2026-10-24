@@ -734,22 +734,21 @@ export const storageService = {
 
   isAdminSessionActive(): boolean {
     try {
-      // 1. Ưu tiên đọc Cookie (Next.js server & browser compatible)
-      const fromCookie = this.getCookie(STORAGE_KEYS.ADMIN_SESSION);
-      if (fromCookie === 'true') {
+      // 1. Đọc từ sessionStorage hoặc localStorage (đồng bộ, tức thì)
+      const fromSession = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem(STORAGE_KEYS.ADMIN_SESSION) === 'true' : false;
+      const fromLocal = typeof localStorage !== 'undefined' ? localStorage.getItem(STORAGE_KEYS.ADMIN_SESSION) === 'true' : false;
+      if (fromSession || fromLocal) {
         return true;
       }
 
-      // 2. Fallback sang localStorage và sessionStorage
-      const fromLocal = typeof localStorage !== 'undefined' ? localStorage.getItem(STORAGE_KEYS.ADMIN_SESSION) === 'true' : false;
-      const fromSession = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem(STORAGE_KEYS.ADMIN_SESSION) === 'true' : false;
-      const active = fromLocal || fromSession;
-
-      if (active) {
-        // Tự động đồng bộ ngược lại Cookie
-        this.setCookie(STORAGE_KEYS.ADMIN_SESSION, 'true', 30);
+      // 2. Fallback sang Cookie
+      const fromCookie = this.getCookie(STORAGE_KEYS.ADMIN_SESSION);
+      if (fromCookie === 'true') {
+        try { sessionStorage.setItem(STORAGE_KEYS.ADMIN_SESSION, 'true'); } catch {}
+        return true;
       }
-      return active;
+
+      return false;
     } catch {
       return false;
     }
@@ -757,9 +756,9 @@ export const storageService = {
 
   setAdminSessionActive(active: boolean): void {
     if (active) {
-      this.setCookie(STORAGE_KEYS.ADMIN_SESSION, 'true', 30);
       try { sessionStorage.setItem(STORAGE_KEYS.ADMIN_SESSION, 'true'); } catch {}
       try { localStorage.setItem(STORAGE_KEYS.ADMIN_SESSION, 'true'); } catch {}
+      this.setCookie(STORAGE_KEYS.ADMIN_SESSION, 'true', 30);
     } else {
       this.deleteCookie(STORAGE_KEYS.ADMIN_SESSION);
       try { sessionStorage.removeItem(STORAGE_KEYS.ADMIN_SESSION); } catch {}
@@ -826,32 +825,53 @@ export const storageService = {
 
   getStudentSession(): StudentUser | null {
     try {
-      // 1. Ưu tiên đọc từ Cookie (an toàn với Next.js Server & Vercel Middleware)
-      const fromCookie = this.getCookie(STORAGE_KEYS.STUDENT_SESSION);
       let student: StudentUser | null = null;
-      if (fromCookie) {
-        try {
-          student = JSON.parse(fromCookie);
-        } catch {}
-      }
 
-      // 2. Fallback sang localStorage và sessionStorage
-      if (!student) {
-        const raw =
-          (typeof localStorage !== 'undefined' ? localStorage.getItem(STORAGE_KEYS.STUDENT_SESSION) : null) ||
-          (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem(STORAGE_KEYS.STUDENT_SESSION) : null);
+      // 1. Luôn ưu tiên đọc từ localStorage (đồng bộ, tức thì, không bị lỗi SameSite/domain/4KB)
+      if (typeof localStorage !== 'undefined') {
+        const raw = localStorage.getItem(STORAGE_KEYS.STUDENT_SESSION);
         if (raw) {
           try {
-            student = JSON.parse(raw);
+            const parsed = JSON.parse(raw);
+            if (parsed && typeof parsed === 'object' && parsed.username) {
+              student = parsed;
+            }
           } catch {}
         }
       }
 
-      // 3. Tự động đồng bộ và gia hạn Token/Cookie (Auto Sliding Token Refresh)
+      // 2. Fallback sang sessionStorage
+      if (!student && typeof sessionStorage !== 'undefined') {
+        const raw = sessionStorage.getItem(STORAGE_KEYS.STUDENT_SESSION);
+        if (raw) {
+          try {
+            const parsed = JSON.parse(raw);
+            if (parsed && typeof parsed === 'object' && parsed.username) {
+              student = parsed;
+            }
+          } catch {}
+        }
+      }
+
+      // 3. Fallback sang Cookie
+      if (!student) {
+        const fromCookie = this.getCookie(STORAGE_KEYS.STUDENT_SESSION);
+        if (fromCookie) {
+          try {
+            const parsed = JSON.parse(fromCookie);
+            if (parsed && typeof parsed === 'object' && parsed.username) {
+              student = parsed;
+            }
+          } catch {}
+        }
+      }
+
+      // Đồng bộ lại vào cả 3 nơi
       if (student && student.username) {
-        this.setCookie(STORAGE_KEYS.STUDENT_SESSION, JSON.stringify(student), 30);
-        try { localStorage.setItem(STORAGE_KEYS.STUDENT_SESSION, JSON.stringify(student)); } catch {}
-        try { sessionStorage.setItem(STORAGE_KEYS.STUDENT_SESSION, JSON.stringify(student)); } catch {}
+        const str = JSON.stringify(student);
+        try { localStorage.setItem(STORAGE_KEYS.STUDENT_SESSION, str); } catch {}
+        try { sessionStorage.setItem(STORAGE_KEYS.STUDENT_SESSION, str); } catch {}
+        this.setCookie(STORAGE_KEYS.STUDENT_SESSION, str, 30);
         return student;
       }
       return null;
