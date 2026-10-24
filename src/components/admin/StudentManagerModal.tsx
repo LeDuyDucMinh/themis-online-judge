@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useJudge } from '../../context/JudgeContext';
 import type { StudentUser } from '../../types/judge';
 import {
@@ -23,6 +23,7 @@ export const StudentManagerModal: React.FC = () => {
     updateStudentPassword,
     deleteStudent,
     openConfirmModal,
+    refreshAllData,
   } = useJudge();
 
   const [fullName, setFullName] = useState('');
@@ -35,6 +36,12 @@ export const StudentManagerModal: React.FC = () => {
   const [editingStudent, setEditingStudent] = useState<StudentUser | null>(null);
   const [newPasswordInput, setNewPasswordInput] = useState('');
   const [changePassError, setChangePassError] = useState('');
+
+  useEffect(() => {
+    if (isStudentModalOpen) {
+      refreshAllData().catch((err) => console.warn('Lỗi refresh danh sách học sinh:', err));
+    }
+  }, [isStudentModalOpen]);
 
   if (!isStudentModalOpen) return null;
 

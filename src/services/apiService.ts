@@ -1085,7 +1085,10 @@ export const apiService = {
       }
     });
     const mergedStudents = Array.from(studentMap.values()).filter((s) => s.username);
-    await this.saveStudents(mergedStudents);
+    if (mergedStudents.length > 0) {
+      await this.saveStudents(mergedStudents);
+      storageService.saveStudents(mergedStudents);
+    }
     await this.saveTopics(storageService.getTopics());
 
     // 3. Gom toàn bộ bài tập từ IndexedDB và localStorage

@@ -513,9 +513,18 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         setClassStudents(cloudRelations);
         storageService.saveClassStudents(cloudRelations);
       }
-      if (cloudStudents) {
-        setStudents(cloudStudents);
-        storageService.saveStudents(cloudStudents);
+      if (cloudStudents || storageService.getStudents().length > 0) {
+        const local = storageService.getStudents();
+        const studentMap = new Map<string, StudentUser>();
+        local.forEach((s) => studentMap.set((s.username || '').toLowerCase(), s));
+        if (cloudStudents && cloudStudents.length > 0) {
+          cloudStudents.forEach((s) => studentMap.set((s.username || '').toLowerCase(), s));
+        }
+        const mergedStudents = Array.from(studentMap.values()).filter((s) => s.username);
+        if (mergedStudents.length > 0) {
+          setStudents(mergedStudents);
+          storageService.saveStudents(mergedStudents);
+        }
       }
       if (cloudTopics) {
         setTopics(cloudTopics);
@@ -685,19 +694,29 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     setToasts((prev) => prev.filter((t) => t.id !== id));
   };
 
-  // Học sinh Đăng nhập
+  // Học sinh Đăng nhập - Tìm kiếm đa tầng (React State, LocalStorage, Supabase Cloud)
   const loginStudent = async (username: string, password: string): Promise<{ success: boolean; message: string }> => {
     if (!username.trim() || !password.trim()) {
       return { success: false, message: 'Vui lòng nhập đầy đủ Tên đăng nhập và Mật khẩu!' };
     }
 
-    let currentList = await apiService.fetchStudents();
-    if (!currentList || currentList.length === 0) {
-      currentList = storageService.getStudents();
-    }
+    const cleanUser = username.trim().toLowerCase();
+    const cleanPass = password.trim();
 
-    const found = currentList.find(
-      (s) => s.username.toLowerCase() === username.trim().toLowerCase() && (s.password || '123') === password.trim()
+    // Gom học sinh từ mọi nguồn (tránh độ trễ mạng hoặc bộ nhớ cục bộ)
+    const studentMap = new Map<string, StudentUser>();
+    storageService.getStudents().forEach((s) => studentMap.set((s.username || '').toLowerCase(), s));
+    students.forEach((s) => studentMap.set((s.username || '').toLowerCase(), s));
+    try {
+      const cloudList = await apiService.fetchStudents();
+      if (cloudList && cloudList.length > 0) {
+        cloudList.forEach((s) => studentMap.set((s.username || '').toLowerCase(), s));
+      }
+    } catch {}
+
+    const allStudents = Array.from(studentMap.values());
+    const found = allStudents.find(
+      (s) => s.username.toLowerCase() === cleanUser && (s.password || '123') === cleanPass
     );
 
     if (found) {
@@ -712,13 +731,7 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       setIsAuthModalOpen(false);
 
       // Đảm bảo học sinh đã đăng nhập được lưu đồng bộ vào bộ nhớ của máy này
-      const currentLocal = storageService.getStudents();
-      const alreadyInLocal = currentLocal.some(
-        (s) => s.username.toLowerCase() === found.username.toLowerCase()
-      );
-      if (!alreadyInLocal) {
-        storageService.saveStudents([found, ...currentLocal]);
-      }
+      storageService.saveStudents(allStudents);
 
       // Fetch mới ngay danh sách lớp học và dữ liệu của học sinh này từ Database
       await refreshAllData();
@@ -737,27 +750,12 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     }
   };
 
-  // Học sinh Đăng xuất
+  // Học sinh Đăng xuất - Chỉ xóa session của học sinh này, tuyệt đối không xóa database hay danh sách lớp/bài tập
   const logoutStudent = (options?: { reason?: string } | any) => {
-    storageService.clearAllStorageAndCookies();
-    sessionStorage.removeItem('faminh_admin_verified_pass');
+    storageService.setStudentSession(null);
     setCurrentStudent(null);
-    setIsAdminAuthenticated(false);
-    setRole('USER');
     setActiveClassId(null);
     setActiveProblem(null);
-    setActiveTopicId(null);
-    setClasses([]);
-    setClassStudents([]);
-    setSubmissions([]);
-    setProblems([]);
-    setTopics([]);
-    setStats({
-      solvedCount: 0,
-      attemptedCount: 0,
-      totalSubmissions: 0,
-      pointsAccumulated: 0,
-    });
     setIsAuthModalOpen(true);
     setAuthModalTab('student');
     const customReason =
@@ -765,26 +763,31 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         ? options.reason
         : null;
     if (customReason) {
-      showToast('Tài khoản đã bị xóa', customReason, 'error');
+      showToast('Đã đăng xuất', customReason, 'info');
     } else {
-      showToast('Đã đăng xuất', 'Đã đăng xuất tài khoản và xóa sạch toàn bộ phiên làm việc.', 'info');
+      showToast('Đã đăng xuất', 'Đã đăng xuất tài khoản học sinh an toàn.', 'info');
     }
   };
 
-  // Giáo viên tạo tài khoản Học sinh mới
+  // Giáo viên tạo tài khoản Học sinh mới - Đồng bộ tức thì lên Cloud và bộ nhớ máy
   const addStudent = async (fullName: string, username: string, password: string): Promise<{ success: boolean; message: string }> => {
     if (!fullName.trim() || !username.trim() || !password.trim()) {
       return { success: false, message: 'Vui lòng điền đầy đủ Họ và tên, Tên đăng nhập và Mật khẩu!' };
     }
     const cleanUsername = username.trim().toLowerCase();
-    let currentList = await apiService.fetchStudents();
-    if (!currentList || currentList.length === 0) {
-      currentList = storageService.getStudents();
-    }
-    if (
-      currentList.some((s) => s.username.toLowerCase() === cleanUsername) ||
-      students.some((s) => s.username.toLowerCase() === cleanUsername)
-    ) {
+
+    // Gom học sinh từ mọi nguồn (LocalStorage, State, Cloud)
+    const studentMap = new Map<string, StudentUser>();
+    storageService.getStudents().forEach((s) => studentMap.set((s.username || '').toLowerCase(), s));
+    students.forEach((s) => studentMap.set((s.username || '').toLowerCase(), s));
+    try {
+      const cloudList = await apiService.fetchStudents();
+      if (cloudList && cloudList.length > 0) {
+        cloudList.forEach((s) => studentMap.set((s.username || '').toLowerCase(), s));
+      }
+    } catch {}
+
+    if (studentMap.has(cleanUsername)) {
       const msg = `Tên đăng nhập "${cleanUsername}" đã tồn tại trên hệ thống! Vui lòng chọn tên đăng nhập khác.`;
       showToast('Trùng tên đăng nhập', msg, 'error');
       return { success: false, message: msg };
@@ -798,10 +801,15 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       createdAt: new Date().toISOString(),
     };
 
-    const nextList = [newStudent, ...currentList.filter((s) => s.username.toLowerCase() !== cleanUsername)];
+    studentMap.set(cleanUsername, newStudent);
+    const nextList = [newStudent, ...Array.from(studentMap.values()).filter((s) => s.username.toLowerCase() !== cleanUsername)];
     storageService.saveStudents(nextList);
-    await apiService.saveStudents(nextList);
     setStudents(nextList);
+    try {
+      await apiService.saveStudents(nextList);
+    } catch (err) {
+      console.warn('[JudgeContext] Lỗi ghi học sinh mới lên Cloud:', err);
+    }
     showToast('Cấp tài khoản thành công', `Đã tạo tài khoản cho học sinh ${newStudent.fullName} (${newStudent.username})`, 'success');
     return { success: true, message: 'Tạo tài khoản thành công' };
   };
@@ -924,34 +932,20 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     }
   };
 
-  // Quản trị viên Đăng xuất
+  // Quản trị viên Đăng xuất - Chỉ giải phóng quyền Admin, tuyệt đối không xóa dữ liệu lớp, bài tập hay học sinh
   const logoutAdmin = () => {
-    storageService.clearAllStorageAndCookies();
+    storageService.setAdminSessionActive(false);
     sessionStorage.removeItem('faminh_admin_verified_pass');
     try { localStorage.removeItem('faminh_admin_verified_pass'); } catch {}
     storageService.deleteCookie('faminh_admin_verified_pass');
-    setCurrentStudent(null);
     setIsAdminAuthenticated(false);
     setRole('USER');
     setActiveClassId(null);
-    setActiveProblem(null);
-    setActiveTopicId(null);
-    setClasses([]);
-    setClassStudents([]);
-    setSubmissions([]);
-    setProblems([]);
-    setTopics([]);
-    setStats({
-      solvedCount: 0,
-      attemptedCount: 0,
-      totalSubmissions: 0,
-      pointsAccumulated: 0,
-    });
     setIsAuthModalOpen(true);
     setAuthModalTab('admin');
     showToast(
       'Đã đăng xuất Admin',
-      'Đã khóa quyền quản trị và dọn dẹp an toàn toàn bộ dữ liệu phiên.',
+      'Đã khóa quyền quản trị an toàn.',
       'info'
     );
   };
