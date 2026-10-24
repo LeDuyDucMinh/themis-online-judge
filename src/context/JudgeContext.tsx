@@ -38,6 +38,11 @@ interface JudgeContextType {
   isServerConfigModalOpen: boolean;
   setIsServerConfigModalOpen: (open: boolean) => void;
 
+  // Cơ chế "Lưới điện" (Action-Triggered Logout) - Modal cảnh báo phiên làm việc bị thu hồi
+  isSessionRevokedModalOpen: boolean;
+  setIsSessionRevokedModalOpen: (open: boolean) => void;
+  handleAcknowledgeRevokedSession: () => void;
+
   // Theme (Dark / Light)
   theme: 'dark' | 'light';
   toggleTheme: () => void;
@@ -201,6 +206,9 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const [isChangePasswordModalOpen, setIsChangePasswordModalOpen] = useState(false);
   const [isServerConfigModalOpen, setIsServerConfigModalOpen] = useState(false);
 
+  // Cơ chế "Lưới điện" (Action-Triggered Logout) - Modal cảnh báo phiên làm việc bị thu hồi
+  const [isSessionRevokedModalOpen, setIsSessionRevokedModalOpen] = useState(false);
+
   // Multi-Classroom State
   const [classes, setClasses] = useState<Classroom[]>(() => storageService.getClasses());
   const [classStudents, setClassStudents] = useState<ClassStudent[]>(() => storageService.getClassStudents());
@@ -269,6 +277,94 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   };
 
   /**
+   * Xử lý khi học sinh bấm nút "Về trang Đăng nhập" trên Modal cảnh báo Lưới điện
+   * Chỉ khi học sinh tự tay bấm vào nút này, hệ thống mới xóa bộ nhớ đệm (localStorage)
+   * và điều hướng về cửa cổng đăng nhập.
+   */
+  const handleAcknowledgeRevokedSession = () => {
+    setIsSessionRevokedModalOpen(false);
+    storageService.clearAllStorageAndCookies();
+    sessionStorage.removeItem('faminh_admin_verified_pass');
+    setCurrentStudent(null);
+    setIsAdminAuthenticated(false);
+    setRole('USER');
+    setActiveClassId(null);
+    setActiveProblem(null);
+    setActiveTopicId(null);
+    setClasses([]);
+    setClassStudents([]);
+    setSubmissions([]);
+    setProblems([]);
+    setTopics([]);
+    setStats({
+      solvedCount: 0,
+      attemptedCount: 0,
+      totalSubmissions: 0,
+      pointsAccumulated: 0,
+    });
+    setIsAuthModalOpen(true);
+    setAuthModalTab('student');
+  };
+
+  /**
+   * CƠ CHẾ "LƯỚI ĐIỆN" (Action-Triggered Check)
+   * Hệ thống hoàn toàn im lặng, để mặc cho học sinh treo máy hoặc đọc đề bài cũ (bằng bộ nhớ tạm).
+   * Hệ thống chỉ "giật điện" khi học sinh thực hiện một thao tác cần gọi API lên máy chủ:
+   * 1. Bấm nút Nộp bài (submitCode)
+   * 2. Bấm nút Tham gia lớp (joinClassByCode)
+   * 3. Bấm F5 tải lại trang (Auth Hydration useEffect)
+   *
+   * Quy tắc an toàn nghiêm ngặt:
+   * - CHỈ kích hoạt lưới điện khi API máy chủ Cloud trả về danh sách học sinh hợp lệ nhưng KHÔNG CÓ tài khoản này trong DB.
+   * - Nếu API gặp lỗi mạng / timeout / offline -> Trả về true an toàn, tuyệt đối không giật điện nhầm.
+   * - Khi kích hoạt: Màn hình làm mờ lại và hiển thị SessionRevokedModal.
+   * - Không tự văng ngay; đợi học sinh tự bấm nút để xóa localStorage và chuyển về login.
+   */
+  const checkActionTriggeredSession = async (studentToCheck?: StudentUser | null): Promise<boolean> => {
+    if (isAdminAuthenticated) return true;
+    const student = studentToCheck || currentStudent || storageService.getStudentSession();
+    if (!student) return true;
+
+    if (!apiService.isConfigured()) {
+      const localStudents = storageService.getStudents();
+      const exists = localStudents.some(
+        (s) =>
+          (s.id && s.id === student.id) ||
+          (s.username && s.username.toLowerCase() === student.username.toLowerCase())
+      );
+      if (!exists) {
+        setIsSessionRevokedModalOpen(true);
+        return false;
+      }
+      return true;
+    }
+
+    try {
+      const cloudStudents = await apiService.fetchStudentsFromCloud();
+      // Nếu API trả về null (lỗi mạng, timeout, hoặc server bận) -> An toàn, không kích hoạt
+      if (cloudStudents === null) {
+        return true;
+      }
+
+      const exists = cloudStudents.some(
+        (s) =>
+          (s.id && s.id === student.id) ||
+          (s.username && s.username.toLowerCase() === student.username.toLowerCase())
+      );
+
+      if (!exists) {
+        console.warn(`[Lưới điện] Tài khoản học sinh "${student.username}" không tồn tại trên Cloud Database. Kích hoạt SessionRevokedModal.`);
+        setIsSessionRevokedModalOpen(true);
+        return false;
+      }
+      return true;
+    } catch (e) {
+      console.warn('[Lưới điện] Ngoại lệ khi kiểm tra tài khoản trên máy chủ:', e);
+      return true;
+    }
+  };
+
+  /**
    * Tính năng tự động văng học sinh đã được tắt hoàn toàn theo yêu cầu người dùng.
    * Luôn trả về true để học sinh duy trì phiên làm việc ổn định, không bao giờ bị văng ngẫu nhiên.
    */
@@ -285,6 +381,15 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     const cleanCode = (joinCode || '').trim().toUpperCase();
     if (!cleanCode) {
       return { success: false, message: 'Vui lòng nhập mã tham gia lớp học!' };
+    }
+
+    // CƠ CHẾ "LƯỚI ĐIỆN": Kiểm tra tài khoản khi học sinh thực hiện hành động tham gia lớp
+    const isSessionValid = await checkActionTriggeredSession(student);
+    if (!isSessionValid) {
+      return {
+        success: false,
+        message: 'Phiên đăng nhập đã hết hạn hoặc tài khoản đã được thu hồi. Vui lòng liên hệ Giáo viên để biết thêm chi tiết.',
+      };
     }
 
     // 1. Luôn kéo danh sách Lớp học mới nhất trực tiếp từ Cloud để đảm bảo máy B tìm được lớp mới tạo trên máy A
@@ -563,6 +668,11 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
           });
         }
         await refreshAllData();
+
+        // CƠ CHẾ "LƯỚI ĐIỆN": Kiểm tra khi F5 tải lại trang (chỉ khi có phiên học sinh và không phải Admin)
+        if (student && !admin && isMounted) {
+          await checkActionTriggeredSession(student);
+        }
       } catch (err) {
         if (isMounted) {
           console.warn('Lỗi tải dữ liệu khởi động:', err);
@@ -1136,6 +1246,12 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     language: SupportedLanguage,
     onProgress?: GradingProgressCallback
   ): Promise<Submission> => {
+    // CƠ CHẾ "LƯỚI ĐIỆN": Kiểm tra tài khoản khi học sinh nộp bài
+    const isSessionValid = await checkActionTriggeredSession();
+    if (!isSessionValid) {
+      throw new Error('Phiên đăng nhập đã hết hạn hoặc tài khoản đã được thu hồi. Vui lòng liên hệ Giáo viên để biết thêm chi tiết.');
+    }
+
     let problem = problems.find((p) => p.id === problemId);
     if (!problem) {
       throw new Error('Không tìm thấy bài tập để chấm');
@@ -1305,6 +1421,9 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         setIsChangePasswordModalOpen,
         isServerConfigModalOpen,
         setIsServerConfigModalOpen,
+        isSessionRevokedModalOpen,
+        setIsSessionRevokedModalOpen,
+        handleAcknowledgeRevokedSession,
         theme,
         toggleTheme,
         confirmModalState,
