@@ -356,14 +356,13 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
     // 2. Nếu không còn ở bộ nhớ web, đối chiếu với Cloud Database
     if (!apiService.isConfigured()) {
-      setIsSessionRevokedModalOpen(true);
-      return false;
+      return true;
     }
 
     try {
       const cloudStudents = await apiService.fetchStudentsFromCloud();
-      // Nếu API trả về null (lỗi mạng, timeout, hoặc server bận) -> An toàn, không kích hoạt
-      if (cloudStudents === null) {
+      // Nếu API trả về null hoặc rỗng (lỗi mạng, timeout, hoặc server bận) -> An toàn, không kích hoạt
+      if (!cloudStudents || cloudStudents.length === 0) {
         return true;
       }
 
@@ -594,15 +593,19 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
       if (cloudClasses) {
         setClasses(cloudClasses);
+        storageService.saveClasses(cloudClasses);
       }
       if (cloudRelations) {
         setClassStudents(cloudRelations);
+        storageService.saveClassStudents(cloudRelations);
       }
       if (cloudStudents) {
         setStudents(cloudStudents);
+        storageService.saveStudents(cloudStudents);
       }
       if (cloudTopics) {
         setTopics(cloudTopics);
+        storageService.saveTopics(cloudTopics);
       }
       if (cloudProblems) {
         const enrichedProblems = cloudProblems.map((cp) => {
@@ -690,10 +693,7 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         }
         await refreshAllData();
 
-        // CƠ CHẾ "LƯỚI ĐIỆN": Kiểm tra khi F5 tải lại trang (chỉ khi có phiên học sinh và không phải Admin)
-        if (student && !admin && isMounted) {
-          await checkActionTriggeredSession(student);
-        }
+        // Học sinh giữ nguyên phiên làm việc ổn định, tuyệt đối không tự ý ngắt phiên khi nạp trang
       } catch (err) {
         if (isMounted) {
           console.warn('Lỗi tải dữ liệu khởi động:', err);
@@ -789,6 +789,15 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       setCurrentStudent(found);
       storageService.setStudentSession(found);
       setIsAuthModalOpen(false);
+
+      // Đảm bảo học sinh đã đăng nhập được lưu đồng bộ vào bộ nhớ của máy này
+      const currentLocal = storageService.getStudents();
+      const alreadyInLocal = currentLocal.some(
+        (s) => s.username.toLowerCase() === found.username.toLowerCase()
+      );
+      if (!alreadyInLocal) {
+        storageService.saveStudents([found, ...currentLocal]);
+      }
 
       // Fetch mới ngay danh sách lớp học và dữ liệu của học sinh này từ Database
       await refreshAllData();
