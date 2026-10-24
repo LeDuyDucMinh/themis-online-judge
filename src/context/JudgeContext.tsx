@@ -72,6 +72,7 @@ interface JudgeContextType {
 
   // Refresh & Anti-Cache
   refreshAllData: () => Promise<void>;
+  refreshStudents: () => Promise<void>;
   isRefreshing: boolean;
 
   // Multi-Classroom (Nhiều lớp học độc lập)
@@ -524,9 +525,6 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         if (mergedStudents.length > 0) {
           setStudents(mergedStudents);
           storageService.saveStudents(mergedStudents);
-          if (storageService.isAdminSessionActive()) {
-            apiService.saveStudents(mergedStudents).catch((e) => console.warn('[JudgeContext] Đẩy học sinh cục bộ lên Cloud thất bại:', e));
-          }
         }
       }
       if (cloudTopics) {
@@ -572,6 +570,59 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     } finally {
       setIsRefreshing(false);
       isHydratedRef.current = true;
+    }
+  };
+
+  /**
+   * Làm mới NHẸ chỉ danh sách học sinh (vài trăm byte) - dùng cho bảng Quản lý học sinh.
+   * Giáo viên: tự đẩy học sinh chỉ có trên máy này lên Cloud để máy khác nhìn thấy.
+   */
+  const PENDING_STUDENTS_KEY = 'faminh_pending_student_ids';
+  const getPendingStudentIds = (): string[] => {
+    try {
+      const v = JSON.parse(localStorage.getItem(PENDING_STUDENTS_KEY) || '[]');
+      return Array.isArray(v) ? v : [];
+    } catch {
+      return [];
+    }
+  };
+  const setPendingStudentIds = (ids: string[]) => {
+    try { localStorage.setItem(PENDING_STUDENTS_KEY, JSON.stringify(ids)); } catch {}
+  };
+
+  const refreshStudents = async (): Promise<void> => {
+    try {
+      const raw = await apiService.fetchRawCloudStudents();
+      if (raw === null) return;
+
+      // Cloud là chân lý; chỉ giữ thêm các tài khoản máy này mới tạo mà chưa upload được
+      const pending = new Set(getPendingStudentIds());
+      const studentMap = new Map<string, StudentUser>();
+      raw.forEach((s) => studentMap.set((s.username || '').toLowerCase(), s));
+      const unsynced: StudentUser[] = [];
+      storageService.getStudents().forEach((s) => {
+        const u = (s.username || '').toLowerCase();
+        if (u && pending.has(s.id) && !studentMap.has(u)) {
+          studentMap.set(u, s);
+          unsynced.push(s);
+        }
+      });
+      let merged = Array.from(studentMap.values()).filter((s) => s.username);
+
+      if (unsynced.length > 0 && storageService.isAdminSessionActive()) {
+        try {
+          merged = await apiService.saveStudents(merged);
+          setPendingStudentIds([]);
+        } catch (e) {
+          console.warn('[JudgeContext] Chưa đẩy được học sinh mới lên Cloud, sẽ thử lại:', e);
+        }
+      } else {
+        setPendingStudentIds(Array.from(pending).filter((id) => unsynced.some((u) => u.id === id)));
+      }
+      storageService.saveStudents(merged);
+      setStudents(merged);
+    } catch (err) {
+      console.warn('[JudgeContext] Lỗi refreshStudents:', err);
     }
   };
 
@@ -736,8 +787,8 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       // Đảm bảo học sinh đã đăng nhập được lưu đồng bộ vào bộ nhớ của máy này
       storageService.saveStudents(allStudents);
 
-      // Fetch mới ngay danh sách lớp học và dữ liệu của học sinh này từ Database
-      await refreshAllData();
+      // Tải dữ liệu lớp học ở chế độ nền: không bắt học sinh chờ ~10MB dữ liệu mới vào được web
+      refreshAllData().catch((e) => console.warn('[JudgeContext] Lỗi tải nền sau đăng nhập học sinh:', e));
 
       showToast(
         'Đăng nhập thành công',
@@ -779,16 +830,20 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     }
     const cleanUsername = username.trim().toLowerCase();
 
-    // Gom học sinh từ mọi nguồn (LocalStorage, State, Cloud)
+    // Gom học sinh: Cloud là chân lý; nếu mất mạng mới dùng dữ liệu máy này
     const studentMap = new Map<string, StudentUser>();
-    storageService.getStudents().forEach((s) => studentMap.set((s.username || '').toLowerCase(), s));
-    students.forEach((s) => studentMap.set((s.username || '').toLowerCase(), s));
-    try {
-      const cloudList = await apiService.fetchStudents();
-      if (cloudList && cloudList.length > 0) {
-        cloudList.forEach((s) => studentMap.set((s.username || '').toLowerCase(), s));
-      }
-    } catch {}
+    const rawCloud = await apiService.fetchRawCloudStudents();
+    if (rawCloud !== null) {
+      rawCloud.forEach((s) => studentMap.set((s.username || '').toLowerCase(), s));
+      const pendingIds = new Set(getPendingStudentIds());
+      storageService.getStudents().forEach((s) => {
+        const u = (s.username || '').toLowerCase();
+        if (u && pendingIds.has(s.id) && !studentMap.has(u)) studentMap.set(u, s);
+      });
+    } else {
+      storageService.getStudents().forEach((s) => studentMap.set((s.username || '').toLowerCase(), s));
+      students.forEach((s) => studentMap.set((s.username || '').toLowerCase(), s));
+    }
 
     if (studentMap.has(cleanUsername)) {
       const msg = `Tên đăng nhập "${cleanUsername}" đã tồn tại trên hệ thống! Vui lòng chọn tên đăng nhập khác.`;
@@ -808,12 +863,14 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     const nextList = [newStudent, ...Array.from(studentMap.values()).filter((s) => s.username.toLowerCase() !== cleanUsername)];
     storageService.saveStudents(nextList);
     setStudents(nextList);
+    setPendingStudentIds([...getPendingStudentIds(), newStudent.id]);
     try {
       const savedList = await apiService.saveStudents(nextList);
       setStudents(savedList);
+      setPendingStudentIds(getPendingStudentIds().filter((pid) => pid !== newStudent.id));
     } catch (err) {
       console.warn('[JudgeContext] Lỗi ghi học sinh mới lên Cloud:', err);
-      showToast('Chưa đồng bộ được lên Cloud', 'Tài khoản mới mới chỉ lưu trên máy này. Kiểm tra mạng rồi mở lại bảng Quản lý học sinh để thử đồng bộ lại.', 'error');
+      showToast('Chưa đồng bộ được lên Cloud', 'Tài khoản mới mới chỉ lưu trên máy này. Hệ thống sẽ tự thử đồng bộ lại khi bảng Quản lý học sinh đang mở.', 'error');
       return { success: true, message: 'Tạo tài khoản thành công (chưa đồng bộ Cloud)' };
     }
     showToast('Cấp tài khoản thành công', `Đã tạo tài khoản cho học sinh ${newStudent.fullName} (${newStudent.username})`, 'success');
@@ -828,7 +885,13 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     const cleanPass = newPassword.trim();
     const baseList = (await apiService.fetchStudents()).map((s) => (s.id === id ? { ...s, password: cleanPass } : s));
     storageService.updateStudentPassword(id, cleanPass);
-    const updatedList = await apiService.saveStudents(baseList);
+    let updatedList = baseList;
+    try {
+      updatedList = await apiService.saveStudents(baseList);
+    } catch (e) {
+      console.warn('[JudgeContext] Đổi mật khẩu: chưa đồng bộ được Cloud:', e);
+      showToast('Chưa đồng bộ được lên Cloud', 'Mật khẩu mới mới chỉ lưu trên máy này, vui lòng thử lại khi có mạng.', 'error');
+    }
     setStudents(updatedList);
     const target = updatedList.find((s) => s.id === id);
     showToast(
@@ -847,8 +910,14 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
     // 1. Xóa khỏi danh sách học sinh
     storageService.deleteStudent(id);
-    const updatedList = await apiService.saveStudents(storageService.getStudents(), [id]);
-    setStudents(updatedList);
+    try {
+      const updatedList = await apiService.saveStudents(storageService.getStudents(), [id]);
+      setStudents(updatedList);
+    } catch (e) {
+      console.warn('[JudgeContext] Xóa học sinh: chưa đồng bộ được Cloud:', e);
+      setStudents(storageService.getStudents());
+      showToast('Chưa đồng bộ được lên Cloud', 'Việc xóa học sinh chưa được cập nhật lên Cloud, vui lòng thử lại khi có mạng.', 'error');
+    }
 
     // 2. Xóa khỏi mọi lớp học
     storageService.removeStudentFromAllClasses(id, stuUsername);
@@ -904,16 +973,14 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       storageService.setCookie('faminh_admin_verified_pass', cleanPass, 30);
       setIsAuthModalOpen(false);
 
-      // TỰ ĐỘNG ĐỒNG BỘ TOÀN BỘ BÀI TẬP, TEST CASE, LỚP VÀ HỌC SINH TỪ MÁY NÀY LÊN CLOUD
-      apiService.syncAllToCloud().then(async (res) => {
+      // Đồng bộ + tải dữ liệu ở chế độ nền (một lượt duy nhất) để vào trang giáo viên ngay lập tức
+      apiService.syncAllToCloud().then((res) => {
         console.log('[JudgeContext] Đồng bộ tự động ngầm thành công:', res);
-        await refreshAllData();
       }).catch((err) => {
         console.warn('[JudgeContext] Lỗi đồng bộ ngầm sau đăng nhập:', err);
+      }).finally(() => {
+        refreshAllData().catch(() => {});
       });
-
-      // Kéo dữ liệu mới nhất từ Database
-      await refreshAllData();
 
       showToast(
         'Xác thực thành công',
@@ -1384,6 +1451,7 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         logoutAdmin,
         changeAdminPassword,
         refreshAllData,
+        refreshStudents,
         isRefreshing,
         classes,
         activeClassId,

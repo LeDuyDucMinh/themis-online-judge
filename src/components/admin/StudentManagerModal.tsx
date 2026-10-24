@@ -23,7 +23,7 @@ export const StudentManagerModal: React.FC = () => {
     updateStudentPassword,
     deleteStudent,
     openConfirmModal,
-    refreshAllData,
+    refreshStudents,
   } = useJudge();
 
   const [fullName, setFullName] = useState('');
@@ -38,9 +38,13 @@ export const StudentManagerModal: React.FC = () => {
   const [changePassError, setChangePassError] = useState('');
 
   useEffect(() => {
-    if (isStudentModalOpen) {
-      refreshAllData().catch((err) => console.warn('Lỗi refresh danh sách học sinh:', err));
-    }
+    if (!isStudentModalOpen) return;
+    refreshStudents();
+    const timer = setInterval(() => {
+      refreshStudents();
+    }, 8000);
+    return () => clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isStudentModalOpen]);
 
   if (!isStudentModalOpen) return null;

@@ -294,63 +294,73 @@ export const apiService = {
   },
 
   /**
+   * Đọc danh sách học sinh THUẦN từ Cloud (không trộn với bộ nhớ máy).
+   * Trả về null nếu lỗi mạng/HTTP; trả về [] nếu Cloud chưa có học sinh nào.
+   * Có timeout dài hơn và tự thử lại 1 lần để không rơi về dữ liệu cũ khi mạng chậm.
+   */
+  async fetchRawCloudStudents(): Promise<StudentUser[] | null> {
+    if (!isSupabaseConfigured()) return null;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const controller = new AbortController();
+      const timeoutTimer = setTimeout(() => controller.abort(), 15000);
+      try {
+        const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/classrooms?id=eq.__system_students__&select=description&_t=${Date.now()}`;
+        const res = await fetch(targetUrl, {
+          headers: this.getAntiCacheHeaders(),
+          cache: 'no-store',
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutTimer);
+        if (!res.ok) {
+          console.warn(`[apiService] fetchRawCloudStudents HTTP ${res.status}`);
+          continue;
+        }
+        const rows = await res.json();
+        if (!Array.isArray(rows) || rows.length === 0 || !rows[0].description) return [];
+        let parsed: any[];
+        try {
+          parsed = JSON.parse(rows[0].description);
+        } catch {
+          return null;
+        }
+        if (!Array.isArray(parsed)) return null;
+        return parsed
+          .filter((s: any) => s && s.username)
+          .map((s: any) => ({
+            id: s.id || `student_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+            fullName: s.fullName || s.username || 'Học sinh',
+            username: s.username,
+            password: s.password || '123',
+            createdAt: s.createdAt || new Date().toISOString(),
+          }));
+      } catch (e) {
+        clearTimeout(timeoutTimer);
+        console.warn('[apiService] fetchRawCloudStudents error/timeout:', e);
+      }
+    }
+    return null;
+  },
+
+  /**
    * Lấy danh sách Học sinh trực tiếp từ Supabase Cloud (trả về null nếu không kết nối được hoặc lỗi)
    */
   async fetchStudentsFromCloud(): Promise<StudentUser[] | null> {
-    if (!isSupabaseConfigured()) return null;
-    const controller = new AbortController();
-    const timeoutTimer = setTimeout(() => controller.abort(), 7000);
-    try {
-      const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/classrooms?id=eq.__system_students__&_t=${Date.now()}`;
-      const res = await fetch(targetUrl, {
-        headers: this.getAntiCacheHeaders(),
-        cache: 'no-store',
-        signal: controller.signal,
-      });
-      clearTimeout(timeoutTimer);
-      if (!res.ok) {
-        console.warn(`[apiService] fetchStudentsFromCloud HTTP ${res.status}`);
-        return null;
+    const cloudStudents = await this.fetchRawCloudStudents();
+    if (cloudStudents === null || cloudStudents.length === 0) return null;
+
+    // Hợp nhất an toàn: Không làm mất học sinh cục bộ còn đang hoạt động
+    const localList = storageService.getStudents();
+    const studentMap = new Map<string, StudentUser>();
+    cloudStudents.forEach((s) => studentMap.set((s.username || '').trim().toLowerCase(), s));
+    localList.forEach((s) => {
+      const u = (s.username || '').trim().toLowerCase();
+      if (u && !studentMap.has(u)) {
+        studentMap.set(u, s);
       }
-      const rows = await res.json();
-      if (!Array.isArray(rows) || rows.length === 0 || !rows[0].description) return null;
-
-      let parsed: any[] = [];
-      try {
-        parsed = JSON.parse(rows[0].description);
-      } catch {
-        return null;
-      }
-      if (!Array.isArray(parsed)) return null;
-
-      const cloudStudents: StudentUser[] = parsed
-        .filter((s: any) => s && s.username)
-        .map((s: any) => ({
-          id: s.id || `student_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-          fullName: s.fullName || s.username || 'Học sinh',
-          username: s.username,
-          password: s.password || '123',
-          createdAt: s.createdAt || new Date().toISOString(),
-        }));
-
-      // Hợp nhất an toàn: Không làm mất học sinh cục bộ còn đang hoạt động
-      const localList = storageService.getStudents();
-      const studentMap = new Map<string, StudentUser>();
-      cloudStudents.forEach((s) => studentMap.set((s.username || '').trim().toLowerCase(), s));
-      localList.forEach((s) => {
-        const u = (s.username || '').trim().toLowerCase();
-        if (u && !studentMap.has(u)) {
-          studentMap.set(u, s);
-        }
-      });
-      const mergedList = Array.from(studentMap.values());
-      storageService.saveStudents(mergedList);
-      return mergedList;
-    } catch (e) {
-      clearTimeout(timeoutTimer);
-      console.warn('[apiService] fetchStudentsFromCloud error/timeout:', e);
-      return null;
-    }
+    });
+    const mergedList = Array.from(studentMap.values());
+    storageService.saveStudents(mergedList);
+    return mergedList;
   },
 
   /**
@@ -373,8 +383,16 @@ export const apiService = {
 
     // Hợp nhất với danh sách MỚI NHẤT trên Cloud: không bao giờ ghi đè làm mất học sinh do máy khác tạo
     const merged = new Map<string, StudentUser>();
-    const cloudLatest = await this.fetchStudentsFromCloud();
-    (cloudLatest || []).forEach((s) => {
+    const cloudLatest = isSupabaseConfigured() ? await this.fetchRawCloudStudents() : [];
+    if (cloudLatest === null) {
+      // Không đọc được Cloud -> chỉ lưu trên máy, tuyệt đối không ghi đè Cloud bằng danh sách không đầy đủ
+      list.forEach((s) => {
+        if (normalize(s) && !removeSet.has(s.id)) merged.set(normalize(s), s);
+      });
+      storageService.saveStudents(Array.from(merged.values()));
+      throw new Error('Không đọc được danh sách học sinh trên Cloud (mạng chậm hoặc mất kết nối)');
+    }
+    cloudLatest.forEach((s) => {
       if (normalize(s) && !removeSet.has(s.id)) merged.set(normalize(s), s);
     });
     list.forEach((s) => {
@@ -1105,7 +1123,11 @@ export const apiService = {
     });
     const mergedStudents = Array.from(studentMap.values()).filter((s) => s.username);
     if (mergedStudents.length > 0) {
-      await this.saveStudents(mergedStudents);
+      try {
+        await this.saveStudents(mergedStudents);
+      } catch (e) {
+        console.warn('[apiService] syncAllToCloud: bỏ qua bước đồng bộ học sinh:', e);
+      }
       storageService.saveStudents(mergedStudents);
     }
     await this.saveTopics(storageService.getTopics());
@@ -1122,24 +1144,59 @@ export const apiService = {
     });
     const allProblems = Array.from(problemMap.values());
 
+    // Chỉ đẩy lên những gì Cloud còn thiếu (thay vì tải lại toàn bộ mỗi lần đăng nhập/tải trang)
+    const fetchIdSet = async (table: string, column: string): Promise<Set<string> | null> => {
+      try {
+        const res = await fetch(
+          `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/${table}?select=${column}&limit=100000`,
+          { headers: this.getAntiCacheHeaders(), cache: 'no-store' }
+        );
+        if (!res.ok) return null;
+        const rows = await res.json();
+        if (!Array.isArray(rows)) return null;
+        return new Set(rows.map((r: any) => String(r[column])));
+      } catch {
+        return null;
+      }
+    };
+    const runBatches = async <T,>(items: T[], worker: (item: T) => Promise<void>, size = 5) => {
+      for (let i = 0; i < items.length; i += size) {
+        await Promise.all(items.slice(i, i + size).map((it) => worker(it)));
+      }
+    };
+
+    const [cloudProblemIds, cloudTestProblemIds] = await Promise.all([
+      fetchIdSet('problems', 'id'),
+      fetchIdSet('test_cases', 'problem_id'),
+    ]);
+
     let syncedProblems = 0;
     let syncedTests = 0;
 
-    for (const p of allProblems) {
-      await this.saveProblem(p);
-      syncedProblems++;
-
-      let tests = await idbService.getTestCases(p.id);
-      if (!tests || tests.length === 0) {
-        tests = p.testCases;
+    await runBatches(allProblems, async (p) => {
+      try {
+        const problemMissing = !cloudProblemIds || !cloudProblemIds.has(p.id);
+        if (problemMissing) {
+          await this.saveProblem(p);
+          syncedProblems++;
+        }
+        const testsMissing = !cloudTestProblemIds || !cloudTestProblemIds.has(p.id);
+        if (problemMissing || testsMissing) {
+          let tests = await idbService.getTestCases(p.id);
+          if (!tests || tests.length === 0) {
+            tests = p.testCases;
+          }
+          if (tests && tests.length > 0) {
+            await this.saveTestCases(p.id, tests);
+            syncedTests += tests.length;
+          }
+        }
+      } catch (e) {
+        console.warn('[apiService] Sync problem warn:', e);
       }
-      if (tests && tests.length > 0) {
-        await this.saveTestCases(p.id, tests);
-        syncedTests += tests.length;
-      }
-    }
+    });
 
-    // 3. Gom và đồng bộ lịch sử nộp bài Submissions
+    // 3. Gom và đồng bộ lịch sử nộp bài Submissions (chỉ những bài Cloud chưa có)
     const [idbSubs, storageSubs] = await Promise.all([
       idbService.getAllSubmissions(),
       Promise.resolve(storageService.getSubmissions()),
@@ -1149,17 +1206,18 @@ export const apiService = {
     storageSubs.forEach((s) => {
       if (!subMap.has(s.id)) subMap.set(s.id, s);
     });
-    const allSubs = Array.from(subMap.values());
+    const cloudSubIds = await fetchIdSet('submissions', 'id');
+    const subsToUpload = Array.from(subMap.values()).filter((s) => !cloudSubIds || !cloudSubIds.has(s.id));
     let syncedSubs = 0;
 
-    for (const sub of allSubs) {
+    await runBatches(subsToUpload, async (sub) => {
       try {
         await this.saveSubmission(sub);
         syncedSubs++;
       } catch (e) {
         console.warn('[apiService] Sync submission warn:', e);
       }
-    }
+    });
 
     return {
       problemsCount: syncedProblems,
