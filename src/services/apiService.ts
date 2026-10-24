@@ -294,7 +294,7 @@ export const apiService = {
   },
 
   /**
-   * Lấy danh sách Học sinh từ Supabase Cloud (Anti-cache real-time)
+   * Lấy danh sách Học sinh từ Supabase Cloud (Anti-cache real-time, Single Source of Truth)
    */
   async fetchStudents(): Promise<StudentUser[]> {
     const localStudents = storageService.getStudents();
@@ -307,31 +307,31 @@ export const apiService = {
         });
         if (res.ok) {
           const rows = await res.json();
-          if (Array.isArray(rows) && rows.length > 0 && rows[0].description) {
-            const parsed = JSON.parse(rows[0].description);
+          if (Array.isArray(rows) && rows.length > 0) {
+            let parsed: any[] = [];
+            if (rows[0].description) {
+              try {
+                parsed = JSON.parse(rows[0].description);
+              } catch {
+                parsed = [];
+              }
+            }
             if (Array.isArray(parsed)) {
-              const studentMap = new Map<string, StudentUser>();
-              localStudents.forEach((s) => studentMap.set((s.username || '').toLowerCase(), s));
-              parsed.forEach((s: any) => {
-                const uName = (s.username || '').toLowerCase();
-                const existing = studentMap.get(uName);
-                studentMap.set(uName, {
-                  id: s.id || `student_${Date.now()}`,
+              // CLOUD LÀ CHÂN LÝ DUY NHẤT (SINGLE SOURCE OF TRUTH):
+              // Học sinh đã bị xóa trên Cloud thì các máy khác PHẢI XÓA THEO!
+              // Tuyệt đối không hợp nhất ngược từ localStorage để tránh hiện tượng Zombie Resurrect.
+              const cloudStudents: StudentUser[] = parsed
+                .filter((s: any) => s && s.username)
+                .map((s: any) => ({
+                  id: s.id || `student_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
                   fullName: s.fullName || s.username || 'Học sinh',
                   username: s.username,
-                  password: s.password || existing?.password || '123',
+                  password: s.password || '123',
                   createdAt: s.createdAt || new Date().toISOString(),
-                });
-              });
-              const merged = Array.from(studentMap.values()).filter((s) => s.username);
+                }));
 
-              // Tự động đẩy danh sách học sinh lên Cloud nếu có học sinh mới trên máy này
-              if (storageService.isAdminSessionActive() && merged.length > parsed.length) {
-                this.saveStudents(merged).catch(() => {});
-              }
-
-              storageService.saveStudents(merged);
-              return merged;
+              storageService.saveStudents(cloudStudents);
+              return cloudStudents;
             }
           }
         }
@@ -372,6 +372,48 @@ export const apiService = {
     } catch (e) {
       console.error('[apiService] saveStudents warn:', e);
       throw e;
+    }
+  },
+
+  /**
+   * Xóa toàn bộ lịch sử bài làm của học sinh (IndexedDB và Supabase Cloud)
+   */
+  async deleteSubmissionsForStudent(studentId: string, username?: string, fullName?: string): Promise<void> {
+    // 1. Xóa trong IndexedDB máy hiện tại
+    await idbService.deleteSubmissionsForStudent(studentId, username, fullName);
+
+    // 2. Xóa trên Supabase Cloud Database nếu có
+    if (isSupabaseConfigured()) {
+      try {
+        const deleteCalls: Promise<any>[] = [];
+        if (studentId) {
+          deleteCalls.push(
+            fetch(`${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/submissions?user_id=eq.${encodeURIComponent(studentId)}`, {
+              method: 'DELETE',
+              headers: this.getAntiCacheHeaders(),
+            })
+          );
+        }
+        if (username && username !== studentId) {
+          deleteCalls.push(
+            fetch(`${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/submissions?user_id=eq.${encodeURIComponent(username)}`, {
+              method: 'DELETE',
+              headers: this.getAntiCacheHeaders(),
+            })
+          );
+        }
+        if (fullName) {
+          deleteCalls.push(
+            fetch(`${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/submissions?user_name=eq.${encodeURIComponent(fullName)}`, {
+              method: 'DELETE',
+              headers: this.getAntiCacheHeaders(),
+            })
+          );
+        }
+        await Promise.allSettled(deleteCalls);
+      } catch (e) {
+        console.warn('[apiService] deleteSubmissionsForStudent cloud error:', e);
+      }
     }
   },
 

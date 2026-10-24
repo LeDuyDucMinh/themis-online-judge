@@ -526,6 +526,41 @@ export const idbService = {
     }
   },
 
+  async deleteSubmissionsForStudent(studentId: string, username?: string, fullName?: string): Promise<void> {
+    if (!isIDBSupported()) return;
+    try {
+      const db = await getDB();
+      if (!db.objectStoreNames.contains(STORES.SUBMISSIONS)) return;
+      const tx = db.transaction(STORES.SUBMISSIONS, 'readwrite');
+      const store = tx.objectStore(STORES.SUBMISSIONS);
+      const req = store.getAll();
+      await new Promise<void>((resolve) => {
+        req.onsuccess = () => {
+          const list: Submission[] = req.result || [];
+          const cleanId = studentId ? studentId.trim().toLowerCase() : '';
+          const cleanUser = username ? username.trim().toLowerCase() : '';
+          const cleanName = fullName ? fullName.trim().toLowerCase() : '';
+          for (const s of list) {
+            const matchId = cleanId && s.userId && s.userId.trim().toLowerCase() === cleanId;
+            const matchUser = cleanUser && s.userId && s.userId.trim().toLowerCase() === cleanUser;
+            const matchName = cleanName && s.userName && s.userName.trim().toLowerCase() === cleanName;
+            if (matchId || matchUser || matchName) {
+              store.delete(s.id);
+            }
+          }
+          resolve();
+        };
+        req.onerror = () => resolve();
+      });
+      return new Promise((resolve) => {
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => resolve();
+      });
+    } catch (err) {
+      console.warn('[idbService] Lỗi xóa submissions theo học sinh:', err);
+    }
+  },
+
   async clearAllData(): Promise<void> {
     if (!isIDBSupported()) return;
     try {

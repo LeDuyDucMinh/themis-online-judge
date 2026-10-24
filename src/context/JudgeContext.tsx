@@ -55,6 +55,7 @@ interface JudgeContextType {
   loginStudent: (username: string, password: string) => Promise<{ success: boolean; message: string }>;
   logoutStudent: () => void;
   addStudent: (fullName: string, username: string, password: string) => Promise<{ success: boolean; message: string }>;
+  updateStudentPassword: (id: string, newPassword: string) => Promise<{ success: boolean; message: string }>;
   deleteStudent: (id: string) => Promise<void>;
 
   // Admin Auth Actions
@@ -381,6 +382,23 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       }
       if (cloudStudents) {
         setStudents(cloudStudents);
+        if (currentStudent) {
+          const stillActive = cloudStudents.some(
+            (s) =>
+              s.id === currentStudent.id ||
+              (s.username && currentStudent.username && s.username.toLowerCase() === currentStudent.username.toLowerCase())
+          );
+          if (!stillActive) {
+            logoutStudent();
+            showToast(
+              'Tài khoản không tồn tại',
+              'Tài khoản học sinh của bạn đã bị Giáo viên xóa khỏi hệ thống. Bạn đã được chuyển về màn hình đăng nhập.',
+              'error'
+            );
+            setIsAuthModalOpen(true);
+            setAuthModalTab('student');
+          }
+        }
       }
       if (cloudTopics) {
         setTopics(cloudTopics);
@@ -411,6 +429,51 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       isHydratedRef.current = true;
     }
   };
+
+  // 1b. Tự động kiểm tra tính hợp lệ của tài khoản học sinh (Realtime account eviction khi bị giáo viên xóa)
+  useEffect(() => {
+    if (!currentStudent) return;
+
+    let isMounted = true;
+    const verifyStudentSession = async () => {
+      try {
+        let activeStudents = await apiService.fetchStudents();
+        if (!activeStudents || activeStudents.length === 0) {
+          activeStudents = storageService.getStudents();
+        }
+        if (!isMounted) return;
+        const exists = activeStudents.some(
+          (s) =>
+            s.id === currentStudent.id ||
+            (s.username && currentStudent.username && s.username.toLowerCase() === currentStudent.username.toLowerCase())
+        );
+        if (!exists) {
+          logoutStudent();
+          showToast(
+            'Tài khoản đã bị xóa',
+            'Tài khoản học sinh của bạn đã bị Giáo viên xóa khỏi hệ thống. Bạn đã được chuyển về trang đăng nhập.',
+            'error'
+          );
+          setIsAuthModalOpen(true);
+          setAuthModalTab('student');
+        }
+      } catch {
+        // Bỏ qua lỗi mạng chập chờn
+      }
+    };
+
+    const handleFocus = () => {
+      verifyStudentSession();
+    };
+    window.addEventListener('focus', handleFocus);
+    const interval = setInterval(verifyStudentSession, 5000);
+
+    return () => {
+      isMounted = false;
+      window.removeEventListener('focus', handleFocus);
+      clearInterval(interval);
+    };
+  }, [currentStudent]);
 
   // 1. Phục hồi và tự động đồng bộ dữ liệu khi khởi động
   useEffect(() => {
@@ -617,8 +680,13 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     if (!currentList || currentList.length === 0) {
       currentList = storageService.getStudents();
     }
-    if (currentList.some((s) => s.username.toLowerCase() === cleanUsername)) {
-      return { success: false, message: `Tên đăng nhập "${cleanUsername}" đã tồn tại! Vui lòng chọn tên khác.` };
+    if (
+      currentList.some((s) => s.username.toLowerCase() === cleanUsername) ||
+      students.some((s) => s.username.toLowerCase() === cleanUsername)
+    ) {
+      const msg = `Tên đăng nhập "${cleanUsername}" đã tồn tại trên hệ thống! Vui lòng chọn tên đăng nhập khác.`;
+      showToast('Trùng tên đăng nhập', msg, 'error');
+      return { success: false, message: msg };
     }
 
     const newStudent: StudentUser = {
@@ -629,7 +697,7 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       createdAt: new Date().toISOString(),
     };
 
-    const nextList = [newStudent, ...currentList];
+    const nextList = [newStudent, ...currentList.filter((s) => s.username.toLowerCase() !== cleanUsername)];
     storageService.saveStudents(nextList);
     await apiService.saveStudents(nextList);
     setStudents(nextList);
@@ -637,16 +705,62 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     return { success: true, message: 'Tạo tài khoản thành công' };
   };
 
+  // Giáo viên đổi mật khẩu cho Học sinh
+  const updateStudentPassword = async (id: string, newPassword: string): Promise<{ success: boolean; message: string }> => {
+    if (!newPassword || !newPassword.trim()) {
+      return { success: false, message: 'Vui lòng nhập mật khẩu mới!' };
+    }
+    const cleanPass = newPassword.trim();
+    storageService.updateStudentPassword(id, cleanPass);
+    const updatedList = storageService.getStudents();
+    setStudents(updatedList);
+    await apiService.saveStudents(updatedList);
+    const target = updatedList.find((s) => s.id === id);
+    showToast(
+      'Đổi mật khẩu thành công',
+      `Đã cập nhật mật khẩu mới cho học sinh ${target?.fullName || target?.username || ''}.`,
+      'success'
+    );
+    return { success: true, message: 'Đổi mật khẩu thành công' };
+  };
+
   // Giáo viên xóa tài khoản Học sinh
   const deleteStudent = async (id: string) => {
+    const studentToDelete = students.find((s) => s.id === id) || storageService.getStudents().find((s) => s.id === id);
+    const stuUsername = studentToDelete?.username;
+    const stuFullName = studentToDelete?.fullName;
+
+    // 1. Xóa khỏi danh sách học sinh
     storageService.deleteStudent(id);
-    const list = storageService.getStudents();
-    setStudents(list);
-    await apiService.saveStudents(list);
-    if (currentStudent?.id === id) {
+    const updatedList = storageService.getStudents();
+    setStudents(updatedList);
+    await apiService.saveStudents(updatedList);
+
+    // 2. Xóa khỏi mọi lớp học
+    storageService.removeStudentFromAllClasses(id, stuUsername);
+    const remainingClassStudents = storageService.getClassStudents();
+    setClassStudents(remainingClassStudents);
+    await apiService.saveClassStudents(remainingClassStudents);
+
+    // 3. XÓA TOÀN BỘ LỊCH SỬ NỘP BÀI CỦA HỌC SINH NÀY (LocalStorage, IndexedDB, Supabase Cloud, React State)
+    storageService.deleteSubmissionsForStudent(id, stuUsername, stuFullName);
+    await apiService.deleteSubmissionsForStudent(id, stuUsername, stuFullName);
+    setSubmissions((prev) =>
+      prev.filter((sub) => {
+        const matchId = sub.userId && sub.userId === id;
+        const matchUser = stuUsername && sub.userId && sub.userId.toLowerCase() === stuUsername.toLowerCase();
+        const matchName = stuFullName && sub.userName && sub.userName.toLowerCase() === stuFullName.toLowerCase();
+        return !(matchId || matchUser || matchName);
+      })
+    );
+
+    // 4. Nếu học sinh đang đăng nhập chính là tài khoản bị xóa
+    if (currentStudent?.id === id || (stuUsername && currentStudent?.username.toLowerCase() === stuUsername.toLowerCase())) {
       logoutStudent();
+      showToast('Tài khoản đã bị xóa', 'Tài khoản của bạn đã bị Giáo viên xóa khỏi hệ thống. Vui lòng liên hệ giáo viên!', 'error');
+    } else {
+      showToast('Đã xóa', `Đã xóa tài khoản học sinh "${stuFullName || stuUsername || ''}" và toàn bộ lịch sử làm bài.`, 'info');
     }
-    showToast('Đã xóa', 'Đã xóa tài khoản học sinh khỏi danh sách.', 'info');
   };
 
   // Giáo viên (Admin) Đăng nhập - BẮT BUỘC ĐỐI CHIẾU TRỰC TIẾP VỚI DATABASE
@@ -1151,6 +1265,7 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         loginStudent,
         logoutStudent,
         addStudent,
+        updateStudentPassword,
         deleteStudent,
         loginAdmin,
         logoutAdmin,

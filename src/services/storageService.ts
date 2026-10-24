@@ -609,11 +609,12 @@ export const storageService = {
     }
     if (student) {
       subs = subs.filter((s) => {
+        const matchId = s.userId && student.id && s.userId === student.id;
         const matchName = s.userName && student.fullName &&
           s.userName.trim().toLowerCase() === student.fullName.trim().toLowerCase();
         const matchUser = s.userId && student.username &&
           s.userId.trim().toLowerCase() === student.username.trim().toLowerCase();
-        return Boolean(matchName || matchUser);
+        return Boolean(matchId || matchName || matchUser);
       });
     }
     const solvedProblemIds = new Set<string>();
@@ -719,6 +720,36 @@ export const storageService = {
   deleteStudent(id: string): void {
     const list = this.getStudents().filter((s) => s.id !== id);
     this.saveStudents(list);
+  },
+
+  updateStudentPassword(id: string, newPassword: string): void {
+    const list = this.getStudents().map((s) =>
+      s.id === id ? { ...s, password: newPassword.trim() } : s
+    );
+    this.saveStudents(list);
+  },
+
+  deleteSubmissionsForStudent(studentId: string, username?: string, fullName?: string): void {
+    const cleanId = studentId ? studentId.trim().toLowerCase() : '';
+    const cleanUser = username ? username.trim().toLowerCase() : '';
+    const cleanName = fullName ? fullName.trim().toLowerCase() : '';
+
+    const subs = this.getSubmissions().filter((s) => {
+      const matchId = cleanId && s.userId && s.userId.trim().toLowerCase() === cleanId;
+      const matchUser = cleanUser && s.userId && s.userId.trim().toLowerCase() === cleanUser;
+      const matchName = cleanName && s.userName && s.userName.trim().toLowerCase() === cleanName;
+      return !(matchId || matchUser || matchName);
+    });
+    localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, JSON.stringify(subs));
+  },
+
+  removeStudentFromAllClasses(studentId: string, username?: string): void {
+    const cleanId = studentId ? studentId.trim() : '';
+    const cleanUser = username ? username.trim().toLowerCase() : '';
+    const list = this.getClassStudents().filter(
+      (cs) => cs.studentId !== cleanId && (!cleanUser || cs.studentId !== cleanUser)
+    );
+    this.saveClassStudents(list);
   },
 
   getStudentSession(): StudentUser | null {

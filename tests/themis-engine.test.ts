@@ -455,6 +455,102 @@ OUTPUT:
     assert.ok(approvedStudents.some((s) => s.id === studentId));
   });
 
+  // ==========================================
+  console.log('\nNhom 10: Quan ly tai khoan hoc sinh (Doi mat khau, Xoa acc va Don dep sach lich su)');
+
+  await runTest('storageService.updateStudentPassword cap nhat dung mat khau hoc sinh', async () => {
+    const studentId = 'test_stu_pwd';
+    storageService.addStudent({
+      id: studentId,
+      fullName: 'Học sinh Đổi Pass',
+      username: 'stu_pass',
+      password: '123',
+      createdAt: new Date().toISOString(),
+    });
+
+    storageService.updateStudentPassword(studentId, 'new_secret_999');
+    const updated = storageService.getStudents().find((s) => s.id === studentId);
+    assert.equal(updated?.password, 'new_secret_999');
+  });
+
+  await runTest('Xoa hoc sinh se xoa sach lich su nop bai va lop hoc, tao lai la acc hoan toan moi', async () => {
+    const studentId = 'test_stu_purge';
+    const username = 'test_purge_user';
+    const fullName = 'Nguyễn Văn Test';
+
+    storageService.addStudent({
+      id: studentId,
+      fullName,
+      username,
+      password: '123',
+      createdAt: new Date().toISOString(),
+    });
+
+    // Gia lap hoc sinh co submission trong he thong
+    const dummySub = {
+      id: 'sub_dummy_1',
+      problemId: 'prob_test_1',
+      problemCode: 'TEST',
+      problemTitle: 'Bai Test',
+      userId: studentId,
+      userName: fullName,
+      language: 'cpp' as const,
+      sourceCode: 'int main(){}',
+      submittedAt: new Date().toISOString(),
+      status: 'COMPLETED' as const,
+      totalPointsEarned: 10,
+      maxTotalPoints: 10,
+      passedCount: 1,
+      totalTests: 1,
+      overallVerdict: 'AC' as const,
+      executionTime: 0.01,
+      memory: 2.1,
+      testResults: [],
+    };
+    storageService.saveSubmission(dummySub);
+
+    // Kiem tra truoc khi xoa: co 1 submission va stats > 0
+    const statsBefore = storageService.getUserStats({
+      id: studentId,
+      fullName,
+      username,
+      password: '123',
+      createdAt: '',
+    });
+    assert.equal(statsBefore.totalSubmissions, 1);
+    assert.equal(statsBefore.solvedCount, 1);
+
+    // Giao vien xoa tai khoan
+    storageService.deleteStudent(studentId);
+    storageService.deleteSubmissionsForStudent(studentId, username, fullName);
+    storageService.removeStudentFromAllClasses(studentId, username);
+
+    // Kiem tra danh sach submissions: bai lam da bi xoa sach khoi man giao vien
+    const subsRemaining = storageService.getSubmissions().filter((s) => s.userId === studentId || s.userName === fullName);
+    assert.equal(subsRemaining.length, 0, 'Submissions cua hoc sinh bi xoa phai ve 0');
+
+    // Tao lai 1 acc y het username va fullName
+    const newStudentId = 'test_stu_purge_new_v2';
+    storageService.addStudent({
+      id: newStudentId,
+      fullName,
+      username,
+      password: '123',
+      createdAt: new Date().toISOString(),
+    });
+
+    // Acc moi kiem tra stats phai la 0, khong duoc thay lich su cu
+    const statsAfterRecreate = storageService.getUserStats({
+      id: newStudentId,
+      fullName,
+      username,
+      password: '123',
+      createdAt: '',
+    });
+    assert.equal(statsAfterRecreate.totalSubmissions, 0, 'Tai khoan moi phai co 0 submissions');
+    assert.equal(statsAfterRecreate.solvedCount, 0, 'Tai khoan moi phai co 0 bai AC');
+  });
+
   console.log('\n====================================================');
   console.log(`KET QUA: ${passedTests}/${totalTestsRun} TESTS PASS (100% THANH CONG)`);
   console.log('====================================================\n');
