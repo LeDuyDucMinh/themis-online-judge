@@ -898,8 +898,8 @@ export const storageService = {
    * Tự động gia hạn thời hạn token/session (Sliding Expiry)
    * Giữ phiên đăng nhập luôn sống 30 ngày mỗi khi người dùng có tương tác
    */
-  refreshSessionExpiry(): void {
-    const student = this.getStudentSession();
+  refreshSessionExpiry(overrideStudent?: StudentUser | null): void {
+    const student = overrideStudent || this.getStudentSession();
     if (student) {
       this.setStudentSession(student);
     }

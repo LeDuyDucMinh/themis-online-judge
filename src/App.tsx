@@ -14,7 +14,6 @@ import { ChangePasswordModal } from './components/admin/ChangePasswordModal';
 import { StudentManagerModal } from './components/admin/StudentManagerModal';
 import { ServerConfigModal } from './components/admin/ServerConfigModal';
 import { ConfirmModal } from './components/common/ConfirmModal';
-import { SessionRevokedModal } from './components/common/SessionRevokedModal';
 import type { Problem } from './types/judge';
 import { ShieldCheck, Heart } from 'lucide-react';
 
@@ -30,8 +29,6 @@ function MainApp() {
     setActiveClassId,
     isServerConfigModalOpen,
     setIsServerConfigModalOpen,
-    isSessionRevokedModalOpen,
-    handleAcknowledgeRevokedSession,
     problems,
   } = useJudge();
 
@@ -110,10 +107,6 @@ function MainApp() {
         onClose={() => setIsServerConfigModalOpen(false)}
       />
       <ConfirmModal />
-      <SessionRevokedModal
-        isOpen={isSessionRevokedModalOpen}
-        onConfirm={handleAcknowledgeRevokedSession}
-      />
 
       {/* Top Navigation */}
       <Navbar

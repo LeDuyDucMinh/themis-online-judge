@@ -281,107 +281,21 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
    * Chỉ khi học sinh tự tay bấm vào nút này, hệ thống mới xóa bộ nhớ đệm (localStorage)
    * và điều hướng về cửa cổng đăng nhập.
    */
+  /**
+   * Cơ chế Lưới điện / Văng nick đã được dỡ bỏ hoàn toàn.
+   * Hàm này giữ lại để tương thích interface nhưng tuyệt đối không logout học sinh.
+   */
   const handleAcknowledgeRevokedSession = () => {
     setIsSessionRevokedModalOpen(false);
-    storageService.clearAllStorageAndCookies();
-    sessionStorage.removeItem('faminh_admin_verified_pass');
-    setCurrentStudent(null);
-    setIsAdminAuthenticated(false);
-    setRole('USER');
-    setActiveClassId(null);
-    setActiveProblem(null);
-    setActiveTopicId(null);
-    setClasses([]);
-    setClassStudents([]);
-    setSubmissions([]);
-    setProblems([]);
-    setTopics([]);
-    setStats({
-      solvedCount: 0,
-      attemptedCount: 0,
-      totalSubmissions: 0,
-      pointsAccumulated: 0,
-    });
-    setIsAuthModalOpen(true);
-    setAuthModalTab('student');
   };
 
   /**
-   * CƠ CHẾ "LƯỚI ĐIỆN" (Action-Triggered Check)
-   * Hệ thống hoàn toàn im lặng, để mặc cho học sinh treo máy hoặc đọc đề bài cũ (bằng bộ nhớ tạm).
-   * Hệ thống chỉ "giật điện" khi học sinh thực hiện một thao tác cần gọi API lên máy chủ:
-   * 1. Bấm nút Nộp bài (submitCode)
-   * 2. Bấm nút Tham gia lớp (joinClassByCode)
-   * 3. Bấm F5 tải lại trang (Auth Hydration useEffect)
-   *
-   * Quy tắc an toàn nghiêm ngặt:
-   * - CHỈ kích hoạt lưới điện khi API máy chủ Cloud trả về danh sách học sinh hợp lệ nhưng KHÔNG CÓ tài khoản này trong DB.
-   * - Nếu API gặp lỗi mạng / timeout / offline -> Trả về true an toàn, tuyệt đối không giật điện nhầm.
-   * - Khi kích hoạt: Màn hình làm mờ lại và hiển thị SessionRevokedModal.
-   * - Không tự văng ngay; đợi học sinh tự bấm nút để xóa localStorage và chuyển về login.
+   * CƠ CHẾ VĂNG NICK ĐÃ ĐƯỢC XÓA BỎ HOÀN TOÀN:
+   * Dù cho học sinh có bị xóa tài khoản hay không, hệ thống vẫn để nguyên nick đang đăng nhập.
+   * Luôn trả về true an toàn, không bao giờ mở modal văng nick hay ngắt phiên làm việc.
    */
-  const checkActionTriggeredSession = async (studentToCheck?: StudentUser | null): Promise<boolean> => {
-    if (isAdminAuthenticated) return true;
-    const student = studentToCheck || currentStudent || storageService.getStudentSession();
-    if (!student) return true;
-
-    const targetUser = (student.username || '').trim().toLowerCase();
-    const targetId = (student.id || '').trim();
-
-    // 1. Kiểm tra trên hệ thống web hiện tại (LocalStorage, Danh sách học sinh, Danh sách lớp)
-    // Nếu tài khoản vẫn còn tồn tại trên web -> Tuyệt đối an toàn, KHÔNG ĐƯỢC văng!
-    const localStudents = storageService.getStudents();
-    const existsLocally = localStudents.some(
-      (s) =>
-        (targetId && s.id && s.id.trim() === targetId) ||
-        (targetUser && s.username && s.username.trim().toLowerCase() === targetUser)
-    );
-
-    const classRelations = storageService.getClassStudents();
-    const existsInClass = classRelations.some(
-      (cs) =>
-        (targetId && cs.studentId && cs.studentId.trim() === targetId) ||
-        (targetUser && cs.studentId && cs.studentId.trim().toLowerCase() === targetUser)
-    );
-
-    const existsInState = students.some(
-      (s) =>
-        (targetId && s.id && s.id.trim() === targetId) ||
-        (targetUser && s.username && s.username.trim().toLowerCase() === targetUser)
-    );
-
-    if (existsLocally || existsInClass || existsInState) {
-      return true;
-    }
-
-    // 2. Nếu không còn ở bộ nhớ web, đối chiếu với Cloud Database
-    if (!apiService.isConfigured()) {
-      return true;
-    }
-
-    try {
-      const cloudStudents = await apiService.fetchStudentsFromCloud();
-      // Nếu API trả về null hoặc rỗng (lỗi mạng, timeout, hoặc server bận) -> An toàn, không kích hoạt
-      if (!cloudStudents || cloudStudents.length === 0) {
-        return true;
-      }
-
-      const existsInCloud = cloudStudents.some(
-        (s) =>
-          (targetId && s.id && s.id.trim() === targetId) ||
-          (targetUser && s.username && s.username.trim().toLowerCase() === targetUser)
-      );
-
-      if (!existsInCloud) {
-        console.warn(`[Lưới điện] Tài khoản học sinh "${student.username}" đã thực sự bị thu hồi. Kích hoạt SessionRevokedModal.`);
-        setIsSessionRevokedModalOpen(true);
-        return false;
-      }
-      return true;
-    } catch (e) {
-      console.warn('[Lưới điện] Ngoại lệ khi kiểm tra tài khoản trên máy chủ:', e);
-      return true;
-    }
+  const checkActionTriggeredSession = async (_studentToCheck?: StudentUser | null): Promise<boolean> => {
+    return true;
   };
 
   /**
@@ -710,7 +624,7 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   // Khi người dùng click, focus hoặc hoạt động, gia hạn cookie/token thêm 30 ngày để không bị hết hạn
   useEffect(() => {
     const handleActivity = () => {
-      storageService.refreshSessionExpiry();
+      storageService.refreshSessionExpiry(currentStudent);
     };
     window.addEventListener('focus', handleActivity);
     window.addEventListener('click', handleActivity);
@@ -720,7 +634,14 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       window.removeEventListener('click', handleActivity);
       clearInterval(tokenRefreshTimer);
     };
-  }, []);
+  }, [currentStudent]);
+
+  // Luôn liên tục neo chặt phiên học sinh vào localStorage & cookies khi tài khoản đang đăng nhập
+  useEffect(() => {
+    if (currentStudent) {
+      storageService.setStudentSession(currentStudent);
+    }
+  }, [currentStudent]);
 
   // 1.1 TỰ ĐỘNG LÀM MỚI DỮ LIỆU ĐÁM MÂY KHI CHUYỂN TAB HOẶC ĐỊNH KỲ (ĐẢM BẢO HỌC SINH & MÁY B LUÔN CÓ BÀI MỚI)
   useEffect(() => {
@@ -934,13 +855,8 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       })
     );
 
-    // 4. Nếu học sinh đang đăng nhập chính là tài khoản bị xóa
-    if (currentStudent?.id === id || (stuUsername && currentStudent?.username.toLowerCase() === stuUsername.toLowerCase())) {
-      logoutStudent();
-      showToast('Tài khoản đã bị xóa', 'Tài khoản của bạn đã bị Giáo viên xóa khỏi hệ thống. Vui lòng liên hệ giáo viên!', 'error');
-    } else {
-      showToast('Đã xóa', `Đã xóa tài khoản học sinh "${stuFullName || stuUsername || ''}" và toàn bộ lịch sử làm bài.`, 'info');
-    }
+    // 4. Dù cho học sinh có bị xóa acc hay không, tuyệt đối không văng nick, giữ nguyên tài khoản đang đăng nhập
+    showToast('Đã xóa', `Đã xóa tài khoản học sinh "${stuFullName || stuUsername || ''}" khỏi danh sách quản lý.`, 'info');
   };
 
   // Giáo viên (Admin) Đăng nhập - BẮT BUỘC ĐỐI CHIẾU TRỰC TIẾP VỚI DATABASE

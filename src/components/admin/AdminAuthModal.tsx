@@ -39,6 +39,16 @@ export const AdminAuthModal: React.FC = () => {
   const [failedAttempts, setFailedAttempts] = useState(0);
   const [lockCountdown, setLockCountdown] = useState(0);
 
+  // Tab hoạt động độc lập và ổn định tuyệt đối trong Modal (không bị nhảy tab khi đang nhập)
+  const [activeTab, setActiveTab] = useState<'student' | 'admin'>(() => authModalTab);
+
+  // Đồng bộ tab khi modal được mở ra từ Navbar
+  useEffect(() => {
+    if (isAuthModalOpen) {
+      setActiveTab(authModalTab);
+    }
+  }, [isAuthModalOpen, authModalTab]);
+
   const [errorMessage, setErrorMessage] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
 
@@ -146,7 +156,7 @@ export const AdminAuthModal: React.FC = () => {
           </div>
 
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-red-500/15 text-red-400 border border-red-500/30 mb-2 uppercase tracking-wide">
-            {authModalTab === 'student' ? (
+            {activeTab === 'student' ? (
               <>
                 <GraduationCap className="w-3.5 h-3.5 text-blue-400" /> CỔNG ĐĂNG NHẬP HỌC SINH
               </>
@@ -158,10 +168,10 @@ export const AdminAuthModal: React.FC = () => {
           </div>
 
           <h3 className="text-xl font-extrabold text-white tracking-tight">
-            {authModalTab === 'student' ? 'Đăng Nhập Luyện Thi FAMINH' : 'Xác Thực Quyền Quản Trị FAMINH'}
+            {activeTab === 'student' ? 'Đăng Nhập Luyện Thi FAMINH' : 'Xác Thực Quyền Quản Trị FAMINH'}
           </h3>
           <p className="text-xs text-slate-400 mt-1.5 max-w-xs mx-auto leading-relaxed">
-            {authModalTab === 'student'
+            {activeTab === 'student'
               ? 'Nhập Tên đăng nhập và Mật khẩu do Giáo viên cấp để bắt đầu luyện tập và nộp bài chấm điểm.'
               : 'Dành riêng cho Giáo viên / Quản trị viên để quản lý đề thi, nạp bộ test case và cấp tài khoản.'}
           </p>
@@ -173,11 +183,12 @@ export const AdminAuthModal: React.FC = () => {
             <button
               type="button"
               onClick={() => {
+                setActiveTab('student');
                 setAuthModalTab('student');
                 setErrorMessage('');
               }}
               className={`py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
-                authModalTab === 'student'
+                activeTab === 'student'
                   ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
                   : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
               }`}
@@ -189,11 +200,12 @@ export const AdminAuthModal: React.FC = () => {
             <button
               type="button"
               onClick={() => {
+                setActiveTab('admin');
                 setAuthModalTab('admin');
                 setErrorMessage('');
               }}
               className={`py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
-                authModalTab === 'admin'
+                activeTab === 'admin'
                   ? 'bg-red-600 text-white shadow-md shadow-red-600/20'
                   : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
               }`}
@@ -215,14 +227,14 @@ export const AdminAuthModal: React.FC = () => {
         )}
 
         {/* Countdown timer when admin lock triggered */}
-        {authModalTab === 'admin' && lockCountdown > 0 && (
+        {activeTab === 'admin' && lockCountdown > 0 && (
           <div className="px-6 pt-2 text-center font-mono text-xs font-bold text-amber-400">
             Vui lòng thử lại sau: {lockCountdown}s
           </div>
         )}
 
         {/* TAB 1: FORM HỌC SINH ĐĂNG NHẬP */}
-        {authModalTab === 'student' && (
+        {activeTab === 'student' && (
           <form onSubmit={handleStudentSubmit} className="p-6 pt-4 space-y-3.5">
             <div>
               <label className="block text-xs font-semibold text-slate-300 mb-1 flex items-center gap-1.5">
@@ -303,7 +315,7 @@ export const AdminAuthModal: React.FC = () => {
         )}
 
         {/* TAB 2: FORM GIÁO VIÊN (ADMIN) XÁC THỰC */}
-        {authModalTab === 'admin' && (
+        {activeTab === 'admin' && (
           <form onSubmit={handleAdminSubmit} className="p-6 pt-4 space-y-4">
             <div>
               <label className="block text-xs font-semibold text-slate-300 mb-1.5 flex items-center gap-1.5">
