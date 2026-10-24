@@ -308,6 +308,41 @@ export const storageService = {
     });
   },
 
+  saveSubmissions(submissions: Submission[]): void {
+    const trimmed = (submissions || []).slice(0, 50).map((submission) => ({
+      ...submission,
+      sourceCode: submission.sourceCode && submission.sourceCode.length > 2000
+        ? submission.sourceCode.substring(0, 2000)
+        : submission.sourceCode,
+      compilationMessage: submission.compilationMessage && submission.compilationMessage.length > 1000
+        ? submission.compilationMessage.substring(0, 1000)
+        : submission.compilationMessage,
+      testResults: (submission.testResults || []).map((tr) => ({
+        testId: tr.testId,
+        testName: tr.testName,
+        verdict: tr.verdict,
+        time: tr.time,
+        memory: tr.memory,
+        pointsEarned: tr.pointsEarned,
+        maxPoints: tr.maxPoints,
+        errorMessage: tr.errorMessage,
+        actualOutput: tr.actualOutput && tr.actualOutput.length > 150 ? tr.actualOutput.substring(0, 150) : tr.actualOutput,
+        expectedOutput: tr.expectedOutput && tr.expectedOutput.length > 150 ? tr.expectedOutput.substring(0, 150) : tr.expectedOutput,
+      })),
+    }));
+
+    try {
+      localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, JSON.stringify(trimmed));
+    } catch (err) {
+      console.warn('[storageService] Lỗi lưu trữ submissions vào localStorage:', err);
+      try {
+        localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, JSON.stringify(trimmed.slice(0, 20)));
+      } catch {
+        // ignore
+      }
+    }
+  },
+
   // ==========================================
   // MULTI-CLASSROOM (LỚP HỌC ĐỘC LẬP)
   // ==========================================

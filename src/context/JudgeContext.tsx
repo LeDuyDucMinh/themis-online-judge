@@ -382,11 +382,17 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       }
       if (cloudStudents) {
         setStudents(cloudStudents);
-        if (currentStudent) {
+        // CHỈ kiểm tra đuổi tài khoản NẾU Cloud trả về danh sách học sinh hợp lệ (> 0)
+        // và học sinh đang đăng nhập này thật sự không còn trong danh sách
+        if (cloudStudents.length > 0 && currentStudent) {
+          const cleanUser = (currentStudent.username || '').trim().toLowerCase();
+          const cleanId = (currentStudent.id || '').trim();
+          const cleanName = (currentStudent.fullName || '').trim().toLowerCase();
           const stillActive = cloudStudents.some(
             (s) =>
-              s.id === currentStudent.id ||
-              (s.username && currentStudent.username && s.username.toLowerCase() === currentStudent.username.toLowerCase())
+              (cleanId && s.id === cleanId) ||
+              (cleanUser && s.username && s.username.trim().toLowerCase() === cleanUser) ||
+              (cleanName && s.fullName && s.fullName.trim().toLowerCase() === cleanName)
           );
           if (!stillActive) {
             logoutStudent();
@@ -420,7 +426,22 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         });
       }
       if (cloudSubs) {
-        setSubmissions(cloudSubs);
+        // Tự động làm sạch bài nộp của các tài khoản đã bị xóa khỏi hệ thống
+        const currentStudentList = cloudStudents && cloudStudents.length > 0 ? cloudStudents : storageService.getStudents();
+        const validStudentUsers = new Set(currentStudentList.map((s) => (s.username || '').trim().toLowerCase()));
+        const validStudentNames = new Set(currentStudentList.map((s) => (s.fullName || '').trim().toLowerCase()));
+        const validStudentIds = new Set(currentStudentList.map((s) => (s.id || '').trim()));
+
+        const activeSubs = cloudSubs.filter((sub) => {
+          if (sub.userId === 'admin_faminh' || sub.userName === 'Giáo viên FAMINH') return true;
+          const matchId = sub.userId && validStudentIds.has(sub.userId.trim());
+          const matchUser = sub.userId && validStudentUsers.has(sub.userId.trim().toLowerCase());
+          const matchName = sub.userName && validStudentNames.has(sub.userName.trim().toLowerCase());
+          return Boolean(matchId || matchUser || matchName);
+        });
+
+        setSubmissions(activeSubs);
+        storageService.saveSubmissions(activeSubs);
       }
     } catch (err) {
       console.warn('[JudgeContext] Lỗi refreshAllData:', err);
@@ -435,38 +456,52 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     if (!currentStudent) return;
 
     let isMounted = true;
+    let lastChecked = Date.now();
+
     const verifyStudentSession = async () => {
       try {
-        let activeStudents = await apiService.fetchStudents();
-        if (!activeStudents || activeStudents.length === 0) {
-          activeStudents = storageService.getStudents();
-        }
+        const activeStudents = await apiService.fetchStudents();
         if (!isMounted) return;
-        const exists = activeStudents.some(
-          (s) =>
-            s.id === currentStudent.id ||
-            (s.username && currentStudent.username && s.username.toLowerCase() === currentStudent.username.toLowerCase())
-        );
-        if (!exists) {
-          logoutStudent();
-          showToast(
-            'Tài khoản đã bị xóa',
-            'Tài khoản học sinh của bạn đã bị Giáo viên xóa khỏi hệ thống. Bạn đã được chuyển về trang đăng nhập.',
-            'error'
+
+        // BẢO VỆ CHỐNG ĐUỔI SAI (FALSE POSITIVE):
+        // Chỉ xử lý đuổi khỏi phiên NẾU danh sách từ Cloud được tải thành công và có ít nhất 1 học sinh (> 0).
+        // Tuyệt đối KHÔNG đuổi khi danh sách rỗng (do lỗi kết nối mạng, giật lag hay rate limit)!
+        if (activeStudents && activeStudents.length > 0) {
+          const cleanUser = (currentStudent.username || '').trim().toLowerCase();
+          const cleanId = (currentStudent.id || '').trim();
+          const cleanName = (currentStudent.fullName || '').trim().toLowerCase();
+          const exists = activeStudents.some(
+            (s) =>
+              (cleanId && s.id === cleanId) ||
+              (cleanUser && s.username && s.username.trim().toLowerCase() === cleanUser) ||
+              (cleanName && s.fullName && s.fullName.trim().toLowerCase() === cleanName)
           );
-          setIsAuthModalOpen(true);
-          setAuthModalTab('student');
+          if (!exists) {
+            logoutStudent();
+            showToast(
+              'Tài khoản đã bị xóa',
+              'Tài khoản học sinh của bạn đã bị Giáo viên xóa khỏi hệ thống. Bạn đã được chuyển về trang đăng nhập.',
+              'error'
+            );
+            setIsAuthModalOpen(true);
+            setAuthModalTab('student');
+          }
         }
       } catch {
-        // Bỏ qua lỗi mạng chập chờn
+        // Bỏ qua lỗi mạng
       }
     };
 
     const handleFocus = () => {
-      verifyStudentSession();
+      if (Date.now() - lastChecked > 15000) {
+        lastChecked = Date.now();
+        verifyStudentSession();
+      }
     };
+
     window.addEventListener('focus', handleFocus);
-    const interval = setInterval(verifyStudentSession, 5000);
+    // Nhịp tim 30 giây (tránh spam 5s gây lag mạng và false-positive)
+    const interval = setInterval(verifyStudentSession, 30000);
 
     return () => {
       isMounted = false;

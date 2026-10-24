@@ -43,6 +43,25 @@ const mockSessionStorage = createMockStorage();
 (globalThis as unknown as { localStorage: typeof mockStorage }).localStorage = mockStorage;
 (globalThis as unknown as { sessionStorage: typeof mockSessionStorage }).sessionStorage = mockSessionStorage;
 
+const createMockProblem = (
+  partial: Partial<Problem> & { id: string; code: string; title: string; topicId: string }
+): Problem => ({
+  difficulty: 'Dễ',
+  timeLimit: 1.0,
+  memoryLimit: 256,
+  totalPoints: 10,
+  description: '',
+  inputFormat: '',
+  outputFormat: '',
+  constraints: '',
+  samples: [],
+  testCases: [],
+  videoConfig: { enabled: false, type: 'youtube', url: '', unlockRule: 'always' },
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+  ...partial,
+});
+
 let totalTestsRun = 0;
 let passedTests = 0;
 
@@ -99,19 +118,15 @@ async function main() {
 
   await runTest('storageService.resetToDefault() dua topics va problems ve []', () => {
     storageService.saveTopics([{ id: 't1', name: 'Topic 1', order: 1 }]);
-    storageService.saveProblems([{
-      id: 'p1',
-      code: 'P1',
-      title: 'Prob 1',
-      topicId: 't1',
-      difficulty: 'Dễ',
-      timeLimit: 1,
-      memoryLimit: 256,
-      totalPoints: 10,
-      description: 'Desc',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    }]);
+    storageService.saveProblems([
+      createMockProblem({
+        id: 'p1',
+        code: 'P1',
+        title: 'Prob 1',
+        topicId: 't1',
+        description: 'Desc',
+      }),
+    ]);
 
     assert.equal(storageService.getTopics().length, 1);
     assert.equal(storageService.getProblems().length, 1);
@@ -381,21 +396,13 @@ OUTPUT:
   console.log('\nNhom 7: Cham diem an toan khi bai tap chua co test case');
 
   await runTest('gradeSubmission tra ve ket qua em dep va thong bao ro rang khi de 0 test', async () => {
-    const emptyProblem: Problem = {
+    const emptyProblem: Problem = createMockProblem({
       id: 'prob_empty',
       code: 'EMPTY',
       title: 'Bai Chua Co Test',
       topicId: 't1',
-      difficulty: 'Dễ',
-      timeLimit: 1.0,
-      memoryLimit: 256,
-      totalPoints: 10,
       description: 'Chua co test',
-      testCases: [],
-      samples: [],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
+    });
 
     const res = await gradeSubmission(emptyProblem, 'int main(){return 0;}', 'cpp');
     assert.equal(res.totalTests, 0);

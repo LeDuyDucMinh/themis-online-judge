@@ -748,21 +748,26 @@ export const apiService = {
       }
     }
 
-    const localSubmissions = await idbService.getAllSubmissions();
-    const mergedMap = new Map<string, Submission>();
-    localSubmissions.forEach((s) => mergedMap.set(s.id, s));
-    cloudSubmissions.forEach((s) => mergedMap.set(s.id, s));
-
-    const result = Array.from(mergedMap.values()).sort(
-      (a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime()
-    );
-
-    // Đồng bộ lại vào local
-    if (cloudSubmissions.length > 0) {
-      idbService.saveSubmissions(result).catch(() => {});
+    if (isSupabaseConfigured() && cloudSubmissions.length >= 0) {
+      // Khi Cloud đã kết nối, Cloud là nguồn chân lý duy nhất cho danh sách nộp bài
+      // Cập nhật đồng bộ ngược vào IndexedDB và localStorage (loại bỏ hoàn toàn Zombie Resurrect bài nộp cũ)
+      try {
+        await idbService.clearSubmissions();
+        if (cloudSubmissions.length > 0) {
+          await idbService.saveSubmissions(cloudSubmissions);
+        }
+        storageService.saveSubmissions(cloudSubmissions);
+      } catch (e) {
+        console.warn('[apiService] Đồng bộ submissions vào local cảnh báo:', e);
+      }
+      return cloudSubmissions;
     }
 
-    return result;
+    // Chỉ dùng bộ nhớ cục bộ làm dự phòng khi không kết nối được Supabase Cloud
+    const localSubmissions = await idbService.getAllSubmissions();
+    return localSubmissions.sort(
+      (a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime()
+    );
   },
 
   /**
