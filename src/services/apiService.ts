@@ -367,9 +367,27 @@ export const apiService = {
   /**
    * Lưu danh sách Học sinh lên Supabase Cloud
    */
-  async saveStudents(list: StudentUser[]): Promise<void> {
-    storageService.saveStudents(list);
-    if (!isSupabaseConfigured()) return;
+  async saveStudents(list: StudentUser[], removeIds: string[] = []): Promise<StudentUser[]> {
+    const removeSet = new Set(removeIds);
+    const normalize = (s: StudentUser) => (s.username || '').trim().toLowerCase();
+
+    // Hợp nhất với danh sách MỚI NHẤT trên Cloud: không bao giờ ghi đè làm mất học sinh do máy khác tạo
+    const merged = new Map<string, StudentUser>();
+    const cloudLatest = await this.fetchStudentsFromCloud();
+    (cloudLatest || []).forEach((s) => {
+      if (normalize(s) && !removeSet.has(s.id)) merged.set(normalize(s), s);
+    });
+    list.forEach((s) => {
+      if (normalize(s) && !removeSet.has(s.id)) merged.set(normalize(s), s);
+    });
+    const finalList = Array.from(merged.values());
+
+    storageService.saveStudents(finalList);
+    if (!isSupabaseConfigured()) return finalList;
+
+    // Không bao giờ ghi danh sách rỗng đè lên Cloud trừ khi đang xóa chủ ý
+    if (finalList.length === 0 && removeIds.length === 0) return finalList;
+
     try {
       const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/classrooms?on_conflict=id`;
       const res = await fetch(targetUrl, {
@@ -382,7 +400,7 @@ export const apiService = {
         body: JSON.stringify({
           id: '__system_students__',
           class_name: 'STUDENTS',
-          description: JSON.stringify(list),
+          description: JSON.stringify(finalList),
           join_code: 'USER',
           updated_at: new Date().toISOString(),
         }),
@@ -395,6 +413,7 @@ export const apiService = {
       console.error('[apiService] saveStudents warn:', e);
       throw e;
     }
+    return finalList;
   },
 
   /**

@@ -524,6 +524,9 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         if (mergedStudents.length > 0) {
           setStudents(mergedStudents);
           storageService.saveStudents(mergedStudents);
+          if (storageService.isAdminSessionActive()) {
+            apiService.saveStudents(mergedStudents).catch((e) => console.warn('[JudgeContext] Đẩy học sinh cục bộ lên Cloud thất bại:', e));
+          }
         }
       }
       if (cloudTopics) {
@@ -806,9 +809,12 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     storageService.saveStudents(nextList);
     setStudents(nextList);
     try {
-      await apiService.saveStudents(nextList);
+      const savedList = await apiService.saveStudents(nextList);
+      setStudents(savedList);
     } catch (err) {
       console.warn('[JudgeContext] Lỗi ghi học sinh mới lên Cloud:', err);
+      showToast('Chưa đồng bộ được lên Cloud', 'Tài khoản mới mới chỉ lưu trên máy này. Kiểm tra mạng rồi mở lại bảng Quản lý học sinh để thử đồng bộ lại.', 'error');
+      return { success: true, message: 'Tạo tài khoản thành công (chưa đồng bộ Cloud)' };
     }
     showToast('Cấp tài khoản thành công', `Đã tạo tài khoản cho học sinh ${newStudent.fullName} (${newStudent.username})`, 'success');
     return { success: true, message: 'Tạo tài khoản thành công' };
@@ -820,10 +826,10 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       return { success: false, message: 'Vui lòng nhập mật khẩu mới!' };
     }
     const cleanPass = newPassword.trim();
+    const baseList = (await apiService.fetchStudents()).map((s) => (s.id === id ? { ...s, password: cleanPass } : s));
     storageService.updateStudentPassword(id, cleanPass);
-    const updatedList = storageService.getStudents();
+    const updatedList = await apiService.saveStudents(baseList);
     setStudents(updatedList);
-    await apiService.saveStudents(updatedList);
     const target = updatedList.find((s) => s.id === id);
     showToast(
       'Đổi mật khẩu thành công',
@@ -841,9 +847,8 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
     // 1. Xóa khỏi danh sách học sinh
     storageService.deleteStudent(id);
-    const updatedList = storageService.getStudents();
+    const updatedList = await apiService.saveStudents(storageService.getStudents(), [id]);
     setStudents(updatedList);
-    await apiService.saveStudents(updatedList);
 
     // 2. Xóa khỏi mọi lớp học
     storageService.removeStudentFromAllClasses(id, stuUsername);
