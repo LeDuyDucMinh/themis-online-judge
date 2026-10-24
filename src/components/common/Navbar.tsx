@@ -25,6 +25,7 @@ interface NavbarProps {
 export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab }) => {
   const {
     isAdminAuthenticated,
+    isAuthLoading,
     currentStudent,
     logoutStudent,
     setIsStudentModalOpen,
@@ -309,6 +310,8 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab }) => 
                 <span className="hidden md:inline">Giáo viên</span>
               </button>
             </div>
+          ) : isAuthLoading ? (
+            <div className="w-20 h-7 rounded-xl bg-slate-800/60 animate-pulse" />
           ) : (
             /* Khi chưa đăng nhập tài khoản nào */
             <button

@@ -26,6 +26,7 @@ interface JudgeContextType {
   isAdminAuthenticated: boolean;
   currentStudent: StudentUser | null;
   students: StudentUser[];
+  isAuthLoading: boolean;
   isAuthModalOpen: boolean;
   setIsAuthModalOpen: (open: boolean) => void;
   authModalTab: 'student' | 'admin';
@@ -175,6 +176,9 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     setConfirmModalState((prev) => ({ ...prev, isOpen: false }));
   };
 
+  // Cờ trạng thái loading xác thực (Auth Loading Flag) - Chống triệt để Race Condition khi tải trang / chuyển trang
+  const [isAuthLoading, setIsAuthLoading] = useState<boolean>(true);
+
   // Mặc định luôn là USER để học sinh không thể truy cập trái phép
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState<boolean>(() => {
     return storageService.isAdminSessionActive();
@@ -189,10 +193,8 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     return storageService.isAdminSessionActive() ? 'ADMIN' : 'USER';
   });
 
-  // Bắt buộc Đăng nhập khi vào web: Nếu chưa có phiên Admin hoặc Học sinh thì tự động bật modal
-  const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(() => {
-    return !storageService.isAdminSessionActive() && !storageService.getStudentSession();
-  });
+  // Bắt buộc Đăng nhập khi vào web: Tuyệt đối KHÔNG mở modal khi hệ thống đang trong quá trình tải và đọc session
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
   const [authModalTab, setAuthModalTab] = useState<'student' | 'admin'>('student');
   const [isStudentModalOpen, setIsStudentModalOpen] = useState(false);
   const [isChangePasswordModalOpen, setIsChangePasswordModalOpen] = useState(false);
@@ -529,11 +531,39 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   // 1b. Phiên làm việc của học sinh được duy trì ổn định và bền vững
   // Tuyệt đối không sử dụng setInterval ngầm để đuổi học sinh khi đang ngồi làm bài
 
-  // 1. Phục hồi và tự động đồng bộ dữ liệu khi khởi động
+  // 1. Phục hồi và tự động đồng bộ dữ liệu khi khởi động (Auth Hydration & Cloud Sync)
   useEffect(() => {
     let isMounted = true;
     (async () => {
       try {
+        // Đọc và khôi phục phiên xác thực an toàn từ Cookies / localStorage / sessionStorage
+        const student = storageService.getStudentSession();
+        const admin = storageService.isAdminSessionActive();
+
+        if (student) {
+          if (isMounted) {
+            setCurrentStudent(student);
+            setIsAdminAuthenticated(false);
+            setRole('USER');
+            setIsAuthModalOpen(false);
+          }
+        } else if (admin) {
+          if (isMounted) {
+            setIsAdminAuthenticated(true);
+            setRole('ADMIN');
+            setIsAuthModalOpen(false);
+          }
+        } else {
+          // Chỉ hiển thị modal đăng nhập khi xác định chắc chắn không có phiên sau khi load
+          if (isMounted) {
+            setIsAuthModalOpen(true);
+          }
+        }
+
+        if (isMounted) {
+          setIsAuthLoading(false);
+        }
+
         if (storageService.isAdminSessionActive() && apiService.isConfigured()) {
           // Tự động đồng bộ ngầm toàn bộ dữ liệu từ máy này lên Cloud
           apiService.syncAllToCloud().catch((err) => {
@@ -544,11 +574,28 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       } catch (err) {
         if (isMounted) {
           console.warn('Lỗi tải dữ liệu khởi động:', err);
+          setIsAuthLoading(false);
         }
       }
     })();
     return () => {
       isMounted = false;
+    };
+  }, []);
+
+  // 1c. TỰ ĐỘNG GIA HẠN THỜI HẠN TOKEN / PHIÊN (SLIDING TOKEN REFRESH)
+  // Khi người dùng click, focus hoặc hoạt động, gia hạn cookie/token thêm 30 ngày để không bị hết hạn
+  useEffect(() => {
+    const handleActivity = () => {
+      storageService.refreshSessionExpiry();
+    };
+    window.addEventListener('focus', handleActivity);
+    window.addEventListener('click', handleActivity);
+    const tokenRefreshTimer = setInterval(handleActivity, 60000); // 1 phút gia hạn 1 lần
+    return () => {
+      window.removeEventListener('focus', handleActivity);
+      window.removeEventListener('click', handleActivity);
+      clearInterval(tokenRefreshTimer);
     };
   }, []);
 
@@ -785,6 +832,7 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       storageService.setAdminSessionActive(true);
       sessionStorage.setItem('faminh_admin_verified_pass', cleanPass);
       try { localStorage.setItem('faminh_admin_verified_pass', cleanPass); } catch {}
+      storageService.setCookie('faminh_admin_verified_pass', cleanPass, 30);
       setIsAuthModalOpen(false);
 
       // TỰ ĐỘNG ĐỒNG BỘ TOÀN BỘ BÀI TẬP, TEST CASE, LỚP VÀ HỌC SINH TỪ MÁY NÀY LÊN CLOUD
@@ -809,6 +857,7 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       storageService.clearAllStorageAndCookies();
       sessionStorage.removeItem('faminh_admin_verified_pass');
       try { localStorage.removeItem('faminh_admin_verified_pass'); } catch {}
+      storageService.deleteCookie('faminh_admin_verified_pass');
       setIsAdminAuthenticated(false);
       setRole('USER');
       showToast(
@@ -825,6 +874,7 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     storageService.clearAllStorageAndCookies();
     sessionStorage.removeItem('faminh_admin_verified_pass');
     try { localStorage.removeItem('faminh_admin_verified_pass'); } catch {}
+    storageService.deleteCookie('faminh_admin_verified_pass');
     setCurrentStudent(null);
     setIsAdminAuthenticated(false);
     setRole('USER');
@@ -872,6 +922,7 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     if (updated) {
       sessionStorage.setItem('faminh_admin_verified_pass', newPass.trim());
       try { localStorage.setItem('faminh_admin_verified_pass', newPass.trim()); } catch {}
+      storageService.setCookie('faminh_admin_verified_pass', newPass.trim(), 30);
       setIsChangePasswordModalOpen(false);
       showToast('Đổi mật mã thành công', 'Mật mã quản trị FAMINH mới đã được cập nhật an toàn lên Database đám mây.', 'success');
       return { success: true, message: 'Đổi mật mã thành công' };
@@ -1263,6 +1314,7 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         isAdminAuthenticated,
         currentStudent,
         students,
+        isAuthLoading,
         isAuthModalOpen,
         setIsAuthModalOpen,
         authModalTab,

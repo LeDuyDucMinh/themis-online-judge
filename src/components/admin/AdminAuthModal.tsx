@@ -17,6 +17,7 @@ import {
 
 export const AdminAuthModal: React.FC = () => {
   const {
+    isAuthLoading,
     isAuthModalOpen,
     setIsAuthModalOpen,
     loginAdmin,
@@ -52,7 +53,8 @@ export const AdminAuthModal: React.FC = () => {
     return () => clearTimeout(timer);
   }, [lockCountdown]);
 
-  if (!isAuthModalOpen) return null;
+  // Tuyệt đối không hiển thị modal khi phiên xác thực đang trong quá trình tải
+  if (isAuthLoading || !isAuthModalOpen) return null;
 
   // Kiểm tra xem đã có ai đăng nhập chưa (để quyết định có cho phép bấm nút X đóng hay không)
   const canClose = Boolean(isAdminAuthenticated || currentStudent);

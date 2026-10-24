@@ -22,6 +22,7 @@ import { storageService } from './services/storageService';
 function MainApp() {
   const {
     isAdminAuthenticated,
+    isAuthLoading,
     setIsAuthModalOpen,
     theme,
     activeClassId,
@@ -64,7 +65,9 @@ function MainApp() {
   // Điều hướng phân vùng & Đặt màn hình mặc định theo vai trò:
   // - Khi Giáo viên (ADMIN) đăng nhập: Mặc định mở tab "Quản lý Lớp học" (admin_classes)
   // - Khi Học sinh (USER): Mặc định mở tab "Lớp học của tôi" (classes)
+  // - Tuyệt đối không can thiệp khi trạng thái xác thực đang tải (isAuthLoading)
   useEffect(() => {
+    if (isAuthLoading) return;
     if (isAdminAuthenticated) {
       if (currentTab === 'classes' || currentTab === 'problems') {
         setCurrentTab('admin_classes');
@@ -78,7 +81,7 @@ function MainApp() {
         storageService.setCurrentTab('classes');
       }
     }
-  }, [isAdminAuthenticated]);
+  }, [isAdminAuthenticated, isAuthLoading]);
 
   const handleSelectProblem = (p: Problem) => {
     setSelectedProblem(p);
@@ -109,6 +112,7 @@ function MainApp() {
       <Navbar
         currentTab={currentTab}
         setCurrentTab={(tab) => {
+          if (isAuthLoading) return;
           if ((tab === 'admin_classes' || tab === 'admin_topics') && !isAdminAuthenticated) {
             setIsAuthModalOpen(true);
             return;

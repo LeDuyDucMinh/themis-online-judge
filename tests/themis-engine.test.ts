@@ -558,6 +558,42 @@ OUTPUT:
     assert.equal(statsAfterRecreate.solvedCount, 0, 'Tai khoan moi phai co 0 bai AC');
   });
 
+  // ==========================================
+  // NHOM 11: XAC THUC TOKEN & COOKIES SESSION BEN VUNG
+  // ==========================================
+  console.log('\nNhom 11: Xac thuc Token & Cookies Session ben vung');
+
+  await runTest('storageService luu, khoi phuc va gia han session hoc sinh ben vung', async () => {
+    const studentData = {
+      id: 'stu_cookie_test',
+      fullName: 'Học Sinh Cookie',
+      username: 'student_cookie',
+      password: '123',
+      createdAt: new Date().toISOString(),
+    };
+
+    // Luu session
+    storageService.setStudentSession(studentData);
+    const retrieved = storageService.getStudentSession();
+    assert.ok(retrieved);
+    assert.equal(retrieved.username, 'student_cookie');
+
+    // Gia han sliding session
+    storageService.refreshSessionExpiry();
+    const refreshed = storageService.getStudentSession();
+    assert.equal(refreshed?.username, 'student_cookie');
+
+    // Admin session
+    storageService.setAdminSessionActive(true);
+    assert.equal(storageService.isAdminSessionActive(), true);
+    storageService.setAdminSessionActive(false);
+    assert.equal(storageService.isAdminSessionActive(), false);
+
+    // Xoa session
+    storageService.setStudentSession(null);
+    assert.equal(storageService.getStudentSession(), null);
+  });
+
   console.log('\n====================================================');
   console.log(`KET QUA: ${passedTests}/${totalTestsRun} TESTS PASS (100% THANH CONG)`);
   console.log('====================================================\n');

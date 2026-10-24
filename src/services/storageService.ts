@@ -704,18 +704,64 @@ export const storageService = {
     return password.trim() === stored.trim();
   },
 
+  // ==========================================
+  // QUẢN LÝ COOKIE & TOKEN SESSION BỀN VỮNG
+  // ==========================================
+  getCookie(name: string): string | null {
+    if (typeof document === 'undefined' || typeof document.cookie !== 'string') return null;
+    try {
+      const match = document.cookie.match(new RegExp('(^|;\\s*)(' + name + ')=([^;]*)'));
+      return match ? decodeURIComponent(match[3]) : null;
+    } catch {
+      return null;
+    }
+  },
+
+  setCookie(name: string, value: string, days = 30): void {
+    if (typeof document === 'undefined') return;
+    try {
+      const expires = new Date(Date.now() + days * 864e5).toUTCString();
+      document.cookie = `${name}=${encodeURIComponent(value)}; expires=${expires}; path=/; SameSite=Lax`;
+    } catch {}
+  },
+
+  deleteCookie(name: string): void {
+    if (typeof document === 'undefined') return;
+    try {
+      document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; SameSite=Lax`;
+    } catch {}
+  },
+
   isAdminSessionActive(): boolean {
-    return (
-      (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem(STORAGE_KEYS.ADMIN_SESSION) === 'true' : false) ||
-      (typeof localStorage !== 'undefined' ? localStorage.getItem(STORAGE_KEYS.ADMIN_SESSION) === 'true' : false)
-    );
+    try {
+      // 1. Ưu tiên đọc Cookie (Next.js server & browser compatible)
+      const fromCookie = this.getCookie(STORAGE_KEYS.ADMIN_SESSION);
+      if (fromCookie === 'true') {
+        return true;
+      }
+
+      // 2. Fallback sang localStorage và sessionStorage
+      const fromLocal = typeof localStorage !== 'undefined' ? localStorage.getItem(STORAGE_KEYS.ADMIN_SESSION) === 'true' : false;
+      const fromSession = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem(STORAGE_KEYS.ADMIN_SESSION) === 'true' : false;
+      const active = fromLocal || fromSession;
+
+      if (active) {
+        // Tự động đồng bộ ngược lại Cookie
+        this.setCookie(STORAGE_KEYS.ADMIN_SESSION, 'true', 30);
+      }
+      return active;
+    } catch {
+      return false;
+    }
   },
 
   setAdminSessionActive(active: boolean): void {
     if (active) {
+      this.setCookie(STORAGE_KEYS.ADMIN_SESSION, 'true', 30);
       try { sessionStorage.setItem(STORAGE_KEYS.ADMIN_SESSION, 'true'); } catch {}
       try { localStorage.setItem(STORAGE_KEYS.ADMIN_SESSION, 'true'); } catch {}
     } else {
+      this.deleteCookie(STORAGE_KEYS.ADMIN_SESSION);
       try { sessionStorage.removeItem(STORAGE_KEYS.ADMIN_SESSION); } catch {}
       try { localStorage.removeItem(STORAGE_KEYS.ADMIN_SESSION); } catch {}
     }
@@ -780,11 +826,35 @@ export const storageService = {
 
   getStudentSession(): StudentUser | null {
     try {
-      const raw =
-        (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem(STORAGE_KEYS.STUDENT_SESSION) : null) ||
-        (typeof localStorage !== 'undefined' ? localStorage.getItem(STORAGE_KEYS.STUDENT_SESSION) : null);
-      if (!raw) return null;
-      return JSON.parse(raw);
+      // 1. Ưu tiên đọc từ Cookie (an toàn với Next.js Server & Vercel Middleware)
+      const fromCookie = this.getCookie(STORAGE_KEYS.STUDENT_SESSION);
+      let student: StudentUser | null = null;
+      if (fromCookie) {
+        try {
+          student = JSON.parse(fromCookie);
+        } catch {}
+      }
+
+      // 2. Fallback sang localStorage và sessionStorage
+      if (!student) {
+        const raw =
+          (typeof localStorage !== 'undefined' ? localStorage.getItem(STORAGE_KEYS.STUDENT_SESSION) : null) ||
+          (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem(STORAGE_KEYS.STUDENT_SESSION) : null);
+        if (raw) {
+          try {
+            student = JSON.parse(raw);
+          } catch {}
+        }
+      }
+
+      // 3. Tự động đồng bộ và gia hạn Token/Cookie (Auto Sliding Token Refresh)
+      if (student && student.username) {
+        this.setCookie(STORAGE_KEYS.STUDENT_SESSION, JSON.stringify(student), 30);
+        try { localStorage.setItem(STORAGE_KEYS.STUDENT_SESSION, JSON.stringify(student)); } catch {}
+        try { sessionStorage.setItem(STORAGE_KEYS.STUDENT_SESSION, JSON.stringify(student)); } catch {}
+        return student;
+      }
+      return null;
     } catch {
       return null;
     }
@@ -793,11 +863,28 @@ export const storageService = {
   setStudentSession(student: StudentUser | null): void {
     if (student) {
       const str = JSON.stringify(student);
-      try { sessionStorage.setItem(STORAGE_KEYS.STUDENT_SESSION, str); } catch {}
+      // Ghi đồng thời vào Cookie (30 ngày), localStorage và sessionStorage
+      this.setCookie(STORAGE_KEYS.STUDENT_SESSION, str, 30);
       try { localStorage.setItem(STORAGE_KEYS.STUDENT_SESSION, str); } catch {}
+      try { sessionStorage.setItem(STORAGE_KEYS.STUDENT_SESSION, str); } catch {}
     } else {
-      try { sessionStorage.removeItem(STORAGE_KEYS.STUDENT_SESSION); } catch {}
+      this.deleteCookie(STORAGE_KEYS.STUDENT_SESSION);
       try { localStorage.removeItem(STORAGE_KEYS.STUDENT_SESSION); } catch {}
+      try { sessionStorage.removeItem(STORAGE_KEYS.STUDENT_SESSION); } catch {}
+    }
+  },
+
+  /**
+   * Tự động gia hạn thời hạn token/session (Sliding Expiry)
+   * Giữ phiên đăng nhập luôn sống 30 ngày mỗi khi người dùng có tương tác
+   */
+  refreshSessionExpiry(): void {
+    const student = this.getStudentSession();
+    if (student) {
+      this.setStudentSession(student);
+    }
+    if (this.isAdminSessionActive()) {
+      this.setAdminSessionActive(true);
     }
   },
 
