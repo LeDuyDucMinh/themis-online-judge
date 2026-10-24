@@ -298,13 +298,20 @@ export const apiService = {
    */
   async fetchStudentsFromCloud(): Promise<StudentUser[] | null> {
     if (!isSupabaseConfigured()) return null;
+    const controller = new AbortController();
+    const timeoutTimer = setTimeout(() => controller.abort(), 7000);
     try {
       const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/classrooms?id=eq.__system_students__`;
       const res = await fetch(targetUrl, {
         headers: this.getAntiCacheHeaders(),
         cache: 'no-store',
+        signal: controller.signal,
       });
-      if (!res.ok) return null;
+      clearTimeout(timeoutTimer);
+      if (!res.ok) {
+        console.warn(`[apiService] fetchStudentsFromCloud HTTP ${res.status}`);
+        return null;
+      }
       const rows = await res.json();
       if (!Array.isArray(rows) || rows.length === 0 || !rows[0].description) return null;
 
@@ -329,7 +336,8 @@ export const apiService = {
       storageService.saveStudents(cloudStudents);
       return cloudStudents;
     } catch (e) {
-      console.warn('[apiService] fetchStudentsFromCloud warn:', e);
+      clearTimeout(timeoutTimer);
+      console.warn('[apiService] fetchStudentsFromCloud error/timeout:', e);
       return null;
     }
   },

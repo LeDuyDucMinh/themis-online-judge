@@ -23,6 +23,8 @@ function MainApp() {
   const {
     isAdminAuthenticated,
     isAuthLoading,
+    currentStudent,
+    verifyStudentAccountStatus,
     setIsAuthModalOpen,
     theme,
     activeClassId,
@@ -82,6 +84,13 @@ function MainApp() {
       }
     }
   }, [isAdminAuthenticated, isAuthLoading]);
+
+  // Tối ưu tần suất (Quy tắc 3): Listener kiểm tra tài khoản khi đổi route (chuyển tab, chuyển bài tập)
+  useEffect(() => {
+    // Quy tắc 1: Sửa lỗi Race Condition - Bắt buộc đợi Auth hoàn tất (isAuthLoading === false) và có currentUser
+    if (isAuthLoading || !currentStudent) return;
+    verifyStudentAccountStatus();
+  }, [isAuthLoading, currentStudent, currentTab, activeClassId, selectedProblem?.id]);
 
   const handleSelectProblem = (p: Problem) => {
     setSelectedProblem(p);

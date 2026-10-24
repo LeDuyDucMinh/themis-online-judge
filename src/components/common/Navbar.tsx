@@ -289,7 +289,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab }) => 
 
               {/* Nút Đăng xuất Học sinh */}
               <button
-                onClick={logoutStudent}
+                onClick={() => logoutStudent()}
                 className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-rose-950 text-slate-300 hover:text-rose-300 border border-slate-700 text-xs font-medium transition-all cursor-pointer"
                 title="Đăng xuất tài khoản học sinh"
               >
