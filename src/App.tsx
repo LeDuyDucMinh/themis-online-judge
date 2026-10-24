@@ -9,7 +9,7 @@ import { StudentClassList } from './components/user/StudentClassList';
 import { TopicManager } from './components/admin/TopicManager';
 import { TeacherClassList } from './components/admin/TeacherClassList';
 import { TeacherClassDetail } from './components/admin/TeacherClassDetail';
-import { AdminAuthModal } from './components/admin/AdminAuthModal';
+import { AuthModal } from './components/auth/AuthModal';
 import { ChangePasswordModal } from './components/admin/ChangePasswordModal';
 import { StudentManagerModal } from './components/admin/StudentManagerModal';
 import { ServerConfigModal } from './components/admin/ServerConfigModal';
@@ -98,8 +98,8 @@ function MainApp() {
       {/* Toast Notification Container */}
       <ToastContainer />
 
-      {/* Admin Auth, Student Manager & Change Password Modals */}
-      <AdminAuthModal />
+      {/* Supabase Auth, Student Manager & Change Password Modals */}
+      <AuthModal />
       <ChangePasswordModal />
       <StudentManagerModal />
       <ServerConfigModal

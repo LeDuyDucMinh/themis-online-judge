@@ -3,8 +3,9 @@ export type UserRole = 'ADMIN' | 'USER';
 export interface StudentUser {
   id: string;
   fullName: string; // Họ và tên học sinh (ví dụ: "Nguyễn Văn An")
-  username: string; // Tên đăng nhập (ví dụ: "vanan")
-  password: string; // Mật khẩu do giáo viên cấp
+  username: string; // Tên đăng nhập hoặc Email
+  email?: string; // Email tài khoản Supabase Auth
+  password?: string; // Mật khẩu (nếu có)
   createdAt: string;
 }
 

@@ -4,6 +4,7 @@ import { storageService, DEFAULT_CLASS } from '../services/storageService';
 import { apiService } from '../services/apiService';
 import { idbService } from '../services/db';
 import { gradeSubmission, type GradingProgressCallback, type SupportedLanguage } from '../services/judgeEngine';
+import { supabase } from '../services/supabaseClient';
 import confetti from 'canvas-confetti';
 
 interface ToastMessage {
@@ -23,8 +24,10 @@ interface ConfirmModalState {
 
 interface JudgeContextType {
   role: UserRole;
+  setRole: (role: UserRole) => void;
   isAdminAuthenticated: boolean;
   currentStudent: StudentUser | null;
+  setCurrentStudent: (student: StudentUser | null) => void;
   students: StudentUser[];
   isAuthLoading: boolean;
   isAuthModalOpen: boolean;
@@ -629,13 +632,75 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   // 1b. Phiên làm việc của học sinh được duy trì ổn định và bền vững
   // Tuyệt đối không sử dụng setInterval ngầm để đuổi học sinh khi đang ngồi làm bài
 
+  // 1a. LẮNG NGHE THAY ĐỔI TRẠNG THÁI XÁC THỰC SUPABASE AUTH (OAuth Google & Email/Password)
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (session?.user) {
+        const u = session.user;
+        const fullName =
+          u.user_metadata?.full_name ||
+          u.user_metadata?.name ||
+          u.email?.split('@')[0] ||
+          'Học sinh';
+        const studentUser: StudentUser = {
+          id: u.id,
+          fullName,
+          username: u.email || u.id,
+          email: u.email,
+          password: '',
+          createdAt: u.created_at || new Date().toISOString(),
+        };
+        setCurrentStudent(studentUser);
+        storageService.setStudentSession(studentUser);
+        setIsAdminAuthenticated(false);
+        setRole('USER');
+        setIsAuthModalOpen(false);
+        if (typeof window !== 'undefined' && window.location.pathname === '/login') {
+          window.history.pushState({}, '', '/');
+        }
+      } else if (event === 'SIGNED_OUT') {
+        if (!storageService.isAdminSessionActive()) {
+          storageService.setStudentSession(null);
+          setCurrentStudent(null);
+        }
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
+
   // 1. Phục hồi và tự động đồng bộ dữ liệu khi khởi động (Auth Hydration & Cloud Sync)
   useEffect(() => {
     let isMounted = true;
     (async () => {
       try {
-        // Đọc và khôi phục phiên xác thực an toàn từ Cookies / localStorage / sessionStorage
-        const student = storageService.getStudentSession();
+        // 1. Khôi phục phiên Supabase Auth (Email / Google OAuth)
+        let student = storageService.getStudentSession();
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session?.user) {
+            const u = session.user;
+            const fullName =
+              u.user_metadata?.full_name ||
+              u.user_metadata?.name ||
+              u.email?.split('@')[0] ||
+              'Học sinh';
+            student = {
+              id: u.id,
+              fullName,
+              username: u.email || u.id,
+              email: u.email,
+              password: '',
+              createdAt: u.created_at || new Date().toISOString(),
+            };
+            storageService.setStudentSession(student);
+          }
+        } catch (e) {
+          console.warn('[JudgeContext] Lỗi đọc session Supabase Auth:', e);
+        }
+
         const admin = storageService.isAdminSessionActive();
 
         if (student) {
@@ -810,6 +875,7 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
   // Học sinh Đăng xuất - Chỉ xóa session của học sinh này, tuyệt đối không xóa database hay danh sách lớp/bài tập
   const logoutStudent = (options?: { reason?: string } | any) => {
+    supabase.auth.signOut().catch((e) => console.warn('[JudgeContext] Lỗi Supabase signOut:', e));
     storageService.setStudentSession(null);
     setCurrentStudent(null);
     setActiveClassId(null);
@@ -1294,7 +1360,7 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       problem,
       code,
       language,
-      isAdminAuthenticated ? 'admin_faminh' : (currentStudent?.username || 'student_01'),
+      isAdminAuthenticated ? 'admin_faminh' : (currentStudent?.id || currentStudent?.username || 'student_01'),
       isAdminAuthenticated ? 'Giáo viên FAMINH' : (currentStudent?.fullName || 'Học sinh'),
       onProgress
     );
@@ -1423,8 +1489,10 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     <JudgeContext.Provider
       value={{
         role,
+        setRole,
         isAdminAuthenticated,
         currentStudent,
+        setCurrentStudent,
         students,
         isAuthLoading,
         isAuthModalOpen,
