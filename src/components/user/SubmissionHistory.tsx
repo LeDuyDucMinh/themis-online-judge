@@ -20,6 +20,7 @@ import {
   GraduationCap,
 } from 'lucide-react';
 import { ThemisGradingTable } from './ThemisGradingTable';
+import { apiService } from '../../services/apiService';
 
 export const SubmissionHistory: React.FC = () => {
   const {
@@ -34,6 +35,20 @@ export const SubmissionHistory: React.FC = () => {
     getStudentsInClass,
   } = useJudge();
   const [selectedSub, setSelectedSub] = useState<Submission | null>(null);
+
+  const handleOpenDetail = async (sub: Submission) => {
+    setSelectedSub(sub);
+    if (!sub.testResults || sub.testResults.length === 0) {
+      try {
+        const full = await apiService.fetchSubmissionById(sub.id);
+        if (full?.testResults && full.testResults.length > 0) {
+          setSelectedSub((curr) => (curr?.id === sub.id ? { ...curr, testResults: full.testResults } : curr));
+        }
+      } catch (e) {
+        console.warn('Lỗi tải chi tiết bài nộp:', e);
+      }
+    }
+  };
 
   // Bộ lọc theo Lớp học (Multi-Classroom)
   const [selectedClassId, setSelectedClassId] = useState<string>('ALL');
@@ -371,7 +386,7 @@ export const SubmissionHistory: React.FC = () => {
                     <tr
                       key={sub.id}
                       className="hover:bg-slate-800/40 transition-colors cursor-pointer"
-                      onClick={() => setSelectedSub(sub)}
+                      onClick={() => handleOpenDetail(sub)}
                     >
                       <td className="py-3 px-4 text-slate-400 font-sans flex items-center gap-1.5">
                         <Calendar className="w-3.5 h-3.5 text-slate-500 shrink-0" />
@@ -401,7 +416,7 @@ export const SubmissionHistory: React.FC = () => {
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            setSelectedSub(sub);
+                            handleOpenDetail(sub);
                           }}
                           className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-slate-800 hover:bg-blue-600 text-slate-300 hover:text-white transition-colors"
                         >
@@ -610,7 +625,7 @@ export const SubmissionHistory: React.FC = () => {
                               >
                                 {bestSub ? (
                                   <button
-                                    onClick={() => setSelectedSub(bestSub)}
+                                    onClick={() => handleOpenDetail(bestSub)}
                                     className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold font-mono transition-all cursor-pointer shadow-sm hover:scale-105 ${
                                       isFull
                                         ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/25'

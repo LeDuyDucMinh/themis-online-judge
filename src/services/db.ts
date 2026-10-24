@@ -468,6 +468,23 @@ export const idbService = {
     }
   },
 
+  async getSubmissionById(id: string): Promise<Submission | null> {
+    if (!isIDBSupported() || !id) return null;
+    try {
+      const db = await getDB();
+      if (!db.objectStoreNames.contains(STORES.SUBMISSIONS)) return null;
+      const tx = db.transaction(STORES.SUBMISSIONS, 'readonly');
+      const store = tx.objectStore(STORES.SUBMISSIONS);
+      return new Promise<Submission | null>((resolve) => {
+        const req = store.get(id);
+        req.onsuccess = () => resolve(req.result || null);
+        req.onerror = () => resolve(null);
+      });
+    } catch {
+      return null;
+    }
+  },
+
   async saveSubmissions(submissions: Submission[]): Promise<void> {
     if (!isIDBSupported() || !submissions || submissions.length === 0) return;
     try {

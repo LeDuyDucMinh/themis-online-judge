@@ -708,7 +708,11 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
   // 1.1 TỰ ĐỘNG LÀM MỚI DỮ LIỆU ĐÁM MÂY KHI CHUYỂN TAB HOẶC ĐỊNH KỲ (ĐẢM BẢO HỌC SINH & MÁY B LUÔN CÓ BÀI MỚI)
   useEffect(() => {
+    let lastFocusTime = 0;
     const handleWindowFocus = () => {
+      const now = Date.now();
+      if (now - lastFocusTime < 25000) return; // Không spam refresh quá dồn dập khi click chuột qua lại giữa các cửa sổ
+      lastFocusTime = now;
       refreshAllData().catch(() => {});
     };
     window.addEventListener('focus', handleWindowFocus);

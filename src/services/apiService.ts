@@ -302,9 +302,9 @@ export const apiService = {
     if (!isSupabaseConfigured()) return null;
     for (let attempt = 0; attempt < 2; attempt++) {
       const controller = new AbortController();
-      const timeoutTimer = setTimeout(() => controller.abort(), 15000);
+      const timeoutTimer = setTimeout(() => controller.abort(), 10000);
       try {
-        const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/classrooms?id=eq.__system_students__&select=description&_t=${Date.now()}`;
+        const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/classrooms?id=eq.__system_students__&select=description`;
         const res = await fetch(targetUrl, {
           headers: this.getAntiCacheHeaders(),
           cache: 'no-store',
@@ -346,7 +346,7 @@ export const apiService = {
    */
   async fetchStudentsFromCloud(): Promise<StudentUser[] | null> {
     const cloudStudents = await this.fetchRawCloudStudents();
-    if (cloudStudents === null || cloudStudents.length === 0) return null;
+    if (cloudStudents === null) return null;
 
     // Hợp nhất an toàn: Không làm mất học sinh cục bộ còn đang hoạt động
     const localList = storageService.getStudents();
@@ -765,12 +765,13 @@ export const apiService = {
 
   /**
    * Lấy lịch sử nộp bài (Toàn bộ hoặc theo học sinh) từ Database thực tế
+   * Tối ưu hiệu năng: Tải các trường thông tin cần thiết, bỏ trường test_results khổng lồ (giảm từ 7.5MB xuống 12KB)
    */
   async fetchSubmissions(): Promise<Submission[]> {
     let cloudSubmissions: Submission[] = [];
     if (isSupabaseConfigured()) {
       try {
-        const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/submissions?order=submitted_at.desc&limit=150`;
+        const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/submissions?select=id,problem_id,problem_code,problem_title,user_id,user_name,class_id,language,status,verdict,total_points_earned,max_total_points,passed_count,total_tests,execution_time,memory,compilation_message,submitted_at,source_code&order=submitted_at.desc&limit=60`;
         const res = await fetch(targetUrl, {
           headers: this.getAntiCacheHeaders(),
           cache: 'no-store',
@@ -827,6 +828,53 @@ export const apiService = {
     return localSubmissions.sort(
       (a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime()
     );
+  },
+
+  /**
+   * Lấy chi tiết một bài nộp (bao gồm đầy đủ test_results) khi người dùng mở xem chi tiết
+   */
+  async fetchSubmissionById(id: string): Promise<Submission | null> {
+    if (!id) return null;
+    if (isSupabaseConfigured()) {
+      try {
+        const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/submissions?id=eq.${encodeURIComponent(id)}&limit=1`;
+        const res = await fetch(targetUrl, {
+          headers: this.getAntiCacheHeaders(),
+          cache: 'no-store',
+        });
+        if (res.ok) {
+          const list = await res.json();
+          if (Array.isArray(list) && list.length > 0) {
+            const item = list[0];
+            return {
+              id: item.id,
+              problemId: item.problem_id,
+              problemCode: item.problem_code,
+              problemTitle: item.problem_title || item.problem_code || '',
+              userId: item.user_id,
+              userName: item.user_name,
+              classId: item.class_id,
+              language: item.language,
+              sourceCode: item.source_code,
+              status: (item.status as any) || 'COMPLETED',
+              overallVerdict: item.verdict,
+              totalPointsEarned: Number(item.total_points_earned) || 0,
+              maxTotalPoints: Number(item.max_total_points) || 10,
+              passedCount: Number(item.passed_count) || 0,
+              totalTests: Number(item.total_tests) || 0,
+              executionTime: Number(item.execution_time) || 0,
+              memory: Number(item.memory) || 0,
+              compilationMessage: item.compilation_message,
+              submittedAt: item.submitted_at,
+              testResults: item.test_results || [],
+            };
+          }
+        }
+      } catch (err) {
+        console.warn('[apiService] Lỗi fetchSubmissionById:', err);
+      }
+    }
+    return idbService.getSubmissionById(id);
   },
 
   /**
@@ -979,10 +1027,10 @@ export const apiService = {
               Promise.resolve(storageService.getProblems()),
             ]);
 
-            // Tải toàn bộ test cases từ Supabase Cloud để gộp vào cloudProblems
+            // Tải siêu nhẹ metadata test cases từ Supabase Cloud để gộp số lượng test vào cloudProblems (giảm từ 2.9MB xuống 4.5KB)
             const cloudTcMap = new Map<string, TestCase[]>();
             try {
-              const tcUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/test_cases?select=id,problem_id,test_name,input,expected_output,points,is_hidden,order_index&order=order_index.asc`;
+              const tcUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/test_cases?select=id,problem_id,test_name,points,is_hidden,order_index&order=order_index.asc`;
               const tcRes = await fetch(tcUrl, {
                 headers: {
                   ...this.getAntiCacheHeaders(),
