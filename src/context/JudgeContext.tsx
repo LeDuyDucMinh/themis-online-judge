@@ -276,6 +276,23 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       return { success: false, message: 'Vui lòng nhập mã tham gia lớp học!' };
     }
 
+    // Kiểm tra tài khoản học sinh còn tồn tại trên hệ thống
+    const allStudents = await apiService.fetchStudents();
+    const stillExists = allStudents.some(
+      (s) =>
+        (s.id && student.id && s.id === student.id) ||
+        (s.username && student.username && s.username.toLowerCase() === student.username.toLowerCase())
+    );
+    if (!stillExists && allStudents.length > 0) {
+      logoutStudent();
+      showToast(
+        'Tài khoản không tồn tại',
+        'Tài khoản học sinh của bạn đã bị Giáo viên xóa khỏi hệ thống. Vui lòng liên hệ Giáo viên!',
+        'error'
+      );
+      return { success: false, message: 'Tài khoản học sinh đã bị xóa khỏi hệ thống!' };
+    }
+
     // 1. Luôn kéo danh sách Lớp học mới nhất trực tiếp từ Cloud để đảm bảo máy B tìm được lớp mới tạo trên máy A
     let latestClasses = await apiService.fetchClassrooms();
     if (!latestClasses || latestClasses.length === 0) {
@@ -509,68 +526,8 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     }
   };
 
-  // 1b. Tự động kiểm tra tính hợp lệ của tài khoản học sinh (Realtime account eviction khi bị giáo viên xóa)
-  useEffect(() => {
-    const sessionStudent = currentStudent || storageService.getStudentSession();
-    if (!sessionStudent) return;
-
-    let isMounted = true;
-    let lastChecked = Date.now();
-
-    const verifyStudentSession = async () => {
-      try {
-        const student = currentStudent || storageService.getStudentSession();
-        if (!student || !isMounted) return;
-
-        // BẢO VỆ TUYỆT ĐỐI CHỐNG ĐUỔI SAI (FALSE POSITIVE):
-        // Chỉ xử lý đuổi khỏi phiên NẾU Cloud phản hồi XÁC THỰC THÀNH CÔNG (khác null)
-        // và danh sách trên Cloud có ít nhất 1 học sinh (> 0).
-        // Tuyệt đối KHÔNG đuổi khi gặp lỗi mạng, chập chờn, rate limit hoặc danh sách cục bộ!
-        const cloudStudents = await apiService.fetchStudentsFromCloud();
-        if (!isMounted || cloudStudents === null || cloudStudents.length === 0) return;
-
-        const cleanUser = (student.username || '').trim().toLowerCase();
-        const cleanId = (student.id || '').trim();
-        const cleanName = (student.fullName || '').trim().toLowerCase();
-
-        const exists = cloudStudents.some(
-          (s) =>
-            (cleanId && s.id === cleanId) ||
-            (cleanUser && s.username && s.username.trim().toLowerCase() === cleanUser) ||
-            (cleanName && s.fullName && s.fullName.trim().toLowerCase() === cleanName)
-        );
-
-        if (!exists) {
-          logoutStudent();
-          showToast(
-            'Tài khoản đã bị xóa',
-            'Tài khoản học sinh của bạn đã bị Giáo viên xóa khỏi hệ thống. Bạn đã được chuyển về trang đăng nhập.',
-            'error'
-          );
-          setIsAuthModalOpen(true);
-          setAuthModalTab('student');
-        }
-      } catch {
-        // Bỏ qua lỗi mạng
-      }
-    };
-
-    const handleFocus = () => {
-      if (Date.now() - lastChecked > 20000) {
-        lastChecked = Date.now();
-        verifyStudentSession();
-      }
-    };
-
-    window.addEventListener('focus', handleFocus);
-    const interval = setInterval(verifyStudentSession, 30000);
-
-    return () => {
-      isMounted = false;
-      window.removeEventListener('focus', handleFocus);
-      clearInterval(interval);
-    };
-  }, [currentStudent]);
+  // 1b. Phiên làm việc của học sinh được duy trì ổn định và bền vững
+  // Tuyệt đối không sử dụng setInterval ngầm để đuổi học sinh khi đang ngồi làm bài
 
   // 1. Phục hồi và tự động đồng bộ dữ liệu khi khởi động
   useEffect(() => {
@@ -603,74 +560,13 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     window.addEventListener('focus', handleWindowFocus);
     const periodicSync = setInterval(() => {
       refreshAllData().catch(() => {});
-    }, 45000);
+    }, 90000);
 
     return () => {
       window.removeEventListener('focus', handleWindowFocus);
       clearInterval(periodicSync);
     };
   }, []);
-
-  // 2. ÉP VĂNG RA MÀN HÌNH ĐĂNG NHẬP NẾU PHIÊN ADMIN SAI MẬT KHẨU TRÊN DATABASE
-  const forceAdminLogout = (reason: string) => {
-    storageService.clearAllStorageAndCookies();
-    sessionStorage.removeItem('faminh_admin_verified_pass');
-    setCurrentStudent(null);
-    setIsAdminAuthenticated(false);
-    setRole('USER');
-    setActiveClassId(null);
-    setActiveProblem(null);
-    setActiveTopicId(null);
-    setClasses([]);
-    setClassStudents([]);
-    setSubmissions([]);
-    setProblems([]);
-    setTopics([]);
-    setStats({
-      solvedCount: 0,
-      attemptedCount: 0,
-      totalSubmissions: 0,
-      pointsAccumulated: 0,
-    });
-    setIsAuthModalOpen(true);
-    setAuthModalTab('admin');
-    showToast('Phiên làm việc kết thúc', reason, 'error');
-  };
-
-  // 3. ĐỐI CHIẾU REAL-TIME MẬT KHẨU ADMIN VỚI DATABASE TRỰC TIẾP
-  useEffect(() => {
-    if (!isAdminAuthenticated) return;
-
-    let isMounted = true;
-    const verifySessionRealtime = async () => {
-      const verifiedPass = sessionStorage.getItem('faminh_admin_verified_pass');
-      if (!verifiedPass) {
-        if (isMounted) {
-          forceAdminLogout('Phiên quản trị chưa được đối chiếu trực tiếp với Database. Vui lòng đăng nhập lại!');
-        }
-        return;
-      }
-
-      const isValid = await apiService.verifyAdminPassword(verifiedPass);
-      if (!isValid && isMounted) {
-        forceAdminLogout('Mật mã quản trị viên trên Database đã thay đổi. Bạn đã bị đăng xuất để bảo vệ hệ thống!');
-      }
-    };
-
-    verifySessionRealtime();
-
-    const handleFocus = () => {
-      verifySessionRealtime();
-    };
-    window.addEventListener('focus', handleFocus);
-    const interval = setInterval(verifySessionRealtime, 45000);
-
-    return () => {
-      isMounted = false;
-      window.removeEventListener('focus', handleFocus);
-      clearInterval(interval);
-    };
-  }, [isAdminAuthenticated]);
 
   useEffect(() => {
     if (!isHydratedRef.current) return;
@@ -888,6 +784,7 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       setRole('ADMIN');
       storageService.setAdminSessionActive(true);
       sessionStorage.setItem('faminh_admin_verified_pass', cleanPass);
+      try { localStorage.setItem('faminh_admin_verified_pass', cleanPass); } catch {}
       setIsAuthModalOpen(false);
 
       // TỰ ĐỘNG ĐỒNG BỘ TOÀN BỘ BÀI TẬP, TEST CASE, LỚP VÀ HỌC SINH TỪ MÁY NÀY LÊN CLOUD
@@ -911,6 +808,7 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       // Đối chiếu sai mật khẩu: ÉP VĂNG / TỪ CHỐI
       storageService.clearAllStorageAndCookies();
       sessionStorage.removeItem('faminh_admin_verified_pass');
+      try { localStorage.removeItem('faminh_admin_verified_pass'); } catch {}
       setIsAdminAuthenticated(false);
       setRole('USER');
       showToast(
@@ -926,6 +824,7 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const logoutAdmin = () => {
     storageService.clearAllStorageAndCookies();
     sessionStorage.removeItem('faminh_admin_verified_pass');
+    try { localStorage.removeItem('faminh_admin_verified_pass'); } catch {}
     setCurrentStudent(null);
     setIsAdminAuthenticated(false);
     setRole('USER');
@@ -972,6 +871,7 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     const updated = await apiService.updateAdminPasswordInDatabase(newPass.trim());
     if (updated) {
       sessionStorage.setItem('faminh_admin_verified_pass', newPass.trim());
+      try { localStorage.setItem('faminh_admin_verified_pass', newPass.trim()); } catch {}
       setIsChangePasswordModalOpen(false);
       showToast('Đổi mật mã thành công', 'Mật mã quản trị FAMINH mới đã được cập nhật an toàn lên Database đám mây.', 'success');
       return { success: true, message: 'Đổi mật mã thành công' };
@@ -1189,6 +1089,25 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     let problem = problems.find((p) => p.id === problemId);
     if (!problem) {
       throw new Error('Không tìm thấy bài tập để chấm');
+    }
+
+    // Kiểm tra tài khoản học sinh còn hợp lệ trước khi cho nộp bài
+    if (!isAdminAuthenticated && currentStudent) {
+      const allStudents = await apiService.fetchStudents();
+      const stillExists = allStudents.some(
+        (s) =>
+          (s.id && currentStudent.id && s.id === currentStudent.id) ||
+          (s.username && currentStudent.username && s.username.toLowerCase() === currentStudent.username.toLowerCase())
+      );
+      if (!stillExists && allStudents.length > 0) {
+        logoutStudent();
+        showToast(
+          'Tài khoản không tồn tại',
+          'Tài khoản học sinh của bạn đã bị Giáo viên xóa khỏi hệ thống. Bạn đã được chuyển về trang đăng nhập.',
+          'error'
+        );
+        throw new Error('Tài khoản học sinh đã bị xóa khỏi hệ thống');
+      }
     }
 
     // Nạp khẩn cấp từ Database nếu problem trong React state chưa có test hoặc test bị rỗng input do nén

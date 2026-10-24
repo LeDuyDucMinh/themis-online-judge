@@ -36,7 +36,7 @@ export const StudentClassList: React.FC = () => {
     refreshAllData();
     const interval = setInterval(() => {
       refreshAllData().catch(() => {});
-    }, 12000);
+    }, 30000);
     return () => clearInterval(interval);
   }, []);
 

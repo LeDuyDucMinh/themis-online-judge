@@ -48,7 +48,7 @@ export const TeacherClassDetail: React.FC<TeacherClassDetailProps> = ({ classId 
     refreshAllData();
     const timer = setInterval(() => {
       refreshAllData().catch(() => {});
-    }, 10000);
+    }, 30000);
     return () => clearInterval(timer);
   }, []);
 

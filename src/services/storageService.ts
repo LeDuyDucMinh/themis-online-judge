@@ -705,14 +705,19 @@ export const storageService = {
   },
 
   isAdminSessionActive(): boolean {
-    return sessionStorage.getItem(STORAGE_KEYS.ADMIN_SESSION) === 'true';
+    return (
+      (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem(STORAGE_KEYS.ADMIN_SESSION) === 'true' : false) ||
+      (typeof localStorage !== 'undefined' ? localStorage.getItem(STORAGE_KEYS.ADMIN_SESSION) === 'true' : false)
+    );
   },
 
   setAdminSessionActive(active: boolean): void {
     if (active) {
-      sessionStorage.setItem(STORAGE_KEYS.ADMIN_SESSION, 'true');
+      try { sessionStorage.setItem(STORAGE_KEYS.ADMIN_SESSION, 'true'); } catch {}
+      try { localStorage.setItem(STORAGE_KEYS.ADMIN_SESSION, 'true'); } catch {}
     } else {
-      sessionStorage.removeItem(STORAGE_KEYS.ADMIN_SESSION);
+      try { sessionStorage.removeItem(STORAGE_KEYS.ADMIN_SESSION); } catch {}
+      try { localStorage.removeItem(STORAGE_KEYS.ADMIN_SESSION); } catch {}
     }
   },
 
