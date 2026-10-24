@@ -268,90 +268,12 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     showToast('Đã xóa lớp học', 'Đã xóa lớp học thành công', 'info');
   };
 
-  const lastAccountCheckTimeRef = useRef<number>(0);
-  const isCheckingAccountRef = useRef<boolean>(false);
-
   /**
-   * KIỂM TRA TRẠNG THÁI TÀI KHOẢN HỌC SINH (KICK-OUT LISTENER / MIDDLEWARE)
-   * Tuân thủ nghiêm ngặt 3 quy tắc:
-   * 1. Sửa lỗi Race Condition: Bắt buộc đợi Auth khởi tạo xong (isAuthLoading === false) và có currentUser.
-   * 2. Xử lý Exception nghiêm ngặt: CHỈ logout nếu API Cloud trả về thành công và xác nhận 100% user không tồn tại.
-   *    Nếu API gặp lỗi (mạng lag, Timeout, HTTP 4xx/5xx, RLS, null), tuyệt đối KHÔNG ĐƯỢC logout người dùng.
-   * 3. Tối ưu tần suất: Không dùng setInterval spam API, chỉ kiểm tra khi đổi route (chuyển trang/tab).
+   * Tính năng tự động văng học sinh đã được tắt hoàn toàn theo yêu cầu người dùng.
+   * Luôn trả về true để học sinh duy trì phiên làm việc ổn định, không bao giờ bị văng ngẫu nhiên.
    */
-  const verifyStudentAccountStatus = async (options?: { force?: boolean }): Promise<boolean> => {
-    // Quy tắc 1: Đợi Auth hoàn tất và bắt buộc phải có currentUser
-    if (isAuthLoading || !currentStudent) return true;
-    const student = currentStudent;
-    if (!student.username) return true;
-
-    // Giới hạn tần suất: tối thiểu 5 giây giữa các lần gọi API trừ khi có cờ force
-    const now = Date.now();
-    if (!options?.force && now - lastAccountCheckTimeRef.current < 5000) {
-      return true;
-    }
-    if (isCheckingAccountRef.current) {
-      return true;
-    }
-
-    isCheckingAccountRef.current = true;
-    lastAccountCheckTimeRef.current = now;
-
-    try {
-      // Quy tắc 2: Gọi API trực tiếp lên Cloud (fetchStudentsFromCloud trả về null nếu lỗi mạng / timeout / RLS)
-      const cloudStudents = await apiService.fetchStudentsFromCloud();
-
-      // Nếu API lỗi (mạng lag, timeout, RLS hoặc null) hoặc danh sách rỗng -> TUYỆT ĐỐI KHÔNG LOGOUT
-      if (cloudStudents === null || !Array.isArray(cloudStudents) || cloudStudents.length === 0) {
-        return true;
-      }
-
-      const cleanUser = (student.username || '').trim().toLowerCase();
-      const cleanId = (student.id || '').trim();
-      const cleanName = (student.fullName || '').trim().toLowerCase();
-
-      const exists = cloudStudents.some(
-        (s) =>
-          (cleanId && s.id === cleanId) ||
-          (cleanUser && s.username && s.username.trim().toLowerCase() === cleanUser) ||
-          (cleanName && s.fullName && s.fullName.trim().toLowerCase() === cleanName)
-      );
-
-      if (exists) {
-        return true;
-      }
-
-      // Khi API trả về kết quả thành công nhưng không thấy user trong danh sách:
-      // Xác thực kép (Double Confirmation) sau 1.5s để loại trừ hoàn toàn trường hợp mạng chập chờn / replication lag
-      await new Promise((r) => setTimeout(r, 1500));
-      const doubleCheck = await apiService.fetchStudentsFromCloud();
-      // Nếu lần 2 gặp lỗi (mạng lag, timeout, RLS hoặc null) -> TUYỆT ĐỐI KHÔNG LOGOUT
-      if (doubleCheck === null || !Array.isArray(doubleCheck) || doubleCheck.length === 0) {
-        return true;
-      }
-
-      const confirmedMissing = !doubleCheck.some(
-        (s) =>
-          (cleanId && s.id === cleanId) ||
-          (cleanUser && s.username && s.username.trim().toLowerCase() === cleanUser) ||
-          (cleanName && s.fullName && s.fullName.trim().toLowerCase() === cleanName)
-      );
-
-      if (confirmedMissing) {
-        logoutStudent({
-          reason: 'Tài khoản học sinh của bạn đã bị Giáo viên xóa khỏi hệ thống. Bạn đã được chuyển về trang đăng nhập.',
-        });
-        return false;
-      }
-
-      return true;
-    } catch (err) {
-      // Quy tắc 2: Mọi Exception đều an toàn bỏ qua, tuyệt đối không logout người dùng khi lỗi
-      console.warn('[JudgeContext] Bỏ qua lỗi kết nối khi kiểm tra tài khoản:', err);
-      return true;
-    } finally {
-      isCheckingAccountRef.current = false;
-    }
+  const verifyStudentAccountStatus = async (_options?: { force?: boolean }): Promise<boolean> => {
+    return true;
   };
 
   const joinClassByCode = async (joinCode: string): Promise<{ success: boolean; message: string; pending?: boolean; classroom?: Classroom }> => {
@@ -363,12 +285,6 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     const cleanCode = (joinCode || '').trim().toUpperCase();
     if (!cleanCode) {
       return { success: false, message: 'Vui lòng nhập mã tham gia lớp học!' };
-    }
-
-    // Kiểm tra an toàn trạng thái tài khoản học sinh trước khi tham gia lớp
-    const isValid = await verifyStudentAccountStatus({ force: true });
-    if (!isValid) {
-      return { success: false, message: 'Tài khoản học sinh đã bị xóa khỏi hệ thống!' };
     }
 
     // 1. Luôn kéo danh sách Lớp học mới nhất trực tiếp từ Cloud để đảm bảo máy B tìm được lớp mới tạo trên máy A
@@ -704,13 +620,6 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   useEffect(() => {
     setStats(storageService.getUserStats(isAdminAuthenticated ? null : currentStudent, activeClassId, submissions));
   }, [submissions, isAdminAuthenticated, currentStudent, activeClassId]);
-
-  // Tối ưu tần suất (Quy tắc 3): Listener kiểm tra tài khoản khi đổi route / chuyển màn hình bên trong Context
-  useEffect(() => {
-    // Quy tắc 1: Sửa lỗi Race Condition - Bắt buộc đợi Auth hoàn tất (isAuthLoading === false) và có currentUser
-    if (isAuthLoading || !currentStudent) return;
-    verifyStudentAccountStatus();
-  }, [isAuthLoading, currentStudent, activeClassId, activeProblem?.id, activeTopicId]);
 
   const showToast = (title: string, message: string, type: ToastMessage['type'] = 'info') => {
     const id = `toast_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
@@ -1231,14 +1140,6 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     let problem = problems.find((p) => p.id === problemId);
     if (!problem) {
       throw new Error('Không tìm thấy bài tập để chấm');
-    }
-
-    // Kiểm tra an toàn trạng thái tài khoản học sinh trước khi cho nộp bài
-    if (!isAdminAuthenticated && currentStudent) {
-      const isValid = await verifyStudentAccountStatus({ force: true });
-      if (!isValid) {
-        throw new Error('Tài khoản học sinh đã bị xóa khỏi hệ thống');
-      }
     }
 
     // Nạp khẩn cấp từ Database nếu problem trong React state chưa có test hoặc test bị rỗng input do nén
