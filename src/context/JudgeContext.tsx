@@ -266,29 +266,110 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   };
 
   const joinClassByCode = async (joinCode: string): Promise<{ success: boolean; message: string; pending?: boolean; classroom?: Classroom }> => {
-    if (!currentStudent) {
+    const student = currentStudent || storageService.getStudentSession();
+    if (!student) {
       return { success: false, message: 'Vui lòng đăng nhập tài khoản học sinh trước khi tham gia lớp!' };
     }
-    const res = storageService.joinClassByCode(currentStudent.id, joinCode);
-    if (res.success) {
-      const updatedRelations = storageService.getClassStudents();
-      setClassStudents(updatedRelations);
-      setClasses(storageService.getClasses());
-      try {
-        await apiService.saveClassStudents(updatedRelations);
-      } catch (e) {
-        console.warn('Lỗi lưu quan hệ học sinh lên Cloud:', e);
-      }
-      showToast(res.pending ? 'Đã gửi yêu cầu tham gia' : 'Tham gia lớp thành công', res.message, res.pending ? 'info' : 'success');
-    } else {
-      showToast('Không thể tham gia', res.message, 'error');
+
+    const cleanCode = (joinCode || '').trim().toUpperCase();
+    if (!cleanCode) {
+      return { success: false, message: 'Vui lòng nhập mã tham gia lớp học!' };
     }
-    return res;
+
+    // 1. Luôn kéo danh sách Lớp học mới nhất trực tiếp từ Cloud để đảm bảo máy B tìm được lớp mới tạo trên máy A
+    let latestClasses = await apiService.fetchClassrooms();
+    if (!latestClasses || latestClasses.length === 0) {
+      latestClasses = storageService.getClasses();
+    }
+    setClasses(latestClasses);
+
+    // 2. Tìm lớp học theo mã tham gia (không phân biệt hoa/thường)
+    const targetClass = latestClasses.find((c) => c.joinCode && c.joinCode.trim().toUpperCase() === cleanCode);
+    if (!targetClass) {
+      showToast('Mã không hợp lệ', `Mã tham gia "${cleanCode}" không tồn tại hoặc không chính xác. Vui lòng kiểm tra lại mã do Giáo viên cung cấp!`, 'error');
+      return { success: false, message: 'Mã tham gia lớp học không hợp lệ hoặc lớp không tồn tại!' };
+    }
+
+    // 3. Kéo danh sách liên kết học sinh - lớp học mới nhất từ Cloud
+    let allRelations = await apiService.fetchClassStudents();
+    if (!allRelations) {
+      allRelations = storageService.getClassStudents();
+    }
+
+    const stuId = (student.id || '').trim();
+    const stuUser = (student.username || '').trim().toLowerCase();
+
+    const existing = allRelations.find(
+      (cs) => cs.classId === targetClass.id && (cs.studentId === stuId || (stuUser && cs.studentId.toLowerCase() === stuUser))
+    );
+
+    if (existing) {
+      if (!existing.status || existing.status === 'approved') {
+        showToast('Đã tham gia', `Em đã là thành viên chính thức của lớp "${targetClass.className}"!`, 'success');
+        setActiveClassId(targetClass.id);
+        return {
+          success: true,
+          pending: false,
+          message: `Bạn đã là thành viên chính thức của lớp "${targetClass.className}"!`,
+          classroom: targetClass,
+        };
+      }
+      if (existing.status === 'pending') {
+        showToast('Đang chờ duyệt', `Yêu cầu tham gia lớp "${targetClass.className}" của em đang chờ giáo viên phê duyệt. Em hãy nhắc Thầy/Cô duyệt vào lớp nhé!`, 'info');
+        return {
+          success: true,
+          pending: true,
+          message: `Yêu cầu tham gia lớp "${targetClass.className}" đang chờ giáo viên duyệt!`,
+          classroom: targetClass,
+        };
+      }
+    }
+
+    // 4. Tạo quan hệ chờ duyệt (pending)
+    const newRelation: ClassStudent = {
+      classId: targetClass.id,
+      studentId: student.id,
+      joinedAt: new Date().toISOString(),
+      status: 'pending',
+    };
+
+    const updatedRelations = [
+      ...allRelations.filter((r) => !(r.classId === targetClass.id && (r.studentId === stuId || (stuUser && r.studentId.toLowerCase() === stuUser)))),
+      newRelation,
+    ];
+
+    storageService.saveClassStudents(updatedRelations);
+    setClassStudents(updatedRelations);
+
+    try {
+      await apiService.saveClassStudents(updatedRelations);
+    } catch (e) {
+      console.warn('Lỗi ghi liên kết lớp lên Cloud:', e);
+    }
+
+    showToast('Đã gửi yêu cầu', `Đã gửi yêu cầu tham gia lớp "${targetClass.className}". Vui lòng chờ Giáo viên phê duyệt để vào lớp làm bài nhé!`, 'info');
+    return {
+      success: true,
+      pending: true,
+      message: `Đã gửi yêu cầu tham gia lớp "${targetClass.className}". Vui lòng chờ giáo viên duyệt để vào lớp!`,
+      classroom: targetClass,
+    };
   };
 
   const approveStudentJoin = async (classId: string, studentId: string): Promise<void> => {
     storageService.approveStudentJoin(classId, studentId);
-    const updatedRelations = storageService.getClassStudents();
+    let relations = await apiService.fetchClassStudents();
+    if (!relations) {
+      relations = storageService.getClassStudents();
+    }
+    const updatedRelations = relations.map((cs) => {
+      if (cs.classId === classId && (cs.studentId === studentId || cs.studentId === studentId.trim())) {
+        return { ...cs, status: 'approved' as const };
+      }
+      return cs;
+    });
+
+    storageService.saveClassStudents(updatedRelations);
     setClassStudents(updatedRelations);
     try {
       await apiService.saveClassStudents(updatedRelations);
@@ -382,29 +463,6 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       }
       if (cloudStudents) {
         setStudents(cloudStudents);
-        // CHỈ kiểm tra đuổi tài khoản NẾU Cloud trả về danh sách học sinh hợp lệ (> 0)
-        // và học sinh đang đăng nhập này thật sự không còn trong danh sách
-        if (cloudStudents.length > 0 && currentStudent) {
-          const cleanUser = (currentStudent.username || '').trim().toLowerCase();
-          const cleanId = (currentStudent.id || '').trim();
-          const cleanName = (currentStudent.fullName || '').trim().toLowerCase();
-          const stillActive = cloudStudents.some(
-            (s) =>
-              (cleanId && s.id === cleanId) ||
-              (cleanUser && s.username && s.username.trim().toLowerCase() === cleanUser) ||
-              (cleanName && s.fullName && s.fullName.trim().toLowerCase() === cleanName)
-          );
-          if (!stillActive) {
-            logoutStudent();
-            showToast(
-              'Tài khoản không tồn tại',
-              'Tài khoản học sinh của bạn đã bị Giáo viên xóa khỏi hệ thống. Bạn đã được chuyển về màn hình đăng nhập.',
-              'error'
-            );
-            setIsAuthModalOpen(true);
-            setAuthModalTab('student');
-          }
-        }
       }
       if (cloudTopics) {
         setTopics(cloudTopics);
@@ -453,39 +511,44 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
   // 1b. Tự động kiểm tra tính hợp lệ của tài khoản học sinh (Realtime account eviction khi bị giáo viên xóa)
   useEffect(() => {
-    if (!currentStudent) return;
+    const sessionStudent = currentStudent || storageService.getStudentSession();
+    if (!sessionStudent) return;
 
     let isMounted = true;
     let lastChecked = Date.now();
 
     const verifyStudentSession = async () => {
       try {
-        const activeStudents = await apiService.fetchStudents();
-        if (!isMounted) return;
+        const student = currentStudent || storageService.getStudentSession();
+        if (!student || !isMounted) return;
 
-        // BẢO VỆ CHỐNG ĐUỔI SAI (FALSE POSITIVE):
-        // Chỉ xử lý đuổi khỏi phiên NẾU danh sách từ Cloud được tải thành công và có ít nhất 1 học sinh (> 0).
-        // Tuyệt đối KHÔNG đuổi khi danh sách rỗng (do lỗi kết nối mạng, giật lag hay rate limit)!
-        if (activeStudents && activeStudents.length > 0) {
-          const cleanUser = (currentStudent.username || '').trim().toLowerCase();
-          const cleanId = (currentStudent.id || '').trim();
-          const cleanName = (currentStudent.fullName || '').trim().toLowerCase();
-          const exists = activeStudents.some(
-            (s) =>
-              (cleanId && s.id === cleanId) ||
-              (cleanUser && s.username && s.username.trim().toLowerCase() === cleanUser) ||
-              (cleanName && s.fullName && s.fullName.trim().toLowerCase() === cleanName)
+        // BẢO VỆ TUYỆT ĐỐI CHỐNG ĐUỔI SAI (FALSE POSITIVE):
+        // Chỉ xử lý đuổi khỏi phiên NẾU Cloud phản hồi XÁC THỰC THÀNH CÔNG (khác null)
+        // và danh sách trên Cloud có ít nhất 1 học sinh (> 0).
+        // Tuyệt đối KHÔNG đuổi khi gặp lỗi mạng, chập chờn, rate limit hoặc danh sách cục bộ!
+        const cloudStudents = await apiService.fetchStudentsFromCloud();
+        if (!isMounted || cloudStudents === null || cloudStudents.length === 0) return;
+
+        const cleanUser = (student.username || '').trim().toLowerCase();
+        const cleanId = (student.id || '').trim();
+        const cleanName = (student.fullName || '').trim().toLowerCase();
+
+        const exists = cloudStudents.some(
+          (s) =>
+            (cleanId && s.id === cleanId) ||
+            (cleanUser && s.username && s.username.trim().toLowerCase() === cleanUser) ||
+            (cleanName && s.fullName && s.fullName.trim().toLowerCase() === cleanName)
+        );
+
+        if (!exists) {
+          logoutStudent();
+          showToast(
+            'Tài khoản đã bị xóa',
+            'Tài khoản học sinh của bạn đã bị Giáo viên xóa khỏi hệ thống. Bạn đã được chuyển về trang đăng nhập.',
+            'error'
           );
-          if (!exists) {
-            logoutStudent();
-            showToast(
-              'Tài khoản đã bị xóa',
-              'Tài khoản học sinh của bạn đã bị Giáo viên xóa khỏi hệ thống. Bạn đã được chuyển về trang đăng nhập.',
-              'error'
-            );
-            setIsAuthModalOpen(true);
-            setAuthModalTab('student');
-          }
+          setIsAuthModalOpen(true);
+          setAuthModalTab('student');
         }
       } catch {
         // Bỏ qua lỗi mạng
@@ -493,14 +556,13 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     };
 
     const handleFocus = () => {
-      if (Date.now() - lastChecked > 15000) {
+      if (Date.now() - lastChecked > 20000) {
         lastChecked = Date.now();
         verifyStudentSession();
       }
     };
 
     window.addEventListener('focus', handleFocus);
-    // Nhịp tim 30 giây (tránh spam 5s gây lag mạng và false-positive)
     const interval = setInterval(verifyStudentSession, 30000);
 
     return () => {

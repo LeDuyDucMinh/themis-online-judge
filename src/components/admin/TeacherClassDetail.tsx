@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useJudge } from '../../context/JudgeContext';
 import { isProblemInClass } from '../../types/judge';
 import { AdminDashboard } from './AdminDashboard';
@@ -41,7 +41,16 @@ export const TeacherClassDetail: React.FC<TeacherClassDetailProps> = ({ classId 
     showToast,
     openConfirmModal,
     theme,
+    refreshAllData,
   } = useJudge();
+
+  useEffect(() => {
+    refreshAllData();
+    const timer = setInterval(() => {
+      refreshAllData().catch(() => {});
+    }, 10000);
+    return () => clearInterval(timer);
+  }, []);
 
   const [activeTab, setActiveTab] = useState<'assignments' | 'topics' | 'students'>('assignments');
   const [copiedCode, setCopiedCode] = useState(false);

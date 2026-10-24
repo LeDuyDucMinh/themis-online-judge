@@ -31,9 +31,13 @@ export const StudentClassList: React.FC = () => {
     showToast,
   } = useJudge();
 
-  // Luôn nạp dữ liệu lớp học và bài tập mới nhất từ Database khi mở Dashboard
+  // Luôn nạp dữ liệu lớp học và tự động cập nhật khi giáo viên phê duyệt yêu cầu vào lớp
   useEffect(() => {
     refreshAllData();
+    const interval = setInterval(() => {
+      refreshAllData().catch(() => {});
+    }, 12000);
+    return () => clearInterval(interval);
   }, []);
 
   const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);

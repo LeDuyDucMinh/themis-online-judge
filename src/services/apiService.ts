@@ -294,52 +294,55 @@ export const apiService = {
   },
 
   /**
+   * Lấy danh sách Học sinh trực tiếp từ Supabase Cloud (trả về null nếu không kết nối được hoặc lỗi)
+   */
+  async fetchStudentsFromCloud(): Promise<StudentUser[] | null> {
+    if (!isSupabaseConfigured()) return null;
+    try {
+      const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/classrooms?id=eq.__system_students__`;
+      const res = await fetch(targetUrl, {
+        headers: this.getAntiCacheHeaders(),
+        cache: 'no-store',
+      });
+      if (!res.ok) return null;
+      const rows = await res.json();
+      if (!Array.isArray(rows) || rows.length === 0 || !rows[0].description) return null;
+
+      let parsed: any[] = [];
+      try {
+        parsed = JSON.parse(rows[0].description);
+      } catch {
+        return null;
+      }
+      if (!Array.isArray(parsed)) return null;
+
+      const cloudStudents: StudentUser[] = parsed
+        .filter((s: any) => s && s.username)
+        .map((s: any) => ({
+          id: s.id || `student_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+          fullName: s.fullName || s.username || 'Học sinh',
+          username: s.username,
+          password: s.password || '123',
+          createdAt: s.createdAt || new Date().toISOString(),
+        }));
+
+      storageService.saveStudents(cloudStudents);
+      return cloudStudents;
+    } catch (e) {
+      console.warn('[apiService] fetchStudentsFromCloud warn:', e);
+      return null;
+    }
+  },
+
+  /**
    * Lấy danh sách Học sinh từ Supabase Cloud (Anti-cache real-time, Single Source of Truth)
    */
   async fetchStudents(): Promise<StudentUser[]> {
-    const localStudents = storageService.getStudents();
-    if (isSupabaseConfigured()) {
-      try {
-        const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/classrooms?id=eq.__system_students__`;
-        const res = await fetch(targetUrl, {
-          headers: this.getAntiCacheHeaders(),
-          cache: 'no-store',
-        });
-        if (res.ok) {
-          const rows = await res.json();
-          if (Array.isArray(rows) && rows.length > 0) {
-            let parsed: any[] = [];
-            if (rows[0].description) {
-              try {
-                parsed = JSON.parse(rows[0].description);
-              } catch {
-                parsed = [];
-              }
-            }
-            if (Array.isArray(parsed)) {
-              // CLOUD LÀ CHÂN LÝ DUY NHẤT (SINGLE SOURCE OF TRUTH):
-              // Học sinh đã bị xóa trên Cloud thì các máy khác PHẢI XÓA THEO!
-              // Tuyệt đối không hợp nhất ngược từ localStorage để tránh hiện tượng Zombie Resurrect.
-              const cloudStudents: StudentUser[] = parsed
-                .filter((s: any) => s && s.username)
-                .map((s: any) => ({
-                  id: s.id || `student_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-                  fullName: s.fullName || s.username || 'Học sinh',
-                  username: s.username,
-                  password: s.password || '123',
-                  createdAt: s.createdAt || new Date().toISOString(),
-                }));
-
-              storageService.saveStudents(cloudStudents);
-              return cloudStudents;
-            }
-          }
-        }
-      } catch (e) {
-        console.warn('[apiService] fetchStudents warn:', e);
-      }
+    const cloud = await this.fetchStudentsFromCloud();
+    if (cloud !== null) {
+      return cloud;
     }
-    return localStudents;
+    return storageService.getStudents();
   },
 
   /**

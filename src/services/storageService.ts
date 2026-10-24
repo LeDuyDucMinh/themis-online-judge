@@ -34,22 +34,8 @@ if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
 
 export const DEFAULT_ADMIN_PASSWORD = 'faminh@2026';
 
-export const DEFAULT_STUDENTS: StudentUser[] = [
-  {
-    id: 'student_1',
-    fullName: 'Lê Duy Đức Minh',
-    username: 'ducminh',
-    password: '123',
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: 'student_2',
-    fullName: 'Nguyễn Văn An',
-    username: 'vanan',
-    password: '123',
-    createdAt: new Date().toISOString(),
-  },
-];
+// Khởi tạo danh sách học sinh mặc định là mảng rỗng để hoàn toàn phụ thuộc vào Supabase Cloud
+export const DEFAULT_STUDENTS: StudentUser[] = [];
 
 // Lớp học chung mặc định (dùng cho Fallback và gom bài tập cũ)
 export const DEFAULT_CLASS: Classroom = {
@@ -733,13 +719,13 @@ export const storageService = {
   getStudents(): StudentUser[] {
     const raw = localStorage.getItem(STORAGE_KEYS.STUDENTS);
     if (!raw) {
-      this.saveStudents(DEFAULT_STUDENTS);
-      return DEFAULT_STUDENTS;
+      return [];
     }
     try {
-      return JSON.parse(raw);
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
     } catch {
-      return DEFAULT_STUDENTS;
+      return [];
     }
   },
 
@@ -788,9 +774,11 @@ export const storageService = {
   },
 
   getStudentSession(): StudentUser | null {
-    const raw = sessionStorage.getItem(STORAGE_KEYS.STUDENT_SESSION);
-    if (!raw) return null;
     try {
+      const raw =
+        (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem(STORAGE_KEYS.STUDENT_SESSION) : null) ||
+        (typeof localStorage !== 'undefined' ? localStorage.getItem(STORAGE_KEYS.STUDENT_SESSION) : null);
+      if (!raw) return null;
       return JSON.parse(raw);
     } catch {
       return null;
@@ -799,9 +787,12 @@ export const storageService = {
 
   setStudentSession(student: StudentUser | null): void {
     if (student) {
-      sessionStorage.setItem(STORAGE_KEYS.STUDENT_SESSION, JSON.stringify(student));
+      const str = JSON.stringify(student);
+      try { sessionStorage.setItem(STORAGE_KEYS.STUDENT_SESSION, str); } catch {}
+      try { localStorage.setItem(STORAGE_KEYS.STUDENT_SESSION, str); } catch {}
     } else {
-      sessionStorage.removeItem(STORAGE_KEYS.STUDENT_SESSION);
+      try { sessionStorage.removeItem(STORAGE_KEYS.STUDENT_SESSION); } catch {}
+      try { localStorage.removeItem(STORAGE_KEYS.STUDENT_SESSION); } catch {}
     }
   },
 
