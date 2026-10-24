@@ -301,7 +301,7 @@ export const apiService = {
     const controller = new AbortController();
     const timeoutTimer = setTimeout(() => controller.abort(), 7000);
     try {
-      const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/classrooms?id=eq.__system_students__`;
+      const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/classrooms?id=eq.__system_students__&_t=${Date.now()}`;
       const res = await fetch(targetUrl, {
         headers: this.getAntiCacheHeaders(),
         cache: 'no-store',
@@ -333,8 +333,19 @@ export const apiService = {
           createdAt: s.createdAt || new Date().toISOString(),
         }));
 
-      storageService.saveStudents(cloudStudents);
-      return cloudStudents;
+      // Hợp nhất an toàn: Không làm mất học sinh cục bộ còn đang hoạt động
+      const localList = storageService.getStudents();
+      const studentMap = new Map<string, StudentUser>();
+      cloudStudents.forEach((s) => studentMap.set((s.username || '').trim().toLowerCase(), s));
+      localList.forEach((s) => {
+        const u = (s.username || '').trim().toLowerCase();
+        if (u && !studentMap.has(u)) {
+          studentMap.set(u, s);
+        }
+      });
+      const mergedList = Array.from(studentMap.values());
+      storageService.saveStudents(mergedList);
+      return mergedList;
     } catch (e) {
       clearTimeout(timeoutTimer);
       console.warn('[apiService] fetchStudentsFromCloud error/timeout:', e);

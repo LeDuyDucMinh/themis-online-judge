@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useJudge } from '../../context/JudgeContext';
 import { isProblemInClass } from '../../types/judge';
+import { storageService } from '../../services/storageService';
 import { AdminDashboard } from './AdminDashboard';
 import { TopicManager } from './TopicManager';
 import {
@@ -123,7 +124,7 @@ export const TeacherClassDetail: React.FC<TeacherClassDetailProps> = ({ classId 
       const res = await addStudent(newStudentFullName.trim(), newStudentUsername.trim(), newStudentPassword.trim() || '123');
       if (res.success) {
         // Tự động gán vào lớp
-        const created = students.find((s) => s.username === newStudentUsername.trim().toLowerCase());
+        const created = storageService.getStudents().find((s) => s.username === newStudentUsername.trim().toLowerCase());
         if (created) {
           enrollStudentToClass(classId, created.id);
         }

@@ -325,18 +325,39 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     const student = studentToCheck || currentStudent || storageService.getStudentSession();
     if (!student) return true;
 
-    if (!apiService.isConfigured()) {
-      const localStudents = storageService.getStudents();
-      const exists = localStudents.some(
-        (s) =>
-          (s.id && s.id === student.id) ||
-          (s.username && s.username.toLowerCase() === student.username.toLowerCase())
-      );
-      if (!exists) {
-        setIsSessionRevokedModalOpen(true);
-        return false;
-      }
+    const targetUser = (student.username || '').trim().toLowerCase();
+    const targetId = (student.id || '').trim();
+
+    // 1. Kiểm tra trên hệ thống web hiện tại (LocalStorage, Danh sách học sinh, Danh sách lớp)
+    // Nếu tài khoản vẫn còn tồn tại trên web -> Tuyệt đối an toàn, KHÔNG ĐƯỢC văng!
+    const localStudents = storageService.getStudents();
+    const existsLocally = localStudents.some(
+      (s) =>
+        (targetId && s.id && s.id.trim() === targetId) ||
+        (targetUser && s.username && s.username.trim().toLowerCase() === targetUser)
+    );
+
+    const classRelations = storageService.getClassStudents();
+    const existsInClass = classRelations.some(
+      (cs) =>
+        (targetId && cs.studentId && cs.studentId.trim() === targetId) ||
+        (targetUser && cs.studentId && cs.studentId.trim().toLowerCase() === targetUser)
+    );
+
+    const existsInState = students.some(
+      (s) =>
+        (targetId && s.id && s.id.trim() === targetId) ||
+        (targetUser && s.username && s.username.trim().toLowerCase() === targetUser)
+    );
+
+    if (existsLocally || existsInClass || existsInState) {
       return true;
+    }
+
+    // 2. Nếu không còn ở bộ nhớ web, đối chiếu với Cloud Database
+    if (!apiService.isConfigured()) {
+      setIsSessionRevokedModalOpen(true);
+      return false;
     }
 
     try {
@@ -346,14 +367,14 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         return true;
       }
 
-      const exists = cloudStudents.some(
+      const existsInCloud = cloudStudents.some(
         (s) =>
-          (s.id && s.id === student.id) ||
-          (s.username && s.username.toLowerCase() === student.username.toLowerCase())
+          (targetId && s.id && s.id.trim() === targetId) ||
+          (targetUser && s.username && s.username.trim().toLowerCase() === targetUser)
       );
 
-      if (!exists) {
-        console.warn(`[Lưới điện] Tài khoản học sinh "${student.username}" không tồn tại trên Cloud Database. Kích hoạt SessionRevokedModal.`);
+      if (!existsInCloud) {
+        console.warn(`[Lưới điện] Tài khoản học sinh "${student.username}" đã thực sự bị thu hồi. Kích hoạt SessionRevokedModal.`);
         setIsSessionRevokedModalOpen(true);
         return false;
       }
