@@ -11,7 +11,6 @@ import { TeacherClassList } from './components/admin/TeacherClassList';
 import { TeacherClassDetail } from './components/admin/TeacherClassDetail';
 import { AuthModal } from './components/auth/AuthModal';
 import { ChangePasswordModal } from './components/admin/ChangePasswordModal';
-import { StudentManagerModal } from './components/admin/StudentManagerModal';
 import { ServerConfigModal } from './components/admin/ServerConfigModal';
 import { ConfirmModal } from './components/common/ConfirmModal';
 import type { Problem } from './types/judge';
@@ -98,10 +97,9 @@ function MainApp() {
       {/* Toast Notification Container */}
       <ToastContainer />
 
-      {/* Supabase Auth, Student Manager & Change Password Modals */}
+      {/* Supabase Auth & Admin Modals */}
       <AuthModal />
       <ChangePasswordModal />
-      <StudentManagerModal />
       <ServerConfigModal
         isOpen={isServerConfigModalOpen}
         onClose={() => setIsServerConfigModalOpen(false)}

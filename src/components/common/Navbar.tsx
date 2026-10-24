@@ -11,7 +11,6 @@ import {
   ListTree,
   Sun,
   Moon,
-  Users,
   GraduationCap,
   LogIn,
   Server,
@@ -28,7 +27,6 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab }) => 
     isAuthLoading,
     currentStudent,
     logoutStudent,
-    setIsStudentModalOpen,
     setAuthModalTab,
     setIsAuthModalOpen,
     setIsChangePasswordModalOpen,
@@ -224,16 +222,6 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab }) => 
                 <ShieldCheck className="w-4 h-4 text-red-400" />
                 <span className="hidden sm:inline">GIÁO VIÊN (ADMIN)</span>
               </div>
-
-              {/* Nút Quản lý Học sinh dành riêng cho Giáo viên */}
-              <button
-                onClick={() => setIsStudentModalOpen(true)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-700 text-xs font-semibold transition-colors cursor-pointer"
-                title="Quản lý và cấp tài khoản học sinh"
-              >
-                <Users className="w-3.5 h-3.5 text-blue-400" />
-                <span className="hidden lg:inline">Quản lý Học sinh</span>
-              </button>
 
               {/* Nút Cấu hình Máy chủ Chấm bài VPS */}
               <button

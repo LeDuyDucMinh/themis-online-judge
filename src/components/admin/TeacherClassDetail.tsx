@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useJudge } from '../../context/JudgeContext';
 import { isProblemInClass } from '../../types/judge';
-import { storageService } from '../../services/storageService';
 import { AdminDashboard } from './AdminDashboard';
 import { TopicManager } from './TopicManager';
 import {
@@ -36,7 +35,6 @@ export const TeacherClassDetail: React.FC<TeacherClassDetailProps> = ({ classId 
     students,
     enrollStudentToClass,
     removeStudentFromClass,
-    addStudent,
     problems,
     topics,
     showToast,
@@ -60,10 +58,6 @@ export const TeacherClassDetail: React.FC<TeacherClassDetailProps> = ({ classId 
   // Modal thêm học sinh
   const [isAddStudentModalOpen, setIsAddStudentModalOpen] = useState(false);
   const [selectedExistingStudentId, setSelectedExistingStudentId] = useState('');
-  const [newStudentFullName, setNewStudentFullName] = useState('');
-  const [newStudentUsername, setNewStudentUsername] = useState('');
-  const [newStudentPassword, setNewStudentPassword] = useState('123');
-  const [addMode, setAddMode] = useState<'existing' | 'create'>('existing');
 
   const currentClass = classes.find((c) => c.id === classId);
   const classStudents = getStudentsInClass(classId);
@@ -106,34 +100,16 @@ export const TeacherClassDetail: React.FC<TeacherClassDetailProps> = ({ classId 
   const classStudentIds = new Set(classStudents.map((s) => s.id));
   const availableStudents = students.filter((s) => !classStudentIds.has(s.id));
 
-  const handleEnrollStudent = async (e: React.FormEvent) => {
+  const handleEnrollStudent = (e: React.FormEvent) => {
     e.preventDefault();
-    if (addMode === 'existing') {
-      if (!selectedExistingStudentId) {
-        showToast('Vui lòng chọn', 'Chọn một học sinh từ danh sách để thêm vào lớp', 'warning');
-        return;
-      }
-      enrollStudentToClass(classId, selectedExistingStudentId);
-      setIsAddStudentModalOpen(false);
-      setSelectedExistingStudentId('');
-    } else {
-      if (!newStudentFullName.trim() || !newStudentUsername.trim()) {
-        showToast('Thiếu thông tin', 'Vui lòng nhập Họ tên và Tên đăng nhập cho học sinh mới', 'warning');
-        return;
-      }
-      const res = await addStudent(newStudentFullName.trim(), newStudentUsername.trim(), newStudentPassword.trim() || '123');
-      if (res.success) {
-        // Tự động gán vào lớp
-        const created = storageService.getStudents().find((s) => s.username === newStudentUsername.trim().toLowerCase());
-        if (created) {
-          enrollStudentToClass(classId, created.id);
-        }
-        setIsAddStudentModalOpen(false);
-        setNewStudentFullName('');
-        setNewStudentUsername('');
-        setNewStudentPassword('123');
-      }
+    if (!selectedExistingStudentId) {
+      showToast('Vui lòng chọn', 'Chọn một học sinh từ danh sách để thêm vào lớp', 'warning');
+      return;
     }
+    enrollStudentToClass(classId, selectedExistingStudentId);
+    setIsAddStudentModalOpen(false);
+    setSelectedExistingStudentId('');
+    showToast('Đã thêm', 'Đã thêm học sinh vào lớp học thành công', 'success');
   };
 
   const filteredStudents = classStudents.filter((s) => {
@@ -489,114 +465,48 @@ export const TeacherClassDetail: React.FC<TeacherClassDetailProps> = ({ classId 
               </button>
             </div>
 
-            {/* Mode Selector */}
-            <div className="grid grid-cols-2 gap-2 mt-4 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl">
-              <button
-                type="button"
-                onClick={() => setAddMode('existing')}
-                className={`py-1.5 text-xs font-bold rounded-lg transition-all ${
-                  addMode === 'existing'
-                    ? 'bg-white dark:bg-slate-900 text-blue-600 shadow-sm'
-                    : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
-                }`}
-              >
-                Chọn từ hệ thống
-              </button>
-              <button
-                type="button"
-                onClick={() => setAddMode('create')}
-                className={`py-1.5 text-xs font-bold rounded-lg transition-all ${
-                  addMode === 'create'
-                    ? 'bg-white dark:bg-slate-900 text-blue-600 shadow-sm'
-                    : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
-                }`}
-              >
-                Tạo tài khoản mới
-              </button>
-            </div>
-
             <form onSubmit={handleEnrollStudent} className="space-y-4 mt-4">
-              {addMode === 'existing' ? (
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    Chọn học sinh sẵn có:
-                  </label>
-                  {availableStudents.length === 0 ? (
-                    <div className="p-3 text-xs text-slate-400 bg-slate-50 dark:bg-slate-800 rounded-xl text-center">
-                      Tất cả học sinh trong hệ thống đã có mặt trong lớp này, hoặc bạn chưa tạo học sinh nào.
-                    </div>
-                  ) : (
-                    <select
-                      value={selectedExistingStudentId}
-                      onChange={(e) => setSelectedExistingStudentId(e.target.value)}
-                      className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500"
-                      required
-                    >
-                      <option value="">-- Chọn học sinh --</option>
-                      {availableStudents.map((s) => (
-                        <option key={s.id} value={s.id}>
-                          {s.fullName} ({s.username})
-                        </option>
-                      ))}
-                    </select>
-                  )}
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                      Họ và tên học sinh: *
-                    </label>
-                    <input
-                      type="text"
-                      value={newStudentFullName}
-                      onChange={(e) => setNewStudentFullName(e.target.value)}
-                      placeholder="Ví dụ: Trần Văn Nam"
-                      className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500"
-                      required
-                    />
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Chọn học sinh đã đăng ký tài khoản trong hệ thống:
+                </label>
+                {availableStudents.length === 0 ? (
+                  <div className="p-3 text-xs text-slate-400 bg-slate-50 dark:bg-slate-800 rounded-xl text-center">
+                    Tất cả học sinh trong hệ thống đã có mặt trong lớp này.
                   </div>
+                ) : (
+                  <select
+                    value={selectedExistingStudentId}
+                    onChange={(e) => setSelectedExistingStudentId(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    required
+                  >
+                    <option value="">-- Chọn học sinh --</option>
+                    {availableStudents.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.fullName} ({s.username})
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
 
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                      Tên đăng nhập: *
-                    </label>
-                    <input
-                      type="text"
-                      value={newStudentUsername}
-                      onChange={(e) => setNewStudentUsername(e.target.value)}
-                      placeholder="Ví dụ: namtran"
-                      className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500"
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                      Mật khẩu cấp ban đầu:
-                    </label>
-                    <input
-                      type="text"
-                      value={newStudentPassword}
-                      onChange={(e) => setNewStudentPassword(e.target.value)}
-                      className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500"
-                    />
-                  </div>
-                </div>
-              )}
+              <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl text-xs text-blue-400 leading-relaxed">
+                💡 <strong>Mẹo:</strong> Học sinh tự tạo tài khoản (Email hoặc Google) rồi nhập mã lớp <span className="font-mono font-bold text-amber-300">{currentClass.joinCode}</span> để xin vào lớp. Giáo viên chỉ cần duyệt tại danh sách phía trên.
+              </div>
 
               <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200 dark:border-slate-800">
                 <button
                   type="button"
                   onClick={() => setIsAddStudentModalOpen(false)}
-                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-500 hover:text-white hover:bg-slate-800"
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-500 hover:text-white hover:bg-slate-800 cursor-pointer"
                 >
-                  Hủy
+                  Đóng
                 </button>
                 <button
                   type="submit"
-                  disabled={addMode === 'existing' && availableStudents.length === 0}
-                  className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-xs font-bold shadow-md shadow-blue-600/20"
+                  disabled={availableStudents.length === 0}
+                  className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-xs font-bold shadow-md shadow-blue-600/20 cursor-pointer"
                 >
                   Thêm vào lớp
                 </button>
