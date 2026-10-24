@@ -18,6 +18,7 @@ import {
 export const StudentClassList: React.FC = () => {
   const {
     studentClasses,
+    pendingClasses,
     setActiveClassId,
     joinClassByCode,
     currentStudent,
@@ -27,6 +28,7 @@ export const StudentClassList: React.FC = () => {
     theme,
     refreshAllData,
     isRefreshing,
+    showToast,
   } = useJudge();
 
   // Luôn nạp dữ liệu lớp học và bài tập mới nhất từ Database khi mở Dashboard
@@ -80,7 +82,7 @@ export const StudentClassList: React.FC = () => {
       if (res.success) {
         setIsJoinModalOpen(false);
         setJoinCodeInput('');
-        if (res.classroom) {
+        if (res.classroom && !res.pending) {
           setActiveClassId(res.classroom.id);
         }
       }
@@ -151,6 +153,58 @@ export const StudentClassList: React.FC = () => {
         </div>
       </div>
 
+      {/* Mục Lớp Đang Chờ Giáo Viên Phê Duyệt (Bảo mật vào lớp) */}
+      {pendingClasses.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-bold text-amber-600 dark:text-amber-400 flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+              <span>Yêu Cầu Chờ Giáo Viên Duyệt ({pendingClasses.length})</span>
+            </h3>
+            <span className="text-[11px] text-slate-500">
+              Chờ giáo viên duyệt mã lớp để đảm bảo an toàn & bảo mật
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {pendingClasses.map((cls) => (
+              <div
+                key={cls.id}
+                onClick={() => {
+                  showToast(
+                    'Đang chờ duyệt',
+                    `Yêu cầu tham gia lớp "${cls.className}" đang chờ giáo viên phê duyệt. Em hãy nhắc thầy/cô duyệt vào lớp nhé!`,
+                    'info'
+                  );
+                }}
+                className={`p-5 rounded-2xl border flex items-center justify-between transition-all cursor-pointer ${
+                  theme === 'light'
+                    ? 'bg-amber-50/80 border-amber-200 hover:border-amber-300 hover:shadow-md'
+                    : 'bg-amber-950/20 border-amber-800/40 hover:border-amber-700/60 hover:shadow-md'
+                }`}
+              >
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-sm text-slate-900 dark:text-white">
+                      {cls.className}
+                    </span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30">
+                      Chờ duyệt
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                    Mã vào lớp: <span className="font-mono font-bold text-red-500">{cls.joinCode}</span>
+                  </p>
+                </div>
+                <div className="text-xs text-amber-600 dark:text-amber-400 font-semibold">
+                  <span>⏳ Nhấp để xem</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Tiêu đề mục lớp học */}
       <div className="flex items-center justify-between">
         <div>
@@ -165,7 +219,7 @@ export const StudentClassList: React.FC = () => {
 
         <div className="flex items-center gap-3">
           <button
-            onClick={() => window.location.reload()}
+            onClick={() => refreshAllData()}
             className="text-xs font-semibold text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 flex items-center gap-1 cursor-pointer transition-colors"
             title="Tải lại dữ liệu mới nhất từ hệ thống"
           >

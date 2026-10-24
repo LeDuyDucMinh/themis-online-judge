@@ -17,6 +17,8 @@ import { ConfirmModal } from './components/common/ConfirmModal';
 import type { Problem } from './types/judge';
 import { ShieldCheck, Heart } from 'lucide-react';
 
+import { storageService } from './services/storageService';
+
 function MainApp() {
   const {
     isAdminAuthenticated,
@@ -30,9 +32,28 @@ function MainApp() {
   } = useJudge();
 
   const [currentTab, setCurrentTab] = useState<'classes' | 'problems' | 'admin_classes' | 'admin_topics' | 'submissions'>(() => {
-    return isAdminAuthenticated ? 'admin_classes' : 'classes';
+    const saved = storageService.getCurrentTab();
+    if (saved === 'submissions') return 'submissions';
+    if (isAdminAuthenticated) {
+      if (saved === 'admin_classes' || saved === 'admin_topics') return saved;
+      return 'admin_classes';
+    } else {
+      if (saved === 'classes') return 'classes';
+      return 'classes';
+    }
   });
   const [selectedProblem, setSelectedProblem] = useState<Problem | null>(null);
+
+  // Khôi phục lại bài tập đang mở sau khi người dùng tải lại trang (F5)
+  useEffect(() => {
+    const savedProblemId = storageService.getSelectedProblemId();
+    if (savedProblemId && problems.length > 0 && !selectedProblem) {
+      const found = problems.find((p) => p.id === savedProblemId);
+      if (found) {
+        setSelectedProblem(found);
+      }
+    }
+  }, [problems, selectedProblem]);
 
   // Luôn lấy dữ liệu bài tập mới nhất (kèm test cases đầy đủ từ IndexedDB)
   const activeSelectedProblem = useMemo(() => {
@@ -47,21 +68,26 @@ function MainApp() {
     if (isAdminAuthenticated) {
       if (currentTab === 'classes' || currentTab === 'problems') {
         setCurrentTab('admin_classes');
+        storageService.setCurrentTab('admin_classes');
       }
       setSelectedProblem(null);
+      storageService.setSelectedProblemId(null);
     } else {
       if (currentTab === 'admin_classes' || currentTab === 'admin_topics') {
         setCurrentTab('classes');
+        storageService.setCurrentTab('classes');
       }
     }
   }, [isAdminAuthenticated]);
 
   const handleSelectProblem = (p: Problem) => {
     setSelectedProblem(p);
+    storageService.setSelectedProblemId(p.id);
   };
 
   const handleBackToList = () => {
     setSelectedProblem(null);
+    storageService.setSelectedProblemId(null);
   };
 
   return (
@@ -91,8 +117,10 @@ function MainApp() {
             return;
           }
           setCurrentTab(tab);
+          storageService.setCurrentTab(tab);
           if (tab !== 'classes' && tab !== 'admin_classes') {
             setSelectedProblem(null);
+            storageService.setSelectedProblemId(null);
           }
         }}
       />
@@ -115,6 +143,7 @@ function MainApp() {
                 onBackToClasses={() => {
                   setActiveClassId(null);
                   setSelectedProblem(null);
+                  storageService.setSelectedProblemId(null);
                 }}
               />
             )

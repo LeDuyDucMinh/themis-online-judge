@@ -404,6 +404,57 @@ OUTPUT:
     assert.ok(res.compilationMessage?.includes('chưa có bộ test case'));
   });
 
+  // ==========================================
+  console.log('\nNhom 8: Luu tru va phuc hoi dieu huong (Reload Persistence)');
+
+  await runTest('storageService luu va khoi phuc activeClassId, currentTab, selectedProblemId', async () => {
+    storageService.setActiveClassId('cls_123');
+    assert.equal(storageService.getActiveClassId(), 'cls_123');
+    storageService.setActiveClassId(null);
+    assert.equal(storageService.getActiveClassId(), null);
+
+    storageService.setCurrentTab('submissions');
+    assert.equal(storageService.getCurrentTab(), 'submissions');
+
+    storageService.setSelectedProblemId('prob_456');
+    assert.equal(storageService.getSelectedProblemId(), 'prob_456');
+    storageService.setSelectedProblemId(null);
+    assert.equal(storageService.getSelectedProblemId(), null);
+  });
+
+  // ==========================================
+  console.log('\nNhom 9: Quy trinh phe duyet hoc sinh vao lop (Student Join Approval)');
+
+  await runTest('Hoc sinh nhap ma vao lop o trang thai cho duyet (pending)', async () => {
+    const testClass = storageService.addClass({ className: 'Lop Chuyen Tin', description: 'Mo ta' });
+    const studentId = 'test_stu_approval';
+    storageService.addStudent({
+      id: studentId,
+      fullName: 'Học sinh Test Duyệt',
+      username: 'test_stu_approval',
+      password: '123',
+      createdAt: new Date().toISOString(),
+    });
+
+    // Nhap ma vao lop
+    const res = storageService.joinClassByCode(studentId, testClass.joinCode);
+    assert.equal(res.success, true);
+    assert.equal(res.pending, true);
+
+    // Hoc sinh chua duoc liet ke trong lop chinh thuc
+    const activeStudents = storageService.getStudentsInClass(testClass.id);
+    assert.ok(!activeStudents.some((s) => s.id === studentId));
+
+    // Hoc sinh co trong danh sach cho duyet cua giao vien
+    const pending = storageService.getPendingStudentsInClass(testClass.id);
+    assert.ok(pending.some((p) => p.student.id === studentId));
+
+    // Giao vien phe duyet
+    storageService.approveStudentJoin(testClass.id, studentId);
+    const approvedStudents = storageService.getStudentsInClass(testClass.id);
+    assert.ok(approvedStudents.some((s) => s.id === studentId));
+  });
+
   console.log('\n====================================================');
   console.log(`KET QUA: ${passedTests}/${totalTestsRun} TESTS PASS (100% THANH CONG)`);
   console.log('====================================================\n');

@@ -289,7 +289,7 @@ export const ThemisGradingTable: React.FC<ThemisGradingTableProps> = ({
                     : 'text-amber-700 dark:text-amber-400'
                 }
               >
-                {submission.totalPointsEarned}
+                {isFullAC ? submission.maxTotalPoints : submission.totalPointsEarned}
               </span>
               <span
                 className={`text-lg font-semibold ${

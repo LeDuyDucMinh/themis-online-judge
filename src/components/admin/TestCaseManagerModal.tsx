@@ -215,18 +215,30 @@ export const TestCaseManagerModal: React.FC<TestCaseManagerModalProps> = ({
       setIsLoadingTests(true);
       setParseError(null);
 
+      const targetPoints = Number(totalPoints) || 10;
+      // Đảm bảo tổng điểm các test case luôn tương ứng với thang điểm bài toán
+      const currentSum = testCases.reduce((sum, tc) => sum + (Number(tc.points) || 0), 0);
+      let finalizedTests = [...testCases];
+      if (finalizedTests.length > 0 && Math.abs(currentSum - targetPoints) > 0.05) {
+        const pts = +(targetPoints / finalizedTests.length).toFixed(2);
+        finalizedTests = finalizedTests.map((tc, idx, arr) => ({
+          ...tc,
+          points: idx === arr.length - 1 ? +(targetPoints - pts * (arr.length - 1)).toFixed(2) : pts,
+        }));
+      }
+
       // 1. BẮT BUỘC AWAIT: Lưu trực tiếp vào Database thực tế (Supabase Cloud REST API / IndexedDB)
-      await apiService.saveTestCases(problem.id, testCases);
+      await apiService.saveTestCases(problem.id, finalizedTests);
 
       // 2. Chỉ khi Database lưu thành công mới gọi cập nhật state bài tập trong React
       await updateProblem(problem.id, {
         timeLimit: Number(timeLimit) || 1.0,
         memoryLimit: Number(memoryLimit) || 1024,
-        totalPoints: Number(totalPoints) || 10,
-        testCases,
+        totalPoints: targetPoints,
+        testCases: finalizedTests,
       });
 
-      showToast('Đã lưu Test Case', `Đã lưu thành công ${testCases.length} bộ test case cho bài [${problem.code}] vào Database`, 'success');
+      showToast('Đã lưu Test Case', `Đã lưu thành công ${finalizedTests.length} bộ test case cho bài [${problem.code}] (Thang điểm: ${targetPoints}đ) vào Database`, 'success');
       onClose();
     } catch (err: unknown) {
       const msg = (err as Error)?.message || 'Lỗi lưu trữ test case vào Database';
@@ -313,19 +325,97 @@ export const TestCaseManagerModal: React.FC<TestCaseManagerModalProps> = ({
             </div>
 
             <div>
-              <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5 mb-1">
-                <Award className="w-3.5 h-3.5 text-amber-400" /> Thang điểm bài toán:
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                  <Award className="w-3.5 h-3.5 text-amber-400" /> Thang điểm:
+                </label>
+                {testCases.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const target = Number(totalPoints) || 10;
+                      const pts = +(target / testCases.length).toFixed(2);
+                      setTestCases((prev) =>
+                        prev.map((tc, idx, arr) => ({
+                          ...tc,
+                          points: idx === arr.length - 1 ? +(target - pts * (arr.length - 1)).toFixed(2) : pts,
+                        }))
+                      );
+                      showToast('Đã chia đều điểm', `Đã chia đều ${target} điểm cho ${testCases.length} test case`, 'info');
+                    }}
+                    className="text-[10px] text-amber-400 hover:text-amber-300 font-semibold underline cursor-pointer"
+                  >
+                    Chia đều lại điểm
+                  </button>
+                )}
+              </div>
               <div className="flex items-center gap-2">
                 <input
                   type="number"
                   min="1"
                   max="1000"
                   value={totalPoints}
-                  onChange={(e) => setTotalPoints(parseInt(e.target.value))}
+                  onChange={(e) => {
+                    const newTotal = parseInt(e.target.value) || 0;
+                    setTotalPoints(newTotal);
+                    if (newTotal > 0 && testCases.length > 0) {
+                      const pts = +(newTotal / testCases.length).toFixed(2);
+                      setTestCases((prev) =>
+                        prev.map((tc, idx, arr) => ({
+                          ...tc,
+                          points: idx === arr.length - 1 ? +(newTotal - pts * (arr.length - 1)).toFixed(2) : pts,
+                        }))
+                      );
+                    }
+                  }}
                   className="w-full px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white font-mono focus:outline-none focus:ring-1 focus:ring-red-500"
                 />
-                <span className="text-xs text-slate-400">điểm</span>
+                <div className="flex items-center gap-1 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTotalPoints(10);
+                      if (testCases.length > 0) {
+                        const pts = +(10 / testCases.length).toFixed(2);
+                        setTestCases((prev) =>
+                          prev.map((tc, idx, arr) => ({
+                            ...tc,
+                            points: idx === arr.length - 1 ? +(10 - pts * (arr.length - 1)).toFixed(2) : pts,
+                          }))
+                        );
+                      }
+                    }}
+                    className={`px-2 py-1 rounded-lg text-xs font-bold border transition-colors cursor-pointer ${
+                      totalPoints === 10
+                        ? 'bg-amber-600 text-white border-amber-500 shadow-sm'
+                        : 'bg-slate-800 text-slate-300 border-slate-700 hover:text-white'
+                    }`}
+                  >
+                    10đ
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTotalPoints(100);
+                      if (testCases.length > 0) {
+                        const pts = +(100 / testCases.length).toFixed(2);
+                        setTestCases((prev) =>
+                          prev.map((tc, idx, arr) => ({
+                            ...tc,
+                            points: idx === arr.length - 1 ? +(100 - pts * (arr.length - 1)).toFixed(2) : pts,
+                          }))
+                        );
+                      }
+                    }}
+                    className={`px-2 py-1 rounded-lg text-xs font-bold border transition-colors cursor-pointer ${
+                      totalPoints === 100
+                        ? 'bg-amber-600 text-white border-amber-500 shadow-sm'
+                        : 'bg-slate-800 text-slate-300 border-slate-700 hover:text-white'
+                    }`}
+                  >
+                    100đ
+                  </button>
+                </div>
               </div>
             </div>
           </div>

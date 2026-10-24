@@ -1089,9 +1089,25 @@ export async function gradeSubmission(
   }
 
   // Sắp xếp tự nhiên (Natural Sort: Test 1, Test 2, ..., Test 9, Test 10, ..., Test 20)
-  const testCases = [...rawTestCases].sort((a, b) =>
+  const sortedTestCases = [...rawTestCases].sort((a, b) =>
     naturalCompare(a.name || a.id, b.name || b.id)
   );
+
+  const targetTotal = Number(problem.totalPoints) > 0 ? Number(problem.totalPoints) : 10;
+  const rawSum = sortedTestCases.reduce((acc, t) => acc + (Number(t.points) > 0 ? Number(t.points) : 0), 0);
+  const testCases = sortedTestCases.map((tc, idx, arr) => {
+    let effectivePts: number;
+    if (rawSum > 0 && Math.abs(rawSum - targetTotal) <= 0.05) {
+      effectivePts = Number(tc.points) || +(targetTotal / arr.length).toFixed(2);
+    } else {
+      const equalPts = +(targetTotal / arr.length).toFixed(2);
+      effectivePts = idx === arr.length - 1 ? +(targetTotal - equalPts * (arr.length - 1)).toFixed(2) : equalPts;
+    }
+    return {
+      ...tc,
+      points: effectivePts,
+    };
+  });
 
   const totalTests = testCases.length;
   const timeLimit = problem.timeLimit || 1.0;
@@ -1130,6 +1146,10 @@ export async function gradeSubmission(
         overallVerdict = firstNonAc ? firstNonAc.verdict : 'WA';
       }
 
+      const finalPointsEarned = (passedCount === totalTests && totalTests > 0)
+        ? (problem.totalPoints || 10)
+        : +j0Outcome.totalPointsEarned.toFixed(2);
+
       return {
         id: submissionId,
         problemId: problem.id,
@@ -1141,7 +1161,7 @@ export async function gradeSubmission(
         sourceCode: rawCode,
         submittedAt,
         status: 'COMPLETED',
-        totalPointsEarned: +j0Outcome.totalPointsEarned.toFixed(2),
+        totalPointsEarned: finalPointsEarned,
         maxTotalPoints: problem.totalPoints || 10,
         passedCount,
         totalTests,

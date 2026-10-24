@@ -281,10 +281,13 @@ Cho dãy số nguyên $A = (a_1, a_2, \\dots, a_n)$. Hãy tìm...
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!code.trim() || !title.trim()) {
-      showToast('Thiếu thông tin', 'Vui lòng nhập Mã bài và Tiêu đề bài tập', 'warning');
+    if (!code.trim()) {
+      showToast('Thiếu thông tin', 'Vui lòng nhập Mã bài tập', 'warning');
       return;
     }
+
+    const finalCode = code.trim().toUpperCase().replace(/\s+/g, '_');
+    const finalTitle = title.trim() || finalCode;
 
     // Lọc bỏ những cặp ví dụ hoàn toàn trống
     const validSamples = samples.filter(
@@ -296,9 +299,19 @@ Cho dãy số nguyên $A = (a_1, a_2, \\dots, a_n)$. Hãy tìm...
       targetClassId = classes[0]?.id || 'NONE';
     }
 
+    const targetPoints = Number(totalPoints) || 10;
+    const rawTests = testCases.length > 0 ? testCases : (problem?.testCases || []);
+    const scaledTests = rawTests.map((tc, idx, arr) => {
+      const pts = +(targetPoints / arr.length).toFixed(2);
+      return {
+        ...tc,
+        points: idx === arr.length - 1 ? +(targetPoints - pts * (arr.length - 1)).toFixed(2) : pts,
+      };
+    });
+
     const problemData = {
-      code: code.trim().toUpperCase().replace(/\s+/g, '_'),
-      title: title.trim(),
+      code: finalCode,
+      title: finalTitle,
       classId: targetClassId,
       author: author.trim() || 'Thầy Minh (FAMINH)',
       topicId,
@@ -306,14 +319,14 @@ Cho dãy số nguyên $A = (a_1, a_2, \\dots, a_n)$. Hãy tìm...
 
       timeLimit: Number(timeLimit) || 1.0,
       memoryLimit: Number(memoryLimit) || 1024,
-      totalPoints: Number(totalPoints) || 10,
+      totalPoints: targetPoints,
       description,
       inputFormat: problem?.inputFormat || '',
       outputFormat: problem?.outputFormat || '',
       constraints: problem?.constraints || '',
       samples: validSamples,
       attachedFile,
-      testCases: testCases.length > 0 ? testCases : (problem?.testCases || []),
+      testCases: scaledTests,
       videoConfig: problem?.videoConfig || {
         enabled: false,
         type: 'youtube',
@@ -515,14 +528,13 @@ Cho dãy số nguyên $A = (a_1, a_2, \\dots, a_n)$. Hãy tìm...
 
               <div className="md:col-span-2">
                 <label className="block text-xs font-semibold text-slate-300 mb-1">
-                  Tiêu đề bài tập: *
+                  Tiêu đề bài tập:
                 </label>
                 <input
                   type="text"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  placeholder="Ví dụ: Bài 2 - Tính tổng các số chẵn"
-                  required
+                  placeholder="Ví dụ: Bài 2 - Tính tổng các số chẵn (không bắt buộc)"
                   className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-red-500"
                 />
               </div>

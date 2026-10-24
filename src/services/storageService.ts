@@ -13,6 +13,9 @@ const STORAGE_KEYS = {
   THEME: 'faminh_judge_theme_v1',
   CLASSES: 'faminh_judge_classes_v1',
   CLASS_STUDENTS: 'faminh_judge_class_students_v1',
+  ACTIVE_CLASS_ID: 'faminh_judge_active_class_id_v1',
+  CURRENT_TAB: 'faminh_judge_current_tab_v1',
+  SELECTED_PROBLEM_ID: 'faminh_judge_selected_problem_id_v1',
 };
 
 // Dọn dẹp bộ nhớ đệm mẫu cũ (v1) nếu có trong trình duyệt người dùng
@@ -406,41 +409,185 @@ export const storageService = {
     localStorage.setItem(STORAGE_KEYS.CLASS_STUDENTS, JSON.stringify(list));
   },
 
+  getActiveClassId(): string | null {
+    try {
+      return localStorage.getItem(STORAGE_KEYS.ACTIVE_CLASS_ID) || null;
+    } catch {
+      return null;
+    }
+  },
+
+  setActiveClassId(id: string | null): void {
+    try {
+      if (id) {
+        localStorage.setItem(STORAGE_KEYS.ACTIVE_CLASS_ID, id);
+      } else {
+        localStorage.removeItem(STORAGE_KEYS.ACTIVE_CLASS_ID);
+      }
+    } catch {
+      // ignore
+    }
+  },
+
+  getCurrentTab(): string | null {
+    try {
+      return localStorage.getItem(STORAGE_KEYS.CURRENT_TAB) || null;
+    } catch {
+      return null;
+    }
+  },
+
+  setCurrentTab(tab: string): void {
+    try {
+      localStorage.setItem(STORAGE_KEYS.CURRENT_TAB, tab);
+    } catch {
+      // ignore
+    }
+  },
+
+  getSelectedProblemId(): string | null {
+    try {
+      return localStorage.getItem(STORAGE_KEYS.SELECTED_PROBLEM_ID) || null;
+    } catch {
+      return null;
+    }
+  },
+
+  setSelectedProblemId(id: string | null): void {
+    try {
+      if (id) {
+        localStorage.setItem(STORAGE_KEYS.SELECTED_PROBLEM_ID, id);
+      } else {
+        localStorage.removeItem(STORAGE_KEYS.SELECTED_PROBLEM_ID);
+      }
+    } catch {
+      // ignore
+    }
+  },
+
   getStudentsInClass(classId: string): StudentUser[] {
-    const relations = this.getClassStudents().filter((cs) => cs.classId === classId);
+    const relations = this.getClassStudents().filter(
+      (cs) => cs.classId === classId && (!cs.status || cs.status === 'approved')
+    );
     const studentIds = new Set(relations.map((cs) => cs.studentId));
     return this.getStudents().filter((s) => studentIds.has(s.id));
   },
 
+  getPendingStudentsInClass(classId: string): Array<{ student: StudentUser; joinedAt: string }> {
+    const relations = this.getClassStudents().filter(
+      (cs) => cs.classId === classId && cs.status === 'pending'
+    );
+    const studentMap = new Map(this.getStudents().map((s) => [s.id, s]));
+    const result: Array<{ student: StudentUser; joinedAt: string }> = [];
+    for (const rel of relations) {
+      const stu = studentMap.get(rel.studentId) || {
+        id: rel.studentId,
+        fullName: 'Học sinh',
+        username: rel.studentId,
+        password: '',
+        createdAt: rel.joinedAt,
+      };
+      result.push({ student: stu, joinedAt: rel.joinedAt });
+    }
+    return result;
+  },
+
   getClassesForStudent(studentId: string): Classroom[] {
-    const relations = this.getClassStudents().filter((cs) => cs.studentId === studentId);
+    const relations = this.getClassStudents().filter(
+      (cs) => cs.studentId === studentId && (!cs.status || cs.status === 'approved')
+    );
     const classIds = new Set(relations.map((cs) => cs.classId));
     return this.getClasses().filter((c) => classIds.has(c.id));
   },
 
-  joinClassByCode(studentId: string, joinCode: string): { success: boolean; message: string; classroom?: Classroom } {
+  getPendingClassesForStudent(studentId: string): Classroom[] {
+    const relations = this.getClassStudents().filter(
+      (cs) => cs.studentId === studentId && cs.status === 'pending'
+    );
+    const classIds = new Set(relations.map((cs) => cs.classId));
+    return this.getClasses().filter((c) => classIds.has(c.id));
+  },
+
+  joinClassByCode(studentId: string, joinCode: string): {
+    success: boolean;
+    message: string;
+    pending?: boolean;
+    classroom?: Classroom;
+  } {
     const targetClass = this.getClassByJoinCode(joinCode);
     if (!targetClass) {
       return { success: false, message: 'Mã tham gia lớp học không hợp lệ hoặc lớp không tồn tại!' };
     }
     const relations = this.getClassStudents();
-    const alreadyJoined = relations.some((cs) => cs.classId === targetClass.id && cs.studentId === studentId);
-    if (alreadyJoined) {
-      return { success: true, message: `Bạn đã tham gia lớp "${targetClass.className}" từ trước rồi!`, classroom: targetClass };
+    const existing = relations.find((cs) => cs.classId === targetClass.id && cs.studentId === studentId);
+    if (existing) {
+      if (!existing.status || existing.status === 'approved') {
+        return {
+          success: true,
+          pending: false,
+          message: `Bạn đã là thành viên chính thức của lớp "${targetClass.className}"!`,
+          classroom: targetClass,
+        };
+      } else if (existing.status === 'pending') {
+        return {
+          success: true,
+          pending: true,
+          message: `Yêu cầu tham gia lớp "${targetClass.className}" của bạn đang chờ giáo viên duyệt. Vui lòng liên hệ giáo viên để được vào lớp!`,
+          classroom: targetClass,
+        };
+      } else {
+        existing.status = 'pending';
+        existing.joinedAt = new Date().toISOString();
+        this.saveClassStudents(relations);
+        return {
+          success: true,
+          pending: true,
+          message: `Đã gửi lại yêu cầu tham gia lớp "${targetClass.className}". Vui lòng chờ giáo viên duyệt!`,
+          classroom: targetClass,
+        };
+      }
     }
     const newRelation: ClassStudent = {
       classId: targetClass.id,
       studentId,
       joinedAt: new Date().toISOString(),
+      status: 'pending',
     };
     this.saveClassStudents([...relations, newRelation]);
-    return { success: true, message: `Tham gia thành công lớp "${targetClass.className}"!`, classroom: targetClass };
+    return {
+      success: true,
+      pending: true,
+      message: `Đã gửi yêu cầu tham gia lớp "${targetClass.className}". Vui lòng chờ giáo viên duyệt để vào lớp!`,
+      classroom: targetClass,
+    };
+  },
+
+  approveStudentJoin(classId: string, studentId: string): void {
+    const relations = this.getClassStudents();
+    const updated = relations.map((cs) => {
+      if (cs.classId === classId && cs.studentId === studentId) {
+        return { ...cs, status: 'approved' as const };
+      }
+      return cs;
+    });
+    this.saveClassStudents(updated);
+  },
+
+  rejectStudentJoin(classId: string, studentId: string): void {
+    const relations = this.getClassStudents().filter(
+      (cs) => !(cs.classId === classId && cs.studentId === studentId)
+    );
+    this.saveClassStudents(relations);
   },
 
   enrollStudentToClass(classId: string, studentId: string): void {
     const relations = this.getClassStudents();
-    if (!relations.some((cs) => cs.classId === classId && cs.studentId === studentId)) {
-      this.saveClassStudents([...relations, { classId, studentId, joinedAt: new Date().toISOString() }]);
+    const existing = relations.find((cs) => cs.classId === classId && cs.studentId === studentId);
+    if (existing) {
+      existing.status = 'approved';
+      this.saveClassStudents([...relations]);
+    } else {
+      this.saveClassStudents([...relations, { classId, studentId, joinedAt: new Date().toISOString(), status: 'approved' }]);
     }
   },
 

@@ -72,11 +72,15 @@ interface JudgeContextType {
   setActiveClassId: (id: string | null) => void;
   activeClass: Classroom | null;
   studentClasses: Classroom[];
+  pendingClasses: Classroom[];
   createClass: (className: string, description: string) => Promise<Classroom>;
   updateClass: (id: string, data: Partial<Classroom>) => Promise<void>;
   deleteClass: (id: string) => Promise<void>;
-  joinClassByCode: (joinCode: string) => Promise<{ success: boolean; message: string; classroom?: Classroom }>;
+  joinClassByCode: (joinCode: string) => Promise<{ success: boolean; message: string; pending?: boolean; classroom?: Classroom }>;
   getStudentsInClass: (classId: string) => StudentUser[];
+  getPendingStudentsInClass: (classId: string) => Array<{ student: StudentUser; joinedAt: string }>;
+  approveStudentJoin: (classId: string, studentId: string) => Promise<void>;
+  rejectStudentJoin: (classId: string, studentId: string) => Promise<void>;
   enrollStudentToClass: (classId: string, studentId: string) => Promise<void>;
   removeStudentFromClass: (classId: string, studentId: string) => Promise<void>;
 
@@ -196,7 +200,12 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   // Multi-Classroom State
   const [classes, setClasses] = useState<Classroom[]>(() => storageService.getClasses());
   const [classStudents, setClassStudents] = useState<ClassStudent[]>(() => storageService.getClassStudents());
-  const [activeClassId, setActiveClassId] = useState<string | null>(null);
+  const [activeClassId, setActiveClassIdState] = useState<string | null>(() => storageService.getActiveClassId());
+
+  const setActiveClassId = (id: string | null) => {
+    setActiveClassIdState(id);
+    storageService.setActiveClassId(id);
+  };
 
   const activeClass = useMemo(() => {
     return activeClassId ? classes.find((c) => c.id === activeClassId) || null : null;
@@ -204,9 +213,12 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
   const studentClasses = useMemo(() => {
     if (!currentStudent) return [];
-    const relations = classStudents.filter((cs) => cs.studentId === currentStudent.id);
-    const classIds = new Set(relations.map((cs) => cs.classId));
-    return classes.filter((c) => classIds.has(c.id));
+    return storageService.getClassesForStudent(currentStudent.id);
+  }, [currentStudent, classStudents, classes]);
+
+  const pendingClasses = useMemo(() => {
+    if (!currentStudent) return [];
+    return storageService.getPendingClassesForStudent(currentStudent.id);
   }, [currentStudent, classStudents, classes]);
 
   const createClass = async (className: string, description: string): Promise<Classroom> => {
@@ -252,7 +264,7 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     showToast('Đã xóa lớp học', 'Đã xóa lớp học thành công', 'info');
   };
 
-  const joinClassByCode = async (joinCode: string): Promise<{ success: boolean; message: string; classroom?: Classroom }> => {
+  const joinClassByCode = async (joinCode: string): Promise<{ success: boolean; message: string; pending?: boolean; classroom?: Classroom }> => {
     if (!currentStudent) {
       return { success: false, message: 'Vui lòng đăng nhập tài khoản học sinh trước khi tham gia lớp!' };
     }
@@ -266,11 +278,41 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       } catch (e) {
         console.warn('Lỗi lưu quan hệ học sinh lên Cloud:', e);
       }
-      showToast(res.message, `Lớp: ${res.classroom?.className}`, 'success');
+      showToast(res.pending ? 'Đã gửi yêu cầu tham gia' : 'Tham gia lớp thành công', res.message, res.pending ? 'info' : 'success');
     } else {
       showToast('Không thể tham gia', res.message, 'error');
     }
     return res;
+  };
+
+  const approveStudentJoin = async (classId: string, studentId: string): Promise<void> => {
+    storageService.approveStudentJoin(classId, studentId);
+    const updatedRelations = storageService.getClassStudents();
+    setClassStudents(updatedRelations);
+    try {
+      await apiService.saveClassStudents(updatedRelations);
+    } catch (e) {
+      console.warn('Lỗi ghi duyệt học sinh lên Cloud:', e);
+    }
+    const student = storageService.getStudents().find((s) => s.id === studentId);
+    showToast('Đã duyệt học sinh', `Đã duyệt học sinh ${student?.fullName || ''} vào lớp thành công!`, 'success');
+  };
+
+  const rejectStudentJoin = async (classId: string, studentId: string): Promise<void> => {
+    storageService.rejectStudentJoin(classId, studentId);
+    const updatedRelations = storageService.getClassStudents();
+    setClassStudents(updatedRelations);
+    try {
+      await apiService.saveClassStudents(updatedRelations);
+    } catch (e) {
+      console.warn('Lỗi ghi từ chối học sinh lên Cloud:', e);
+    }
+    const student = storageService.getStudents().find((s) => s.id === studentId);
+    showToast('Đã từ chối', `Đã từ chối yêu cầu tham gia của ${student?.fullName || 'học sinh'}`, 'info');
+  };
+
+  const getPendingStudentsInClass = (classId: string): Array<{ student: StudentUser; joinedAt: string }> => {
+    return storageService.getPendingStudentsInClass(classId);
   };
 
   const getStudentsInClass = (classId: string): StudentUser[] => {
@@ -1120,11 +1162,15 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         setActiveClassId,
         activeClass,
         studentClasses,
+        pendingClasses,
         createClass,
         updateClass,
         deleteClass,
         joinClassByCode,
         getStudentsInClass,
+        getPendingStudentsInClass,
+        approveStudentJoin,
+        rejectStudentJoin,
         enrollStudentToClass,
         removeStudentFromClass,
         topics,

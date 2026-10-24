@@ -48,6 +48,7 @@ export interface ClassStudent {
   classId: string;
   studentId: string;
   joinedAt: string;
+  status?: 'pending' | 'approved' | 'rejected';
 }
 
 export interface Problem {

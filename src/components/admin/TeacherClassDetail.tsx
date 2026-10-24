@@ -29,6 +29,9 @@ export const TeacherClassDetail: React.FC<TeacherClassDetailProps> = ({ classId 
     classes,
     setActiveClassId,
     getStudentsInClass,
+    getPendingStudentsInClass,
+    approveStudentJoin,
+    rejectStudentJoin,
     students,
     enrollStudentToClass,
     removeStudentFromClass,
@@ -54,6 +57,7 @@ export const TeacherClassDetail: React.FC<TeacherClassDetailProps> = ({ classId 
 
   const currentClass = classes.find((c) => c.id === classId);
   const classStudents = getStudentsInClass(classId);
+  const pendingStudents = getPendingStudentsInClass(classId);
   const classProblems = problems.filter((p) => isProblemInClass(p, classId, topics));
 
   if (!currentClass) {
@@ -199,13 +203,18 @@ export const TeacherClassDetail: React.FC<TeacherClassDetailProps> = ({ classId 
               </div>
             </div>
 
-            <div className={`px-4 py-3 rounded-2xl border text-center min-w-[90px] ${
+            <div className={`px-4 py-3 rounded-2xl border text-center min-w-[90px] relative ${
               theme === 'light' ? 'bg-white border-slate-200' : 'bg-slate-900/80 border-slate-800'
             }`}>
               <div className="text-xl font-black text-blue-600 dark:text-blue-400">{classStudents.length}</div>
               <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 flex items-center justify-center gap-1">
                 <Users className="w-3 h-3 text-blue-500" /> Học sinh
               </div>
+              {pendingStudents.length > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500 text-slate-950 shadow">
+                  +{pendingStudents.length}
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -254,6 +263,11 @@ export const TeacherClassDetail: React.FC<TeacherClassDetailProps> = ({ classId 
         >
           <Users className="w-4 h-4" />
           <span>Danh sách Học sinh ({classStudents.length})</span>
+          {pendingStudents.length > 0 && (
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-500 text-slate-950 animate-pulse">
+              {pendingStudents.length} chờ duyệt
+            </span>
+          )}
         </button>
       </div>
 
@@ -271,9 +285,93 @@ export const TeacherClassDetail: React.FC<TeacherClassDetailProps> = ({ classId 
         </div>
       )}
 
-      {/* Tab 2: Danh sách Học sinh (Students) */}
+      {/* Tab 3: Danh sách Học sinh (Students) */}
       {activeTab === 'students' && (
         <div className="space-y-5 animate-in fade-in duration-150">
+          {/* Hộp duyệt học sinh chờ tham gia lớp học */}
+          {pendingStudents.length > 0 && (
+            <div className={`p-5 rounded-2xl border-2 space-y-3 ${
+              theme === 'light'
+                ? 'bg-amber-50/90 border-amber-300 shadow-sm'
+                : 'bg-amber-950/30 border-amber-600/50 shadow-sm'
+            }`}>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-ping" />
+                  <h4 className="text-sm font-black text-amber-800 dark:text-amber-300">
+                    Yêu cầu tham gia lớp chờ duyệt ({pendingStudents.length})
+                  </h4>
+                  <span className="text-[11px] text-amber-700/80 dark:text-amber-400 font-medium hidden sm:inline">
+                    • Học sinh đã nhập mã lớp, cần giáo viên phê duyệt để đảm bảo bảo mật
+                  </span>
+                </div>
+
+                {pendingStudents.length > 1 && (
+                  <button
+                    onClick={async () => {
+                      for (const p of pendingStudents) {
+                        await approveStudentJoin(classId, p.student.id);
+                      }
+                      showToast('Duyệt thành công', `Đã duyệt tất cả ${pendingStudents.length} học sinh vào lớp`, 'success');
+                    }}
+                    className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md transition-all cursor-pointer flex items-center gap-1.5"
+                  >
+                    <Check className="w-3.5 h-3.5" />
+                    <span>Duyệt tất cả ({pendingStudents.length})</span>
+                  </button>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 pt-1">
+                {pendingStudents.map(({ student: stu, joinedAt }) => (
+                  <div
+                    key={stu.id}
+                    className={`p-3.5 rounded-xl border flex items-center justify-between gap-3 ${
+                      theme === 'light' ? 'bg-white border-amber-200' : 'bg-slate-900 border-amber-800/40'
+                    }`}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-lg bg-amber-500/15 text-amber-600 dark:text-amber-400 font-bold flex items-center justify-center text-xs shrink-0">
+                          {stu.fullName.charAt(0).toUpperCase()}
+                        </div>
+                        <div className="truncate">
+                          <div className="font-bold text-slate-900 dark:text-white truncate text-xs">
+                            {stu.fullName}
+                          </div>
+                          <div className="font-mono text-[11px] text-blue-500 truncate">
+                            @{stu.username}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="text-[10px] text-slate-400 mt-1 flex items-center gap-1">
+                        <Calendar className="w-3 h-3" />
+                        <span>Gửi lúc: {new Date(joinedAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} ({new Date(joinedAt).toLocaleDateString('vi-VN')})</span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        onClick={() => approveStudentJoin(classId, stu.id)}
+                        className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all shadow-sm flex items-center gap-1 cursor-pointer"
+                        title="Duyệt cho học sinh vào lớp"
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                        <span>Duyệt</span>
+                      </button>
+                      <button
+                        onClick={() => rejectStudentJoin(classId, stu.id)}
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-500/10 transition-colors cursor-pointer"
+                        title="Từ chối yêu cầu"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           {/* Top Bar Học sinh */}
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex-1 min-w-[240px] relative">
