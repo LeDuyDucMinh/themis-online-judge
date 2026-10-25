@@ -29,6 +29,7 @@ function MainApp() {
     isServerConfigModalOpen,
     setIsServerConfigModalOpen,
     problems,
+    refreshAllData,
   } = useJudge();
 
   const [currentTab, setCurrentTab] = useState<'classes' | 'problems' | 'admin_classes' | 'admin_topics' | 'submissions'>(() => {
@@ -81,6 +82,26 @@ function MainApp() {
       }
     }
   }, [isAdminAuthenticated, isAuthLoading]);
+
+  // Tự động làm mới dữ liệu từ hệ thống mỗi khi người dùng chuyển trang / tab
+  useEffect(() => {
+    refreshAllData().catch(() => {});
+  }, [currentTab, activeClassId]);
+
+  // Tự động làm mới dữ liệu khi người dùng quay lại tab trình duyệt
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        refreshAllData().catch(() => {});
+      }
+    };
+    window.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('focus', handleVisibility);
+    return () => {
+      window.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('focus', handleVisibility);
+    };
+  }, []);
 
   const handleSelectProblem = (p: Problem) => {
     setSelectedProblem(p);

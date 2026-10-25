@@ -11,7 +11,6 @@ import {
   Sparkles,
   KeyRound,
   FileCode2,
-  RefreshCw,
 } from 'lucide-react';
 
 
@@ -27,7 +26,6 @@ export const StudentClassList: React.FC = () => {
     getProblemStatus,
     theme,
     refreshAllData,
-    isRefreshing,
     showToast,
   } = useJudge();
 
@@ -130,21 +128,6 @@ export const StudentClassList: React.FC = () => {
               </div>
             </div>
 
-            {/* Nút Làm mới dữ liệu */}
-            <button
-              onClick={() => refreshAllData()}
-              disabled={isRefreshing}
-              className={`inline-flex items-center gap-1.5 px-4 py-3 rounded-2xl border text-xs font-semibold transition-all cursor-pointer disabled:opacity-50 ${
-                theme === 'light'
-                  ? 'bg-white hover:bg-slate-100 text-slate-700 border-slate-300'
-                  : 'bg-slate-800 hover:bg-slate-750 text-slate-200 border-slate-700'
-              }`}
-              title="Cập nhật lớp học và bài tập mới nhất từ Database"
-            >
-              <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-red-500' : 'text-slate-400'}`} />
-              <span>{isRefreshing ? 'Đang tải...' : 'Làm mới'}</span>
-            </button>
-
             {/* Nút Tham gia lớp */}
             <button
               onClick={() => setIsJoinModalOpen(true)}
@@ -222,15 +205,6 @@ export const StudentClassList: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-3">
-          <button
-            onClick={() => refreshAllData()}
-            className="text-xs font-semibold text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 flex items-center gap-1 cursor-pointer transition-colors"
-            title="Tải lại dữ liệu mới nhất từ hệ thống"
-          >
-            <RefreshCw className="w-3.5 h-3.5" />
-            <span>Làm mới</span>
-          </button>
-
           <button
             onClick={() => setIsJoinModalOpen(true)}
             className="text-xs font-bold text-red-600 dark:text-red-400 hover:underline flex items-center gap-1 cursor-pointer"
