@@ -34,6 +34,8 @@ export const SubmissionHistory: React.FC = () => {
     currentStudent,
     students,
     getStudentsInClass,
+    activeClassId,
+    refreshAllData,
   } = useJudge();
   const [selectedSub, setSelectedSub] = useState<Submission | null>(null);
 
@@ -51,14 +53,35 @@ export const SubmissionHistory: React.FC = () => {
     }
   };
 
-  // Bộ lọc theo Lớp học (Multi-Classroom)
+  // Bộ lọc theo Lớp học (Multi-Classroom) - ưu tiên lớp hiện tại của giáo viên
   const [selectedClassId, setSelectedClassIdState] = useState<string>(() => {
-    return storageService.getSubmissionsClassFilter() || 'ALL';
+    const saved = storageService.getSubmissionsClassFilter();
+    if (saved) return saved;
+    return activeClassId || 'ALL';
   });
   const setSelectedClassId = (id: string) => {
     setSelectedClassIdState(id);
     storageService.setSubmissionsClassFilter(id);
   };
+
+  // Tự động đồng bộ với activeClassId khi giáo viên đổi lớp trên thanh điều hướng
+  useEffect(() => {
+    if (activeClassId && classes.some((c) => c.id === activeClassId)) {
+      setSelectedClassIdState(activeClassId);
+    }
+  }, [activeClassId, classes]);
+
+  // Bộ lọc: Mặc định chỉ hiển thị bài nộp mới nhất của mỗi học sinh cho từng bài tập
+  const [onlyLatest, setOnlyLatest] = useState<boolean>(true);
+
+  // Tự động làm mới dữ liệu ngầm khi mở màn hình Lịch sử nộp bài & Polling nhận bài nộp mới
+  useEffect(() => {
+    refreshAllData().catch(() => {});
+    const interval = setInterval(() => {
+      refreshAllData().catch(() => {});
+    }, 15000);
+    return () => clearInterval(interval);
+  }, [refreshAllData]);
 
   // Chế độ xem dành riêng cho GIÁO VIÊN: 'log' = Nhật ký từng lần nộp, 'topic_grades' = Bảng điểm theo Chủ đề
   const [viewMode, setViewModeState] = useState<'log' | 'topic_grades'>(() => {
@@ -79,7 +102,7 @@ export const SubmissionHistory: React.FC = () => {
     }
   }, [topics, selectedTopicId]);
 
-  // Lọc danh sách bài nộp theo đúng phân quyền và Lớp học:
+  // Lọc danh sách bài nộp theo đúng phân quyền, học sinh trong lớp và chế độ mới nhất:
   const displayedSubmissions = useMemo(() => {
     let list = submissions;
     if (!isAdminAuthenticated) {
@@ -96,13 +119,48 @@ export const SubmissionHistory: React.FC = () => {
     }
 
     if (selectedClassId !== 'ALL') {
-      list = list.filter(
-        (sub) => sub.classId === selectedClassId || (!sub.classId && selectedClassId === 'class_default_faminh')
+      const enrolled = getStudentsInClass(selectedClassId);
+      const enrolledIds = new Set(enrolled.map((s) => s.id));
+      const enrolledUsernames = new Set(enrolled.map((s) => (s.username || '').trim().toLowerCase()));
+      const enrolledNames = new Set(enrolled.map((s) => (s.fullName || '').trim().toLowerCase()));
+
+      list = list.filter((sub) => {
+        const matchesClass = sub.classId === selectedClassId || (!sub.classId && selectedClassId === 'class_default_faminh');
+        if (!matchesClass) return false;
+        // Kiểm tra học sinh có thực sự thuộc lớp này không
+        const matchId = sub.userId && enrolledIds.has(sub.userId.trim());
+        const matchUser = sub.userId && enrolledUsernames.has(sub.userId.trim().toLowerCase());
+        const matchName = sub.userName && enrolledNames.has(sub.userName.trim().toLowerCase());
+        return Boolean(matchId || matchUser || matchName);
+      });
+    }
+
+    // Nếu bật chế độ "Chỉ hiện bài nộp mới nhất của mỗi học sinh"
+    // Giữ lại 1 bài mới nhất cho mỗi cặp (Học sinh + Bài tập), tránh bài của cùng 1 bạn đè đẩy các học sinh khác xuống
+    if (onlyLatest) {
+      const seen = new Set<string>();
+      const deduped: Submission[] = [];
+      const sorted = [...list].sort(
+        (a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime()
+      );
+      for (const sub of sorted) {
+        const userKey = (sub.userId || sub.userName || '').trim().toLowerCase();
+        const probKey = (sub.problemId || sub.problemCode || '').trim().toLowerCase();
+        const key = `${userKey}_${probKey}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          deduped.push(sub);
+        }
+      }
+      list = deduped;
+    } else {
+      list = [...list].sort(
+        (a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime()
       );
     }
 
     return list;
-  }, [submissions, isAdminAuthenticated, currentStudent, selectedClassId]);
+  }, [submissions, isAdminAuthenticated, currentStudent, selectedClassId, onlyLatest, getStudentsInClass]);
 
 
   // Dữ liệu cho Chế độ 2: Bảng điểm theo Chủ đề
@@ -328,6 +386,23 @@ export const SubmissionHistory: React.FC = () => {
               ))}
             </select>
           </div>
+
+          {/* Nút lọc Chỉ hiện lần nộp mới nhất của mỗi học sinh */}
+          {(viewMode === 'log' || !isAdminAuthenticated) && (
+            <button
+              type="button"
+              onClick={() => setOnlyLatest(!onlyLatest)}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
+                onlyLatest
+                  ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/25'
+                  : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-white hover:bg-slate-700/50'
+              }`}
+              title="Bật/Tắt chế độ chỉ hiển thị bài nộp mới nhất của mỗi học sinh cho từng bài tập"
+            >
+              <CheckCircle2 className={`w-3.5 h-3.5 ${onlyLatest ? 'text-emerald-400' : 'text-slate-500'}`} />
+              <span>{onlyLatest ? 'Mới nhất mỗi học sinh' : 'Tất cả lần nộp'}</span>
+            </button>
+          )}
 
           {/* 2 Nút chuyển chế độ xem dành riêng cho Giáo viên */}
           {isAdminAuthenticated && (
