@@ -310,8 +310,9 @@ export const AuthModal: React.FC = () => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="bg-slate-900 border border-red-500/30 rounded-3xl max-w-md w-full shadow-2xl overflow-hidden relative text-white">
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
+      <div className="flex min-h-full items-center justify-center p-4">
+        <div className="bg-slate-900 border border-red-500/30 rounded-3xl max-w-md w-full shadow-2xl overflow-hidden relative text-white my-auto">
         {/* Dải gradient viền trên đầu thẻ */}
         <div className="h-1.5 w-full bg-gradient-to-r from-red-600 via-rose-500 to-amber-500" />
 
@@ -813,6 +814,7 @@ export const AuthModal: React.FC = () => {
             </div>
           </form>
         )}
+        </div>
       </div>
     </div>
   );
