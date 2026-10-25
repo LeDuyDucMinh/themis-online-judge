@@ -65,20 +65,52 @@ export const ProblemView: React.FC<ProblemViewProps> = ({ problem, onBackToList 
 
   // Lấy lịch sử nộp bài gần nhất của bài này (cho đúng học sinh đang đăng nhập)
   useEffect(() => {
+    let isMounted = true;
     const existing = submissions.find((s) => {
       if (s.problemId !== problem.id) return false;
       if (isAdminAuthenticated) return true;
       if (!currentStudent) return false;
       return (
-        (s.userId && s.userId.toLowerCase() === currentStudent.username.toLowerCase()) ||
+        (s.userId && (
+          s.userId.toLowerCase() === currentStudent.username.toLowerCase() ||
+          s.userId === currentStudent.id
+        )) ||
         (s.userName && s.userName.trim().toLowerCase() === currentStudent.fullName.trim().toLowerCase())
       );
     });
+
     if (existing) {
-      setLatestSubmission(existing);
+      setLatestSubmission((prev) => {
+        // Nếu bài nộp hiện tại trong giao diện đã có testResults và cùng id thì luôn bảo tồn testResults
+        if (
+          prev &&
+          prev.id === existing.id &&
+          prev.testResults &&
+          prev.testResults.length > 0 &&
+          (!existing.testResults || existing.testResults.length === 0)
+        ) {
+          return { ...existing, testResults: prev.testResults };
+        }
+        return existing;
+      });
+
+      // Nếu bài nộp trên danh sách chưa có testResults hoặc rỗng, tự động nạp từ Database
+      if ((!existing.testResults || existing.testResults.length === 0) && existing.id) {
+        apiService.fetchSubmissionById(existing.id).then((full) => {
+          if (isMounted && full?.testResults && full.testResults.length > 0) {
+            setLatestSubmission((prev) =>
+              prev?.id === existing.id ? { ...prev, testResults: full.testResults } : prev
+            );
+          }
+        }).catch(() => {});
+      }
     } else {
       setLatestSubmission(null);
     }
+
+    return () => {
+      isMounted = false;
+    };
   }, [problem.id, submissions, isAdminAuthenticated, currentStudent]);
 
   // Cập nhật code khi chuyển đổi ngôn ngữ

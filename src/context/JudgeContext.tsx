@@ -669,8 +669,18 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
           return Boolean(matchId || matchUser || matchName);
         });
 
-        setSubmissions(activeSubs);
-        storageService.saveSubmissions(activeSubs);
+        const currentSubMap = new Map(submissions.map((s) => [s.id, s]));
+        const enrichedSubs = activeSubs.map((sub) => {
+          if (sub.testResults && sub.testResults.length > 0) return sub;
+          const localMatch = currentSubMap.get(sub.id);
+          if (localMatch?.testResults && localMatch.testResults.length > 0) {
+            return { ...sub, testResults: localMatch.testResults };
+          }
+          return sub;
+        });
+
+        setSubmissions(enrichedSubs);
+        storageService.saveSubmissions(enrichedSubs);
       }
     } catch (err) {
       console.warn('[JudgeContext] Lỗi refreshAllData:', err);

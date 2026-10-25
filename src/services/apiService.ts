@@ -1,4 +1,4 @@
-import type { Problem, TestCase, Submission, Classroom, ClassStudent, StudentUser, Topic } from '../types/judge';
+import type { Problem, TestCase, Submission, Classroom, ClassStudent, StudentUser, Topic, TestResult } from '../types/judge';
 import { idbService } from './db';
 import { storageService, DEFAULT_ADMIN_PASSWORD } from './storageService';
 
@@ -836,7 +836,7 @@ export const apiService = {
     let cloudSubmissions: Submission[] = [];
     if (isSupabaseConfigured()) {
       try {
-        const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/submissions?select=id,problem_id,problem_code,problem_title,user_id,user_name,class_id,language,status,verdict,total_points_earned,max_total_points,passed_count,total_tests,execution_time,memory,compilation_message,submitted_at,source_code&order=submitted_at.desc&limit=60`;
+        const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/submissions?select=id,problem_id,problem_code,problem_title,user_id,user_name,class_id,language,status,verdict,total_points_earned,max_total_points,passed_count,total_tests,execution_time,memory,compilation_message,submitted_at,source_code,test_results&order=submitted_at.desc&limit=60`;
         const res = await fetch(targetUrl, {
           headers: this.getAntiCacheHeaders(),
           cache: 'no-store',
@@ -844,28 +844,39 @@ export const apiService = {
         if (res.ok) {
           const list = await res.json();
           if (Array.isArray(list)) {
-            cloudSubmissions = list.map((item: any): Submission => ({
-              id: item.id,
-              problemId: item.problem_id,
-              problemCode: item.problem_code,
-              problemTitle: item.problem_title || item.problem_code || '',
-              userId: item.user_id,
-              userName: item.user_name,
-              classId: item.class_id,
-              language: item.language,
-              sourceCode: item.source_code,
-              status: (item.status as any) || 'COMPLETED',
-              overallVerdict: item.verdict,
-              totalPointsEarned: Number(item.total_points_earned) || 0,
-              maxTotalPoints: Number(item.max_total_points) || 10,
-              passedCount: Number(item.passed_count) || 0,
-              totalTests: Number(item.total_tests) || 0,
-              executionTime: Number(item.execution_time) || 0,
-              memory: Number(item.memory) || 0,
-              compilationMessage: item.compilation_message,
-              submittedAt: item.submitted_at,
-              testResults: item.test_results || [],
-            }));
+            cloudSubmissions = list.map((item: any): Submission => {
+              let parsedTestResults: TestResult[] = [];
+              if (Array.isArray(item.test_results)) {
+                parsedTestResults = item.test_results;
+              } else if (typeof item.test_results === 'string' && item.test_results.trim()) {
+                try {
+                  const p = JSON.parse(item.test_results);
+                  if (Array.isArray(p)) parsedTestResults = p;
+                } catch {}
+              }
+              return {
+                id: item.id,
+                problemId: item.problem_id,
+                problemCode: item.problem_code,
+                problemTitle: item.problem_title || item.problem_code || '',
+                userId: item.user_id,
+                userName: item.user_name,
+                classId: item.class_id,
+                language: item.language,
+                sourceCode: item.source_code,
+                status: (item.status as any) || 'COMPLETED',
+                overallVerdict: item.verdict,
+                totalPointsEarned: Number(item.total_points_earned) || 0,
+                maxTotalPoints: Number(item.max_total_points) || 10,
+                passedCount: Number(item.passed_count) || 0,
+                totalTests: Number(item.total_tests) || 0,
+                executionTime: Number(item.execution_time) || 0,
+                memory: Number(item.memory) || 0,
+                compilationMessage: item.compilation_message,
+                submittedAt: item.submitted_at,
+                testResults: parsedTestResults,
+              };
+            });
           }
         }
       } catch (err) {
@@ -877,11 +888,24 @@ export const apiService = {
       // Khi Cloud đã kết nối, Cloud là nguồn chân lý duy nhất cho danh sách nộp bài
       // Cập nhật đồng bộ ngược vào IndexedDB và localStorage (loại bỏ hoàn toàn Zombie Resurrect bài nộp cũ)
       try {
+        const existingLocalSubs = await idbService.getAllSubmissions().catch(() => []);
+        const localSubMap = new Map(existingLocalSubs.map((s) => [s.id, s]));
+
+        const enrichedSubmissions = cloudSubmissions.map((cs) => {
+          if (cs.testResults && cs.testResults.length > 0) return cs;
+          const localMatch = localSubMap.get(cs.id);
+          if (localMatch?.testResults && localMatch.testResults.length > 0) {
+            return { ...cs, testResults: localMatch.testResults };
+          }
+          return cs;
+        });
+
         await idbService.clearSubmissions();
-        if (cloudSubmissions.length > 0) {
-          await idbService.saveSubmissions(cloudSubmissions);
+        if (enrichedSubmissions.length > 0) {
+          await idbService.saveSubmissions(enrichedSubmissions);
         }
-        storageService.saveSubmissions(cloudSubmissions);
+        storageService.saveSubmissions(enrichedSubmissions);
+        return enrichedSubmissions;
       } catch (e) {
         console.warn('[apiService] Đồng bộ submissions vào local cảnh báo:', e);
       }
@@ -911,6 +935,15 @@ export const apiService = {
           const list = await res.json();
           if (Array.isArray(list) && list.length > 0) {
             const item = list[0];
+            let parsedTestResults: TestResult[] = [];
+            if (Array.isArray(item.test_results)) {
+              parsedTestResults = item.test_results;
+            } else if (typeof item.test_results === 'string' && item.test_results.trim()) {
+              try {
+                const p = JSON.parse(item.test_results);
+                if (Array.isArray(p)) parsedTestResults = p;
+              } catch {}
+            }
             return {
               id: item.id,
               problemId: item.problem_id,
@@ -931,7 +964,7 @@ export const apiService = {
               memory: Number(item.memory) || 0,
               compilationMessage: item.compilation_message,
               submittedAt: item.submitted_at,
-              testResults: item.test_results || [],
+              testResults: parsedTestResults,
             };
           }
         }
