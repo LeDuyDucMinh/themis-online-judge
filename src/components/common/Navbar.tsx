@@ -39,6 +39,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab }) => 
     openConfirmModal,
     activeClass,
     setActiveClassId,
+    refreshAllData,
   } = useJudge();
 
   const handleResetConfirm = () => {
@@ -57,6 +58,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab }) => 
     } else {
       setCurrentTab('classes');
     }
+    refreshAllData().catch(() => {});
   };
 
   return (
@@ -141,6 +143,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab }) => 
               onClick={() => {
                 setCurrentTab('admin_classes');
                 setActiveClassId(null);
+                refreshAllData().catch(() => {});
               }}
               className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-2 transition-all cursor-pointer ${
                 currentTab === 'admin_classes' && !activeClass
@@ -156,7 +159,10 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab }) => 
           {/* GIÁO VIÊN: Tab Chi tiết lớp khi đang chọn lớp */}
           {isAdminAuthenticated && activeClass && (
             <button
-              onClick={() => setCurrentTab('admin_classes')}
+              onClick={() => {
+                setCurrentTab('admin_classes');
+                refreshAllData().catch(() => {});
+              }}
               className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-2 transition-all cursor-pointer ${
                 currentTab === 'admin_classes' && activeClass
                   ? 'bg-red-600 text-white shadow'
@@ -173,6 +179,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab }) => 
             <button
               onClick={() => {
                 setCurrentTab('admin_topics');
+                refreshAllData().catch(() => {});
               }}
               className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-2 transition-all cursor-pointer ${
                 currentTab === 'admin_topics'
@@ -187,7 +194,10 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab }) => 
 
           {/* Tab Lịch sử nộp bài */}
           <button
-            onClick={() => setCurrentTab('submissions')}
+            onClick={() => {
+              setCurrentTab('submissions');
+              refreshAllData().catch(() => {});
+            }}
             className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-2 transition-all cursor-pointer ${
               currentTab === 'submissions'
                 ? 'bg-red-600 text-white shadow'

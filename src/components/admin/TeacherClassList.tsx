@@ -16,7 +16,6 @@ import {
   ShieldCheck,
   X,
   Sparkles,
-  RefreshCw,
 } from 'lucide-react';
 
 export const TeacherClassList: React.FC = () => {
@@ -34,12 +33,15 @@ export const TeacherClassList: React.FC = () => {
     openConfirmModal,
     theme,
     refreshAllData,
-    isRefreshing,
   } = useJudge();
 
-  // Luôn nạp dữ liệu lớp học mới nhất từ Database khi mở Dashboard Giáo viên
+  // Tự động nạp dữ liệu lớp học mới nhất từ Database và làm mới ngầm định kỳ
   useEffect(() => {
-    refreshAllData();
+    refreshAllData().catch(() => {});
+    const interval = setInterval(() => {
+      refreshAllData().catch(() => {});
+    }, 20000);
+    return () => clearInterval(interval);
   }, []);
 
   const [searchTerm, setSearchTerm] = useState('');
@@ -138,20 +140,6 @@ export const TeacherClassList: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2.5">
-          <button
-            onClick={() => refreshAllData()}
-            disabled={isRefreshing}
-            className={`inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl border text-xs font-semibold transition-all cursor-pointer disabled:opacity-50 ${
-              theme === 'light'
-                ? 'bg-white hover:bg-slate-100 text-slate-700 border-slate-300'
-                : 'bg-slate-800 hover:bg-slate-750 text-slate-200 border-slate-700'
-            }`}
-            title="Lấy dữ liệu lớp học mới nhất từ Database"
-          >
-            <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-red-500' : 'text-slate-400'}`} />
-            <span>{isRefreshing ? 'Đang tải...' : 'Làm mới'}</span>
-          </button>
-
           <button
             onClick={handleOpenCreateModal}
             className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold transition-all shadow-lg shadow-red-600/25 cursor-pointer hover:scale-[1.02]"
