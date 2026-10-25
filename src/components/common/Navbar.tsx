@@ -3,7 +3,6 @@ import { useJudge } from '../../context/JudgeContext';
 import {
   Code2,
   ShieldCheck,
-  Lock,
   LogOut,
   KeyRound,
   RotateCcw,
@@ -14,6 +13,7 @@ import {
   GraduationCap,
   LogIn,
   Server,
+  UserCheck,
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -30,6 +30,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab }) => 
     setAuthModalTab,
     setIsAuthModalOpen,
     setIsChangePasswordModalOpen,
+    setIsChangeNameModalOpen,
     setIsServerConfigModalOpen,
     logoutAdmin,
     resetAllData,
@@ -268,7 +269,11 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab }) => 
           ) : currentStudent ? (
             /* Khi Học sinh đã đăng nhập */
             <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-500/15 text-blue-300 border border-blue-500/30 text-xs font-bold shadow-sm">
+              <div
+                onClick={() => setIsChangeNameModalOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-500/15 hover:bg-blue-500/25 text-blue-300 border border-blue-500/30 text-xs font-bold shadow-sm cursor-pointer transition-all"
+                title="Nhấn để đổi họ và tên"
+              >
                 <GraduationCap className="w-4 h-4 text-blue-400" />
                 <span className="max-w-[130px] truncate" title={currentStudent.fullName}>
                   {currentStudent.fullName}
@@ -285,17 +290,14 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab }) => 
                 <span className="hidden sm:inline">Thoát</span>
               </button>
 
-              {/* Nút chuyển sang đăng nhập Giáo viên */}
+              {/* Nút Đổi tên học sinh thay cho nút Giáo viên */}
               <button
-                onClick={() => {
-                  setAuthModalTab('admin');
-                  setIsAuthModalOpen(true);
-                }}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white border border-slate-700/80 transition-all cursor-pointer"
-                title="Đăng nhập Giáo viên / Quản trị viên"
+                onClick={() => setIsChangeNameModalOpen(true)}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700/80 transition-all cursor-pointer"
+                title="Đổi họ và tên của bạn"
               >
-                <Lock className="w-3.5 h-3.5" />
-                <span className="hidden md:inline">Giáo viên</span>
+                <UserCheck className="w-3.5 h-3.5 text-blue-400" />
+                <span>Đổi tên</span>
               </button>
             </div>
           ) : isAuthLoading ? (

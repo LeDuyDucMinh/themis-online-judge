@@ -11,6 +11,7 @@ import { TeacherClassList } from './components/admin/TeacherClassList';
 import { TeacherClassDetail } from './components/admin/TeacherClassDetail';
 import { AuthModal } from './components/auth/AuthModal';
 import { ChangePasswordModal } from './components/admin/ChangePasswordModal';
+import { ChangeNameModal } from './components/user/ChangeNameModal';
 import { ServerConfigModal } from './components/admin/ServerConfigModal';
 import { ConfirmModal } from './components/common/ConfirmModal';
 import type { Problem } from './types/judge';
@@ -121,6 +122,7 @@ function MainApp() {
       {/* Supabase Auth & Admin Modals */}
       <AuthModal />
       <ChangePasswordModal />
+      <ChangeNameModal />
       <ServerConfigModal
         isOpen={isServerConfigModalOpen}
         onClose={() => setIsServerConfigModalOpen(false)}

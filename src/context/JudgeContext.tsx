@@ -38,6 +38,8 @@ interface JudgeContextType {
   setIsStudentModalOpen: (open: boolean) => void;
   isChangePasswordModalOpen: boolean;
   setIsChangePasswordModalOpen: (open: boolean) => void;
+  isChangeNameModalOpen: boolean;
+  setIsChangeNameModalOpen: (open: boolean) => void;
   isServerConfigModalOpen: boolean;
   setIsServerConfigModalOpen: (open: boolean) => void;
 
@@ -66,6 +68,7 @@ interface JudgeContextType {
   verifyStudentAccountStatus: (options?: { force?: boolean }) => Promise<boolean>;
   addStudent: (fullName: string, username: string, password: string) => Promise<{ success: boolean; message: string }>;
   updateStudentPassword: (id: string, newPassword: string) => Promise<{ success: boolean; message: string }>;
+  updateStudentName: (newName: string) => Promise<{ success: boolean; message: string }>;
   deleteStudent: (id: string) => Promise<void>;
 
   // Admin Auth Actions
@@ -208,6 +211,7 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const [authModalTab, setAuthModalTab] = useState<'student' | 'admin'>('student');
   const [isStudentModalOpen, setIsStudentModalOpen] = useState(false);
   const [isChangePasswordModalOpen, setIsChangePasswordModalOpen] = useState(false);
+  const [isChangeNameModalOpen, setIsChangeNameModalOpen] = useState(false);
   const [isServerConfigModalOpen, setIsServerConfigModalOpen] = useState(false);
 
   // Cơ chế "Lưới điện" (Action-Triggered Logout) - Modal cảnh báo phiên làm việc bị thu hồi
@@ -987,6 +991,77 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     }
   };
 
+  // Học sinh tự đổi họ và tên - Đồng bộ tức thì lên Cloud (cả học sinh và danh sách lớp) để Giáo viên nhìn thấy ngay
+  const updateStudentName = async (newName: string): Promise<{ success: boolean; message: string }> => {
+    const cleanName = (newName || '').trim();
+    if (!cleanName) {
+      showToast('Tên không hợp lệ', 'Họ và tên không được để trống!', 'error');
+      return { success: false, message: 'Họ và tên không được để trống!' };
+    }
+    const student = currentStudent || storageService.getStudentSession();
+    if (!student) {
+      showToast('Chưa đăng nhập', 'Bạn chưa đăng nhập tài khoản học sinh!', 'warning');
+      return { success: false, message: 'Bạn chưa đăng nhập tài khoản học sinh!' };
+    }
+
+    const updatedStudent: StudentUser = {
+      ...student,
+      fullName: cleanName,
+    };
+
+    // 1. Cập nhật currentStudent và local student session
+    setCurrentStudent(updatedStudent);
+    storageService.setStudentSession(updatedStudent);
+
+    // 2. Cập nhật trong danh sách students
+    const currentStudents = students.length > 0 ? students : storageService.getStudents();
+    const updatedStudents = currentStudents.map((s) => {
+      if (s.id === student.id || (s.username && student.username && s.username.toLowerCase() === student.username.toLowerCase())) {
+        return { ...s, fullName: cleanName };
+      }
+      return s;
+    });
+    setStudents(updatedStudents);
+    storageService.saveStudents(updatedStudents);
+
+    // 3. Cập nhật tên trong toàn bộ quan hệ lớp học (classStudents) của học sinh
+    const currentClassStudents = classStudents.length > 0 ? classStudents : storageService.getClassStudents();
+    const updatedClassStudents = currentClassStudents.map((cs) => {
+      if (cs.studentId === student.id || (cs.studentUsername && student.username && cs.studentUsername.toLowerCase() === student.username.toLowerCase())) {
+        return { ...cs, studentName: cleanName };
+      }
+      return cs;
+    });
+    setClassStudents(updatedClassStudents);
+    storageService.saveClassStudents(updatedClassStudents);
+
+    // 4. Cập nhật tên trong các bài nộp (submissions) của học sinh
+    setSubmissions((prevSubs) => {
+      const updatedSubs = prevSubs.map((sub) => {
+        if (sub.userId === student.id || (student.username && sub.userId === student.username)) {
+          return { ...sub, userName: cleanName };
+        }
+        return sub;
+      });
+      storageService.saveSubmissions(updatedSubs);
+      return updatedSubs;
+    });
+
+    // 5. Đồng bộ tức thì lên Supabase Cloud Database và Supabase Auth
+    try {
+      await Promise.all([
+        apiService.saveStudents([updatedStudent]),
+        apiService.saveClassStudents(updatedClassStudents),
+        supabase.auth.updateUser({ data: { full_name: cleanName } }).catch(() => {}),
+      ]);
+    } catch (e) {
+      console.warn('[JudgeContext] Lỗi đồng bộ đổi tên lên Cloud:', e);
+    }
+
+    showToast('Đổi tên thành công', `Họ và tên của em đã được cập nhật thành "${cleanName}"!`, 'success');
+    return { success: true, message: 'Cập nhật tên thành công!' };
+  };
+
   // Giáo viên tạo tài khoản Học sinh mới - Đồng bộ tức thì lên Cloud và bộ nhớ máy
   const addStudent = async (fullName: string, username: string, password: string): Promise<{ success: boolean; message: string }> => {
     if (!fullName.trim() || !username.trim() || !password.trim()) {
@@ -1597,6 +1672,8 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         setIsStudentModalOpen,
         isChangePasswordModalOpen,
         setIsChangePasswordModalOpen,
+        isChangeNameModalOpen,
+        setIsChangeNameModalOpen,
         isServerConfigModalOpen,
         setIsServerConfigModalOpen,
         isSessionRevokedModalOpen,
@@ -1612,6 +1689,7 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         verifyStudentAccountStatus,
         addStudent,
         updateStudentPassword,
+        updateStudentName,
         deleteStudent,
         loginAdmin,
         logoutAdmin,
