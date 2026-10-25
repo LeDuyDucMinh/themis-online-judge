@@ -1520,21 +1520,30 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       throw new Error('Không tìm thấy bài tập để chấm');
     }
 
-    // Nạp khẩn cấp từ Database nếu problem trong React state chưa có test hoặc test bị rỗng input do nén
-    const hasRealTests = (problem.testCases || []).some(
-      (t) => (t.input && t.input.trim().length > 0) || (t.expectedOutput && t.expectedOutput.trim().length > 0)
-    );
-    if (!problem.testCases || problem.testCases.length === 0 || !hasRealTests) {
+    // Nạp đầy đủ từ Database nếu problem trong React state chưa có test hoặc test bị rỗng nội dung input/output
+    const hasRealContent = (tests?: TestCase[] | null) =>
+      Boolean(tests && tests.length > 0 && tests.some((t) => (t.input && t.input.trim().length > 0) || (t.expectedOutput && t.expectedOutput.trim().length > 0)));
+
+    if (!hasRealContent(problem.testCases)) {
+      // 1. Thử lấy từ IndexedDB
       let savedTests = await idbService.getTestCases(problem.id);
-      if (!savedTests || savedTests.length === 0) {
+      // 2. Nếu IndexedDB không có hoặc chỉ chứa test rỗng, bắt buộc nạp ngay từ Cloud
+      if (!hasRealContent(savedTests)) {
         savedTests = await apiService.fetchTestCases(problem.id);
       }
-      if (savedTests && savedTests.length > 0) {
-        problem = { ...problem, testCases: savedTests };
+      if (hasRealContent(savedTests)) {
+        problem = { ...problem, testCases: savedTests! };
         setProblems((prev) =>
-          prev.map((p) => (p.id === problemId ? { ...p, testCases: savedTests } : p))
+          prev.map((p) => (p.id === problemId ? { ...p, testCases: savedTests! } : p))
         );
       }
+    }
+
+    // Bảo vệ tuyệt đối: Nếu bài tập chưa có test case có dữ liệu thật, không bao giờ chấm lụi thành đúng hết
+    if (!hasRealContent(problem.testCases)) {
+      throw new Error(
+        'Bài tập này chưa có dữ liệu Test Case thực tế (Input/Output) để chấm điểm. Vui lòng thông báo Giáo viên nạp bộ test case trước khi nộp bài!'
+      );
     }
 
     const submission = await gradeSubmission(

@@ -1,4 +1,4 @@
-import type { Problem, TestResult, Verdict, Submission } from '../types/judge';
+import type { Problem, TestResult, Verdict, Submission, TestCase } from '../types/judge';
 import type { PistonFile, PistonExecuteRequest, PistonExecuteResponse } from '../types/piston';
 
 export const LANGUAGE_CONFIG = {
@@ -1050,8 +1050,11 @@ export async function gradeSubmission(
   // 1. Tiền xử lý code học sinh: Giữ nguyên 100%, chỉ thay thế freopen bằng khoảng trắng
   const { cleanedCode, freopenHandled } = preprocessCodeForExecution(rawCode, language);
 
+  const hasRealContent = (tests?: TestCase[] | null) =>
+    Boolean(tests && tests.length > 0 && tests.some((t) => (t.input && t.input.trim().length > 0) || (t.expectedOutput && t.expectedOutput.trim().length > 0)));
+
   const rawTestCases =
-    problem.testCases && problem.testCases.length > 0
+    problem.testCases && hasRealContent(problem.testCases)
       ? problem.testCases
       : (problem.samples && problem.samples.length > 0
           ? problem.samples.map((s, idx) => ({
@@ -1063,7 +1066,7 @@ export async function gradeSubmission(
             }))
           : []);
 
-  if (rawTestCases.length === 0) {
+  if (rawTestCases.length === 0 || !hasRealContent(rawTestCases)) {
     return {
       id: submissionId,
       problemId: problem.id,
@@ -1078,11 +1081,11 @@ export async function gradeSubmission(
       totalPointsEarned: 0,
       maxTotalPoints: problem.totalPoints || 10,
       passedCount: 0,
-      totalTests: 0,
+      totalTests: rawTestCases.length,
       overallVerdict: 'WA',
       executionTime: 0,
       memory: 0,
-      compilationMessage: 'Bài tập này chưa có bộ test case để chấm điểm. Vui lòng liên hệ Giáo viên/Quản trị viên.',
+      compilationMessage: 'Bài tập này chưa có bộ dữ liệu Test Case thực tế (Input/Output). Vui lòng liên hệ Giáo viên/Quản trị viên để nạp test.',
       testResults: [],
       freopenHandled,
     };

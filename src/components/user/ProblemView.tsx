@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import type { Problem, Submission } from '../../types/judge';
+import type { Problem, Submission, TestCase } from '../../types/judge';
 import { useJudge } from '../../context/JudgeContext';
 import { MathRenderer } from '../common/MathRenderer';
 import { ThemisGradingTable } from './ThemisGradingTable';
@@ -100,17 +100,22 @@ export const ProblemView: React.FC<ProblemViewProps> = ({ problem, onBackToList 
     }
   };
 
-  // Tự động kiểm tra và nạp số lượng test cases thực tế từ IndexedDB hoặc Database
+  // Tự động kiểm tra và nạp test cases thực tế từ IndexedDB hoặc Cloud
   useEffect(() => {
     let isMounted = true;
     (async () => {
-      if (!problem.testCases || problem.testCases.length === 0) {
+      const hasRealContent = (tests?: TestCase[] | null) =>
+        Boolean(tests && tests.length > 0 && tests.some((t) => (t.input && t.input.trim().length > 0) || (t.expectedOutput && t.expectedOutput.trim().length > 0)));
+
+      if (!hasRealContent(problem.testCases)) {
         let dbTests = await idbService.getTestCases(problem.id);
-        if (!dbTests || dbTests.length === 0) {
+        if (!hasRealContent(dbTests)) {
           dbTests = await apiService.fetchTestCases(problem.id);
         }
-        if (isMounted && dbTests && dbTests.length > 0) {
-          setTotalTestsRunning(dbTests.length);
+        if (isMounted && hasRealContent(dbTests)) {
+          setTotalTestsRunning(dbTests!.length);
+        } else if (isMounted && problem.testCases) {
+          setTotalTestsRunning(problem.testCases.length);
         }
       } else {
         setTotalTestsRunning(problem.testCases.length);

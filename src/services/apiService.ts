@@ -641,6 +641,15 @@ export const apiService = {
       throw new Error('Mã bài tập không hợp lệ khi lưu test case');
     }
 
+    const hasRealContent = (tests?: TestCase[] | null) =>
+      Boolean(tests && tests.length > 0 && tests.some((t) => (t.input && t.input.trim().length > 0) || (t.expectedOutput && t.expectedOutput.trim().length > 0)));
+
+    // BẢO VỆ CHỐNG GHI ĐÈ: Không bao giờ lưu bộ test case rỗng vào Cloud hoặc IndexedDB
+    if (!hasRealContent(testCases)) {
+      console.warn('[apiService.saveTestCases] Bỏ qua vì test cases không có nội dung thực tế:', problemId);
+      return;
+    }
+
     // Chuẩn hóa danh sách test case và ID xác định theo bài toán
     const standardizedTests: TestCase[] = testCases.map((tc, index) => ({
       ...tc,
@@ -656,18 +665,19 @@ export const apiService = {
     // 2. Nếu đã cấu hình Supabase Cloud, đồng bộ lên bảng test_cases
     if (isSupabaseConfigured()) {
       try {
-        // Xóa sạch các test case cũ của problem này trên cloud để không bị trùng lặp / nhân đôi test
-        await fetch(`${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/test_cases?problem_id=eq.${encodeURIComponent(problemId)}`, {
-          method: 'DELETE',
-          headers: {
-            ...this.getAntiCacheHeaders(),
-            apikey: ENV.SUPABASE_ANON_KEY,
-            Authorization: `Bearer ${ENV.SUPABASE_ANON_KEY}`,
-          },
-        });
+        // Thử xóa test case cũ của bài tập này trên cloud (nếu có quyền DELETE)
+        try {
+          await fetch(`${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/test_cases?problem_id=eq.${encodeURIComponent(problemId)}`, {
+            method: 'DELETE',
+            headers: this.getAntiCacheHeaders(),
+          });
+        } catch (delErr) {
+          console.warn('[apiService] DELETE test_cases warn:', delErr);
+        }
 
         if (standardizedTests.length > 0) {
-          const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/test_cases`;
+          // Luôn Upsert với on_conflict=id và Prefer: resolution=merge-duplicates để đảm bảo thành công 100%
+          const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/test_cases?on_conflict=id`;
           const rows = standardizedTests.map((tc, index) => ({
             id: tc.id,
             problem_id: problemId,
@@ -685,8 +695,7 @@ export const apiService = {
             headers: {
               ...this.getAntiCacheHeaders(),
               'Content-Type': 'application/json',
-              apikey: ENV.SUPABASE_ANON_KEY,
-              Authorization: `Bearer ${ENV.SUPABASE_ANON_KEY}`,
+              Prefer: 'resolution=merge-duplicates',
             },
             body: JSON.stringify(rows),
           });
@@ -742,18 +751,20 @@ export const apiService = {
               isHidden: Boolean(d.is_hidden),
             }));
 
-            const hasReal = mapped.some((t) => (t.input && t.input.trim()) || (t.expectedOutput && t.expectedOutput.trim()));
+            const hasReal = mapped.some((t) => (t.input && t.input.trim().length > 0) || (t.expectedOutput && t.expectedOutput.trim().length > 0));
             if (hasReal) {
               await idbService.saveTestCases(problemId, mapped);
+              return mapped;
             }
-            return mapped;
           }
         }
       } catch (err) {
         console.warn('[apiService] Không thể fetch test cases từ Supabase Cloud, dùng IndexedDB:', err);
       }
     }
-    return idbService.getTestCases(problemId);
+
+    const localTests = await idbService.getTestCases(problemId);
+    return localTests;
   },
 
   /**
