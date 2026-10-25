@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useJudge } from '../../context/JudgeContext';
 import { isProblemInClass } from '../../types/judge';
+import { storageService } from '../../services/storageService';
 import { AdminDashboard } from './AdminDashboard';
 import { TopicManager } from './TopicManager';
 import {
@@ -52,7 +53,13 @@ export const TeacherClassDetail: React.FC<TeacherClassDetailProps> = ({ classId 
     return () => clearInterval(timer);
   }, [classId]);
 
-  const [activeTab, setActiveTab] = useState<'assignments' | 'topics' | 'students'>('assignments');
+  const [activeTab, setActiveTabState] = useState<'assignments' | 'topics' | 'students'>(() => {
+    return (storageService.getTeacherClassTab() as any) || 'assignments';
+  });
+  const setActiveTab = (tab: 'assignments' | 'topics' | 'students') => {
+    setActiveTabState(tab);
+    storageService.setTeacherClassTab(tab);
+  };
   const [copiedCode, setCopiedCode] = useState(false);
   const [studentSearch, setStudentSearch] = useState('');
 
@@ -66,12 +73,20 @@ export const TeacherClassDetail: React.FC<TeacherClassDetailProps> = ({ classId 
   const classProblems = problems.filter((p) => isProblemInClass(p, classId, topics));
 
   if (!currentClass) {
+    if (classes.length === 0) {
+      return (
+        <div className="max-w-7xl mx-auto px-4 py-16 text-center animate-pulse">
+          <div className="w-12 h-12 bg-slate-800 rounded-2xl mx-auto mb-3" />
+          <p className="text-sm text-slate-400">Đang tải thông tin lớp học...</p>
+        </div>
+      );
+    }
     return (
       <div className="max-w-7xl mx-auto px-4 py-12 text-center">
         <p className="text-sm text-slate-400">Không tìm thấy thông tin lớp học này.</p>
         <button
           onClick={() => setActiveClassId(null)}
-          className="mt-4 px-4 py-2 rounded-xl bg-red-600 text-white text-xs font-bold"
+          className="mt-4 px-4 py-2 rounded-xl bg-red-600 text-white text-xs font-bold cursor-pointer"
         >
           Quay lại danh sách lớp
         </button>

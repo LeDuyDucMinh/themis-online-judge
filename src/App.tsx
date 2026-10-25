@@ -34,6 +34,15 @@ function MainApp() {
   } = useJudge();
 
   const [currentTab, setCurrentTab] = useState<'classes' | 'problems' | 'admin_classes' | 'admin_topics' | 'submissions'>(() => {
+    // 1. Ưu tiên đọc từ URL Hash khi người dùng tải lại trang
+    if (typeof window !== 'undefined' && window.location.hash) {
+      const hash = window.location.hash.replace(/^#\/?/, '');
+      if (hash.startsWith('submissions')) return 'submissions';
+      if (hash.startsWith('admin/topics')) return 'admin_topics';
+      if (hash.startsWith('admin/classes') || hash.startsWith('admin')) return 'admin_classes';
+      if (hash.startsWith('classes')) return 'classes';
+    }
+    // 2. Dự phòng đọc từ localStorage
     const saved = storageService.getCurrentTab();
     if (saved === 'submissions') return 'submissions';
     if (isAdminAuthenticated) {
@@ -44,18 +53,38 @@ function MainApp() {
       return 'classes';
     }
   });
-  const [selectedProblem, setSelectedProblem] = useState<Problem | null>(null);
 
-  // Khôi phục lại bài tập đang mở sau khi người dùng tải lại trang (F5)
+  const [selectedProblem, setSelectedProblem] = useState<Problem | null>(() => {
+    // 1. Ưu tiên đọc bài tập từ URL Hash nếu có dạng #classes/:classId/problems/:id
+    if (typeof window !== 'undefined' && window.location.hash) {
+      const hash = window.location.hash.replace(/^#\/?/, '');
+      const probMatch = hash.match(/problems\/([^/?#]+)/);
+      if (probMatch && probMatch[1]) {
+        const probId = probMatch[1];
+        const list = storageService.getProblems();
+        const found = list.find((p) => p.id === probId || p.code?.toLowerCase() === probId.toLowerCase());
+        if (found) return found;
+      }
+    }
+    // 2. Dự phòng đọc từ localStorage
+    const savedProblemId = storageService.getSelectedProblemId();
+    if (savedProblemId) {
+      const list = storageService.getProblems();
+      return list.find((p) => p.id === savedProblemId) || null;
+    }
+    return null;
+  });
+
+  // Cập nhật lại bài tập đang mở khi danh sách problems từ Cloud tải về
   useEffect(() => {
     const savedProblemId = storageService.getSelectedProblemId();
-    if (savedProblemId && problems.length > 0 && !selectedProblem) {
+    if (savedProblemId && problems.length > 0) {
       const found = problems.find((p) => p.id === savedProblemId);
-      if (found) {
+      if (found && (!selectedProblem || selectedProblem.id !== found.id)) {
         setSelectedProblem(found);
       }
     }
-  }, [problems, selectedProblem]);
+  }, [problems]);
 
   // Luôn lấy dữ liệu bài tập mới nhất (kèm test cases đầy đủ từ IndexedDB)
   const activeSelectedProblem = useMemo(() => {
@@ -83,6 +112,97 @@ function MainApp() {
       }
     }
   }, [isAdminAuthenticated, isAuthLoading]);
+
+  // Đồng bộ trạng thái điều hướng vào URL Hash & localStorage để khi F5 / Reload tải lại đúng trang hiện tại
+  useEffect(() => {
+    if (isAuthLoading) return;
+
+    let targetHash = '';
+    if (isAdminAuthenticated) {
+      if (currentTab === 'admin_classes') {
+        targetHash = activeClassId ? `#admin/classes/${activeClassId}` : '#admin/classes';
+      } else if (currentTab === 'admin_topics') {
+        targetHash = '#admin/topics';
+      } else if (currentTab === 'submissions') {
+        targetHash = '#submissions';
+      } else {
+        targetHash = '#admin/classes';
+      }
+    } else {
+      if (currentTab === 'classes') {
+        if (activeClassId) {
+          if (selectedProblem) {
+            targetHash = `#classes/${activeClassId}/problems/${selectedProblem.id}`;
+          } else {
+            targetHash = `#classes/${activeClassId}`;
+          }
+        } else {
+          targetHash = '#classes';
+        }
+      } else if (currentTab === 'submissions') {
+        targetHash = '#submissions';
+      } else {
+        targetHash = '#classes';
+      }
+    }
+
+    if (targetHash && typeof window !== 'undefined') {
+      if (window.location.hash !== targetHash) {
+        window.history.replaceState(null, '', targetHash);
+      }
+    }
+    storageService.setCurrentTab(currentTab);
+  }, [currentTab, activeClassId, selectedProblem, isAdminAuthenticated, isAuthLoading]);
+
+  // Lắng nghe sự kiện hashchange khi người dùng dùng nút Back/Forward của trình duyệt
+  useEffect(() => {
+    const handleHashChange = () => {
+      const hash = window.location.hash.replace(/^#\/?/, '');
+      if (hash.startsWith('submissions')) {
+        setCurrentTab('submissions');
+        storageService.setCurrentTab('submissions');
+      } else if (hash.startsWith('admin/topics')) {
+        if (isAdminAuthenticated) {
+          setCurrentTab('admin_topics');
+          storageService.setCurrentTab('admin_topics');
+        }
+      } else if (hash.startsWith('admin/classes')) {
+        if (isAdminAuthenticated) {
+          setCurrentTab('admin_classes');
+          storageService.setCurrentTab('admin_classes');
+          const classMatch = hash.match(/^admin\/classes\/([^/?#]+)/);
+          if (classMatch && classMatch[1]) {
+            setActiveClassId(classMatch[1]);
+          } else {
+            setActiveClassId(null);
+          }
+        }
+      } else if (hash.startsWith('classes')) {
+        if (!isAdminAuthenticated) {
+          setCurrentTab('classes');
+          storageService.setCurrentTab('classes');
+          const classMatch = hash.match(/^classes\/([^/?#]+)/);
+          if (classMatch && classMatch[1]) {
+            setActiveClassId(classMatch[1]);
+            const probMatch = hash.match(/problems\/([^/?#]+)/);
+            if (probMatch && probMatch[1]) {
+              const pId = probMatch[1];
+              const found = problems.find((p) => p.id === pId || p.code?.toLowerCase() === pId.toLowerCase());
+              if (found) setSelectedProblem(found);
+            } else {
+              setSelectedProblem(null);
+            }
+          } else {
+            setActiveClassId(null);
+            setSelectedProblem(null);
+          }
+        }
+      }
+    };
+
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, [isAdminAuthenticated, problems, setActiveClassId]);
 
   // Tự động làm mới dữ liệu từ hệ thống mỗi khi người dùng chuyển trang / tab
   useEffect(() => {
@@ -169,6 +289,7 @@ function MainApp() {
                   setActiveClassId(null);
                   setSelectedProblem(null);
                   storageService.setSelectedProblemId(null);
+                  storageService.setActiveTopicId(null);
                 }}
               />
             )

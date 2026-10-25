@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { ThemisGradingTable } from './ThemisGradingTable';
 import { apiService } from '../../services/apiService';
+import { storageService } from '../../services/storageService';
 
 export const SubmissionHistory: React.FC = () => {
   const {
@@ -51,10 +52,22 @@ export const SubmissionHistory: React.FC = () => {
   };
 
   // Bộ lọc theo Lớp học (Multi-Classroom)
-  const [selectedClassId, setSelectedClassId] = useState<string>('ALL');
+  const [selectedClassId, setSelectedClassIdState] = useState<string>(() => {
+    return storageService.getSubmissionsClassFilter() || 'ALL';
+  });
+  const setSelectedClassId = (id: string) => {
+    setSelectedClassIdState(id);
+    storageService.setSubmissionsClassFilter(id);
+  };
 
   // Chế độ xem dành riêng cho GIÁO VIÊN: 'log' = Nhật ký từng lần nộp, 'topic_grades' = Bảng điểm theo Chủ đề
-  const [viewMode, setViewMode] = useState<'log' | 'topic_grades'>('log');
+  const [viewMode, setViewModeState] = useState<'log' | 'topic_grades'>(() => {
+    return (storageService.getSubmissionsViewMode() as any) || 'log';
+  });
+  const setViewMode = (mode: 'log' | 'topic_grades') => {
+    setViewModeState(mode);
+    storageService.setSubmissionsViewMode(mode);
+  };
 
   // Chủ đề được chọn trong Chế độ 2: Bảng điểm theo Chủ đề
   const [selectedTopicId, setSelectedTopicId] = useState<string>(() => topics[0]?.id || '');

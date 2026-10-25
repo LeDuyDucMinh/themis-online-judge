@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useJudge } from '../../context/JudgeContext';
 import type { Problem } from '../../types/judge';
 import { isProblemInClass } from '../../types/judge';
+import { storageService } from '../../services/storageService';
 import {
   CheckCircle2,
   Clock,
@@ -37,7 +38,14 @@ export const UserProblemList: React.FC<UserProblemListProps> = ({ onSelectProble
   } = useJudge();
 
   // State điều hướng: activeTopicId === null là trang chủ đề, !== null là trang danh sách bài của chủ đề đó
-  const [activeTopicId, setActiveTopicId] = useState<string | null>(null);
+  const [activeTopicId, setActiveTopicIdState] = useState<string | null>(() => {
+    return storageService.getActiveTopicId();
+  });
+
+  const setActiveTopicId = (id: string | null) => {
+    setActiveTopicIdState(id);
+    storageService.setActiveTopicId(id);
+  };
 
   // Bộ lọc bên trong chủ đề hoặc danh sách chung
   const [searchTerm, setSearchTerm] = useState('');

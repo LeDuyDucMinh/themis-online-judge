@@ -16,6 +16,11 @@ const STORAGE_KEYS = {
   ACTIVE_CLASS_ID: 'faminh_judge_active_class_id_v1',
   CURRENT_TAB: 'faminh_judge_current_tab_v1',
   SELECTED_PROBLEM_ID: 'faminh_judge_selected_problem_id_v1',
+  ACTIVE_TOPIC_ID: 'faminh_judge_active_topic_id_v1',
+  TEACHER_CLASS_TAB: 'faminh_judge_teacher_class_tab_v1',
+  TOPIC_MANAGER_TAB: 'faminh_judge_topic_manager_tab_v1',
+  SUBMISSIONS_CLASS_FILTER: 'faminh_judge_submissions_class_filter_v1',
+  SUBMISSIONS_VIEW_MODE: 'faminh_judge_submissions_view_mode_v1',
 };
 
 // Dọn dẹp bộ nhớ đệm mẫu cũ (v1) nếu có trong trình duyệt người dùng
@@ -492,6 +497,90 @@ export const storageService = {
       } else {
         localStorage.removeItem(STORAGE_KEYS.SELECTED_PROBLEM_ID);
       }
+    } catch {
+      // ignore
+    }
+  },
+
+  getActiveTopicId(): string | null {
+    try {
+      return localStorage.getItem(STORAGE_KEYS.ACTIVE_TOPIC_ID) || null;
+    } catch {
+      return null;
+    }
+  },
+
+  setActiveTopicId(id: string | null): void {
+    try {
+      if (id) {
+        localStorage.setItem(STORAGE_KEYS.ACTIVE_TOPIC_ID, id);
+      } else {
+        localStorage.removeItem(STORAGE_KEYS.ACTIVE_TOPIC_ID);
+      }
+    } catch {
+      // ignore
+    }
+  },
+
+  getTeacherClassTab(): string {
+    try {
+      return localStorage.getItem(STORAGE_KEYS.TEACHER_CLASS_TAB) || 'assignments';
+    } catch {
+      return 'assignments';
+    }
+  },
+
+  setTeacherClassTab(tab: string): void {
+    try {
+      localStorage.setItem(STORAGE_KEYS.TEACHER_CLASS_TAB, tab);
+    } catch {
+      // ignore
+    }
+  },
+
+  getTopicManagerTab(): string {
+    try {
+      return localStorage.getItem(STORAGE_KEYS.TOPIC_MANAGER_TAB) || 'topics';
+    } catch {
+      return 'topics';
+    }
+  },
+
+  setTopicManagerTab(tab: string): void {
+    try {
+      localStorage.setItem(STORAGE_KEYS.TOPIC_MANAGER_TAB, tab);
+    } catch {
+      // ignore
+    }
+  },
+
+  getSubmissionsClassFilter(): string | null {
+    try {
+      return localStorage.getItem(STORAGE_KEYS.SUBMISSIONS_CLASS_FILTER) || null;
+    } catch {
+      return null;
+    }
+  },
+
+  setSubmissionsClassFilter(classId: string): void {
+    try {
+      localStorage.setItem(STORAGE_KEYS.SUBMISSIONS_CLASS_FILTER, classId);
+    } catch {
+      // ignore
+    }
+  },
+
+  getSubmissionsViewMode(): string | null {
+    try {
+      return localStorage.getItem(STORAGE_KEYS.SUBMISSIONS_VIEW_MODE) || null;
+    } catch {
+      return null;
+    }
+  },
+
+  setSubmissionsViewMode(mode: string): void {
+    try {
+      localStorage.setItem(STORAGE_KEYS.SUBMISSIONS_VIEW_MODE, mode);
     } catch {
       // ignore
     }

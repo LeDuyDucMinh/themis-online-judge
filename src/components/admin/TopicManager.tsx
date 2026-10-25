@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useJudge } from '../../context/JudgeContext';
 import type { Topic, Problem, Classroom } from '../../types/judge';
 import { idbService } from '../../services/db';
+import { storageService } from '../../services/storageService';
 import { ProblemEditorModal } from './ProblemEditorModal';
 import { TestCaseManagerModal } from './TestCaseManagerModal';
 import { VideoConfigModal } from './VideoConfigModal';
@@ -54,7 +55,13 @@ export const TopicManager: React.FC<TopicManagerProps> = ({ initialClassId }) =>
   const [expandedTopicId, setExpandedTopicId] = useState<string | null>(null);
 
   // Tab switcher: 'topics' (Danh sách chủ đề) vs 'problems' (Các bài tập)
-  const [activeTab, setActiveTab] = useState<'topics' | 'problems'>('topics');
+  const [activeTab, setActiveTabState] = useState<'topics' | 'problems'>(() => {
+    return (storageService.getTopicManagerTab() as any) || 'topics';
+  });
+  const setActiveTab = (tab: 'topics' | 'problems') => {
+    setActiveTabState(tab);
+    storageService.setTopicManagerTab(tab);
+  };
 
   // Filter & Search states cho Tab "Các bài tập"
   const [problemSearch, setProblemSearch] = useState('');

@@ -220,7 +220,16 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   // Multi-Classroom State
   const [classes, setClasses] = useState<Classroom[]>(() => storageService.getClasses());
   const [classStudents, setClassStudents] = useState<ClassStudent[]>(() => storageService.getClassStudents());
-  const [activeClassId, setActiveClassIdState] = useState<string | null>(() => storageService.getActiveClassId());
+  const [activeClassId, setActiveClassIdState] = useState<string | null>(() => {
+    if (typeof window !== 'undefined' && window.location.hash) {
+      const hash = window.location.hash.replace(/^#\/?/, '');
+      const match = hash.match(/(?:admin\/)?classes\/([^/?#]+)/);
+      if (match && match[1] && match[1] !== 'new') {
+        return match[1];
+      }
+    }
+    return storageService.getActiveClassId();
+  });
 
   const setActiveClassId = (id: string | null) => {
     setActiveClassIdState(id);
@@ -801,17 +810,17 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
         const admin = storageService.isAdminSessionActive();
 
-        if (student) {
+        if (admin) {
+          if (isMounted) {
+            setIsAdminAuthenticated(true);
+            setRole('ADMIN');
+            setIsAuthModalOpen(false);
+          }
+        } else if (student) {
           if (isMounted) {
             setCurrentStudent(student);
             setIsAdminAuthenticated(false);
             setRole('USER');
-            setIsAuthModalOpen(false);
-          }
-        } else if (admin) {
-          if (isMounted) {
-            setIsAdminAuthenticated(true);
-            setRole('ADMIN');
             setIsAuthModalOpen(false);
           }
         } else {
