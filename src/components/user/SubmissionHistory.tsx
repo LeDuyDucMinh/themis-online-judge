@@ -702,7 +702,7 @@ export const SubmissionHistory: React.FC = () => {
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="bg-slate-900 border border-slate-800 rounded-3xl max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-2xl p-6 relative flex flex-col space-y-6"
+            className="bg-slate-900 border border-slate-800 rounded-3xl max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-2xl p-6 relative space-y-6"
           >
             {/* Header: Chỉ 1 nút đóng góc trên bên phải, hiển thị TÊN BÀI TẬP rõ ràng, decor đẹp mắt */}
             <div className={`sticky top-0 z-20 backdrop-blur-md px-6 py-4 border-b -mx-6 -mt-6 rounded-t-3xl flex items-start justify-between gap-4 transition-colors ${
@@ -770,13 +770,15 @@ export const SubmissionHistory: React.FC = () => {
             </div>
 
             {/* Themis Table */}
-            <ThemisGradingTable
-              submission={selectedSub}
-              isGrading={false}
-            />
+            <div className="w-full">
+              <ThemisGradingTable
+                submission={selectedSub}
+                isGrading={false}
+              />
+            </div>
 
             {/* Source Code View */}
-            <div>
+            <div className="w-full">
               <h4 className={`text-xs font-bold uppercase tracking-wider mb-2 flex items-center gap-2 ${
                 theme === 'light' ? 'text-slate-700' : 'text-slate-300'
               }`}>

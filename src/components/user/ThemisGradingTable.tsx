@@ -190,7 +190,7 @@ export const ThemisGradingTable: React.FC<ThemisGradingTableProps> = ({
 
   return (
     <div
-      className={`rounded-2xl border overflow-hidden shadow-2xl transition-all duration-300 ${
+      className={`rounded-2xl border overflow-hidden shadow-2xl transition-all duration-300 shrink-0 w-full min-h-fit ${
         theme === 'light' ? 'bg-white border-slate-200' : 'bg-slate-900 border-slate-800'
       }`}
     >
