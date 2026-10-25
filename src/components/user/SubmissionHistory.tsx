@@ -64,24 +64,30 @@ export const SubmissionHistory: React.FC = () => {
     storageService.setSubmissionsClassFilter(id);
   };
 
-  // Tự động đồng bộ với activeClassId khi giáo viên đổi lớp trên thanh điều hướng
+  // Chỉ đồng bộ khi giáo viên chủ động bấm chuyển sang lớp khác trên thanh điều hướng Navbar
+  const prevActiveClassIdRef = React.useRef(activeClassId);
   useEffect(() => {
-    if (activeClassId && classes.some((c) => c.id === activeClassId)) {
+    if (activeClassId && prevActiveClassIdRef.current !== activeClassId) {
       setSelectedClassIdState(activeClassId);
+      storageService.setSubmissionsClassFilter(activeClassId);
     }
-  }, [activeClassId, classes]);
+    prevActiveClassIdRef.current = activeClassId;
+  }, [activeClassId]);
 
   // Bộ lọc: Mặc định chỉ hiển thị bài nộp mới nhất của mỗi học sinh cho từng bài tập
   const [onlyLatest, setOnlyLatest] = useState<boolean>(true);
 
   // Tự động làm mới dữ liệu ngầm khi mở màn hình Lịch sử nộp bài & Polling nhận bài nộp mới
+  const refreshRef = React.useRef(refreshAllData);
+  refreshRef.current = refreshAllData;
+
   useEffect(() => {
-    refreshAllData().catch(() => {});
+    refreshRef.current().catch(() => {});
     const interval = setInterval(() => {
-      refreshAllData().catch(() => {});
+      refreshRef.current().catch(() => {});
     }, 15000);
     return () => clearInterval(interval);
-  }, [refreshAllData]);
+  }, []);
 
   // Chế độ xem dành riêng cho GIÁO VIÊN: 'log' = Nhật ký từng lần nộp, 'topic_grades' = Bảng điểm theo Chủ đề
   const [viewMode, setViewModeState] = useState<'log' | 'topic_grades'>(() => {
