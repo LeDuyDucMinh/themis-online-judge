@@ -379,12 +379,15 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       }
     }
 
-    // 4. Tạo quan hệ chờ duyệt (pending)
+    // 4. Tạo quan hệ tham gia lớp học
     const newRelation: ClassStudent = {
       classId: targetClass.id,
       studentId: student.id,
+      studentName: student.fullName,
+      studentUsername: student.username,
+      studentEmail: student.email,
       joinedAt: new Date().toISOString(),
-      status: 'pending',
+      status: 'approved',
     };
 
     const updatedRelations = [
@@ -401,11 +404,19 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       console.warn('Lỗi ghi liên kết lớp lên Cloud:', e);
     }
 
-    showToast('Đã gửi yêu cầu', `Đã gửi yêu cầu tham gia lớp "${targetClass.className}". Vui lòng chờ Giáo viên phê duyệt để vào lớp làm bài nhé!`, 'info');
+    // Luôn đồng bộ hồ sơ học sinh lên Cloud để Giáo viên nhìn thấy ngay trong danh sách
+    try {
+      await apiService.saveStudents([student]);
+    } catch (e) {
+      console.warn('Lỗi ghi thông tin học sinh lên Cloud:', e);
+    }
+
+    setActiveClassId(targetClass.id);
+    showToast('Tham gia thành công', `Em đã tham gia lớp "${targetClass.className}" thành công!`, 'success');
     return {
       success: true,
-      pending: true,
-      message: `Đã gửi yêu cầu tham gia lớp "${targetClass.className}". Vui lòng chờ giáo viên duyệt để vào lớp!`,
+      pending: false,
+      message: `Bạn đã là thành viên chính thức của lớp "${targetClass.className}"!`,
       classroom: targetClass,
     };
   };
@@ -448,11 +459,62 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   };
 
   const getPendingStudentsInClass = (classId: string): Array<{ student: StudentUser; joinedAt: string }> => {
-    return storageService.getPendingStudentsInClass(classId);
+    const rawRelations = classStudents.length > 0 ? classStudents : storageService.getClassStudents();
+    const relations = rawRelations.filter(
+      (cs) => cs.classId === classId && cs.status === 'pending'
+    );
+    const rawStudents = students.length > 0 ? students : storageService.getStudents();
+    const studentMap = new Map<string, StudentUser>();
+    rawStudents.forEach((s) => {
+      studentMap.set(s.id, s);
+      if (s.username) studentMap.set(s.username.toLowerCase(), s);
+    });
+    return relations.map((rel) => {
+      const found = studentMap.get(rel.studentId) || (rel.studentUsername ? studentMap.get(rel.studentUsername.toLowerCase()) : undefined);
+      const stu: StudentUser = found ? {
+        ...found,
+        fullName: found.fullName && found.fullName !== 'Học sinh' ? found.fullName : (rel.studentName || found.fullName || 'Học sinh'),
+      } : {
+        id: rel.studentId,
+        fullName: rel.studentName || 'Học sinh',
+        username: rel.studentUsername || rel.studentEmail || rel.studentId,
+        email: rel.studentEmail,
+        password: '',
+        createdAt: rel.joinedAt,
+      };
+      return { student: stu, joinedAt: rel.joinedAt };
+    });
   };
 
   const getStudentsInClass = (classId: string): StudentUser[] => {
-    return storageService.getStudentsInClass(classId);
+    const rawRelations = classStudents.length > 0 ? classStudents : storageService.getClassStudents();
+    const relations = rawRelations.filter(
+      (cs) => cs.classId === classId && (!cs.status || cs.status === 'approved')
+    );
+    const rawStudents = students.length > 0 ? students : storageService.getStudents();
+    const studentMap = new Map<string, StudentUser>();
+    rawStudents.forEach((s) => {
+      studentMap.set(s.id, s);
+      if (s.username) studentMap.set(s.username.toLowerCase(), s);
+    });
+
+    return relations.map((rel) => {
+      const found = studentMap.get(rel.studentId) || (rel.studentUsername ? studentMap.get(rel.studentUsername.toLowerCase()) : undefined);
+      if (found) {
+        return {
+          ...found,
+          fullName: found.fullName && found.fullName !== 'Học sinh' ? found.fullName : (rel.studentName || found.fullName || 'Học sinh'),
+        };
+      }
+      return {
+        id: rel.studentId,
+        fullName: rel.studentName || 'Học sinh',
+        username: rel.studentUsername || rel.studentEmail || rel.studentId,
+        email: rel.studentEmail,
+        password: '',
+        createdAt: rel.joinedAt,
+      };
+    });
   };
 
   const enrollStudentToClass = async (classId: string, studentId: string): Promise<void> => {
@@ -655,6 +717,8 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         setIsAdminAuthenticated(false);
         setRole('USER');
         setIsAuthModalOpen(false);
+        // Tự động lưu học sinh lên Cloud để Giáo viên có thể nhìn thấy trong lớp
+        apiService.saveStudents([studentUser]).catch(() => {});
         if (typeof window !== 'undefined' && window.location.pathname === '/login') {
           window.history.pushState({}, '', '/');
         }
@@ -696,6 +760,7 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
               createdAt: u.created_at || new Date().toISOString(),
             };
             storageService.setStudentSession(student);
+            apiService.saveStudents([student]).catch(() => {});
           }
         } catch (e) {
           console.warn('[JudgeContext] Lỗi đọc session Supabase Auth:', e);

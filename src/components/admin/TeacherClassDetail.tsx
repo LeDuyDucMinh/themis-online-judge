@@ -18,6 +18,7 @@ import {
   Search,
   BookOpen,
   ListTree,
+  RefreshCw,
 } from 'lucide-react';
 
 interface TeacherClassDetailProps {
@@ -47,9 +48,9 @@ export const TeacherClassDetail: React.FC<TeacherClassDetailProps> = ({ classId 
     refreshAllData();
     const timer = setInterval(() => {
       refreshAllData().catch(() => {});
-    }, 30000);
+    }, 10000);
     return () => clearInterval(timer);
-  }, []);
+  }, [classId]);
 
   const [activeTab, setActiveTab] = useState<'assignments' | 'topics' | 'students'>('assignments');
   const [copiedCode, setCopiedCode] = useState(false);
@@ -371,13 +372,27 @@ export const TeacherClassDetail: React.FC<TeacherClassDetailProps> = ({ classId 
               />
             </div>
 
-            <button
-              onClick={() => setIsAddStudentModalOpen(true)}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold transition-all shadow-md shadow-blue-600/20 cursor-pointer"
-            >
-              <UserPlus className="w-4 h-4" />
-              <span>Thêm học sinh vào lớp</span>
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => {
+                  refreshAllData();
+                  showToast('Đang tải lại', 'Đang cập nhật danh sách học sinh từ máy chủ...', 'info');
+                }}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold transition-all cursor-pointer border border-slate-300 dark:border-slate-700"
+                title="Tải lại danh sách học sinh mới nhất từ Cloud"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                <span>Làm mới</span>
+              </button>
+
+              <button
+                onClick={() => setIsAddStudentModalOpen(true)}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold transition-all shadow-md shadow-blue-600/20 cursor-pointer"
+              >
+                <UserPlus className="w-4 h-4" />
+                <span>Thêm học sinh vào lớp</span>
+              </button>
+            </div>
           </div>
 
           {/* Table Học sinh */}
@@ -419,7 +434,7 @@ export const TeacherClassDetail: React.FC<TeacherClassDetailProps> = ({ classId 
                       <td className="py-3 px-4 font-mono text-slate-400">
                         <span className="flex items-center gap-1">
                           <KeyRound className="w-3 h-3 text-amber-500" />
-                          <span>{stu.password}</span>
+                          <span>{stu.password || 'Auth (Bảo mật)'}</span>
                         </span>
                       </td>
                       <td className="py-3 px-4 text-slate-400">

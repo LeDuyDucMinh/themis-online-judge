@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useJudge } from '../../context/JudgeContext';
 import { supabase, translateAuthError } from '../../services/supabaseClient';
+import { apiService } from '../../services/apiService';
 import {
   User,
   Mail,
@@ -198,6 +199,7 @@ export const AuthModal: React.FC = () => {
             password: '',
             createdAt: data.user.created_at || new Date().toISOString(),
           };
+          apiService.saveStudents([student]).catch(() => {});
           setCurrentStudent(student);
           setRole('USER');
           handleRedirectToDashboard(cleanName);
@@ -265,6 +267,7 @@ export const AuthModal: React.FC = () => {
           createdAt: data.user.created_at || new Date().toISOString(),
         };
 
+        apiService.saveStudents([student]).catch(() => {});
         setCurrentStudent(student);
         setRole('USER');
         handleRedirectToDashboard(studentFullName);

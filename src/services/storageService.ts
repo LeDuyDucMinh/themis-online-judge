@@ -490,8 +490,29 @@ export const storageService = {
     const relations = this.getClassStudents().filter(
       (cs) => cs.classId === classId && (!cs.status || cs.status === 'approved')
     );
-    const studentIds = new Set(relations.map((cs) => cs.studentId));
-    return this.getStudents().filter((s) => studentIds.has(s.id));
+    const studentMap = new Map<string, StudentUser>();
+    this.getStudents().forEach((s) => {
+      studentMap.set(s.id, s);
+      if (s.username) studentMap.set(s.username.toLowerCase(), s);
+    });
+
+    return relations.map((rel) => {
+      const found = studentMap.get(rel.studentId) || (rel.studentUsername ? studentMap.get(rel.studentUsername.toLowerCase()) : undefined);
+      if (found) {
+        return {
+          ...found,
+          fullName: found.fullName && found.fullName !== 'Học sinh' ? found.fullName : (rel.studentName || found.fullName || 'Học sinh'),
+        };
+      }
+      return {
+        id: rel.studentId,
+        fullName: rel.studentName || 'Học sinh',
+        username: rel.studentUsername || rel.studentEmail || rel.studentId,
+        email: rel.studentEmail,
+        password: '',
+        createdAt: rel.joinedAt,
+      };
+    });
   },
 
   getPendingStudentsInClass(classId: string): Array<{ student: StudentUser; joinedAt: string }> {
@@ -499,12 +520,21 @@ export const storageService = {
       (cs) => cs.classId === classId && cs.status === 'pending'
     );
     const studentMap = new Map(this.getStudents().map((s) => [s.id, s]));
+    this.getStudents().forEach((s) => {
+      studentMap.set(s.id, s);
+      if (s.username) studentMap.set(s.username.toLowerCase(), s);
+    });
     const result: Array<{ student: StudentUser; joinedAt: string }> = [];
     for (const rel of relations) {
-      const stu = studentMap.get(rel.studentId) || {
+      const found = studentMap.get(rel.studentId) || (rel.studentUsername ? studentMap.get(rel.studentUsername.toLowerCase()) : undefined);
+      const stu: StudentUser = found ? {
+        ...found,
+        fullName: found.fullName && found.fullName !== 'Học sinh' ? found.fullName : (rel.studentName || found.fullName || 'Học sinh'),
+      } : {
         id: rel.studentId,
-        fullName: 'Học sinh',
-        username: rel.studentId,
+        fullName: rel.studentName || 'Học sinh',
+        username: rel.studentUsername || rel.studentEmail || rel.studentId,
+        email: rel.studentEmail,
         password: '',
         createdAt: rel.joinedAt,
       };
@@ -572,13 +602,13 @@ export const storageService = {
       classId: targetClass.id,
       studentId,
       joinedAt: new Date().toISOString(),
-      status: 'pending',
+      status: 'approved',
     };
     this.saveClassStudents([...relations, newRelation]);
     return {
       success: true,
-      pending: true,
-      message: `Đã gửi yêu cầu tham gia lớp "${targetClass.className}". Vui lòng chờ giáo viên duyệt để vào lớp!`,
+      pending: false,
+      message: `Đã tham gia lớp "${targetClass.className}" thành công!`,
       classroom: targetClass,
     };
   },

@@ -48,6 +48,9 @@ export interface Classroom {
 export interface ClassStudent {
   classId: string;
   studentId: string;
+  studentName?: string;
+  studentUsername?: string;
+  studentEmail?: string;
   joinedAt: string;
   status?: 'pending' | 'approved' | 'rejected';
 }
