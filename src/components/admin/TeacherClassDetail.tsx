@@ -114,13 +114,20 @@ export const TeacherClassDetail: React.FC<TeacherClassDetailProps> = ({ classId 
     showToast('Đã thêm', 'Đã thêm học sinh vào lớp học thành công', 'success');
   };
 
+  const getDisplayEmail = (stu: { email?: string; username?: string }) => {
+    const raw = stu.email || (stu.username && stu.username.includes('@') ? stu.username : null);
+    if (raw === 'leduyducminh@gmail.com') return 'minh.ldd2610979@sis.hust.edu.vn';
+    return raw;
+  };
+
   const filteredStudents = classStudents.filter((s) => {
     const q = studentSearch.trim().toLowerCase();
     if (!q) return true;
+    const email = getDisplayEmail(s);
     return (
       s.fullName.toLowerCase().includes(q) ||
       s.username.toLowerCase().includes(q) ||
-      (s.email ? s.email.toLowerCase().includes(q) : false)
+      (email ? email.toLowerCase().includes(q) : false)
     );
   });
 
@@ -332,16 +339,19 @@ export const TeacherClassDetail: React.FC<TeacherClassDetailProps> = ({ classId 
                           <div className="font-bold text-slate-900 dark:text-white truncate text-xs">
                             {stu.fullName}
                           </div>
-                          {stu.email || (stu.username && stu.username.includes('@')) ? (
-                            <div className="font-mono text-[11px] text-blue-500 dark:text-blue-400 truncate flex items-center gap-1 mt-0.5" title={stu.email || stu.username}>
-                              <Mail className="w-3 h-3 text-blue-400 shrink-0" />
-                              <span className="truncate">{stu.email || stu.username}</span>
-                            </div>
-                          ) : (
-                            <div className="font-mono text-[11px] text-blue-500 dark:text-blue-400 truncate mt-0.5">
-                              @{stu.username}
-                            </div>
-                          )}
+                          {(() => {
+                            const email = getDisplayEmail(stu);
+                            return email ? (
+                              <div className="font-mono text-[11px] text-blue-500 dark:text-blue-400 truncate flex items-center gap-1 mt-0.5" title={email}>
+                                <Mail className="w-3 h-3 text-blue-400 shrink-0" />
+                                <span className="truncate">{email}</span>
+                              </div>
+                            ) : (
+                              <div className="font-mono text-[11px] text-blue-500 dark:text-blue-400 truncate mt-0.5">
+                                @{stu.username}
+                              </div>
+                            );
+                          })()}
                         </div>
                       </div>
                       <div className="text-[10px] text-slate-400 mt-1 flex items-center gap-1">
@@ -444,14 +454,17 @@ export const TeacherClassDetail: React.FC<TeacherClassDetailProps> = ({ classId 
                         <span>{stu.fullName}</span>
                       </td>
                       <td className="py-3 px-4 font-mono font-semibold">
-                        {stu.email || (stu.username && stu.username.includes('@')) ? (
-                          <span className="flex items-center gap-1.5 text-xs text-blue-500 dark:text-blue-400" title={stu.email || stu.username}>
-                            <Mail className="w-3.5 h-3.5 text-blue-400 shrink-0" />
-                            <span className="truncate max-w-[200px]">{stu.email || stu.username}</span>
-                          </span>
-                        ) : (
-                          <span className="text-blue-500 text-xs">{stu.username}</span>
-                        )}
+                        {(() => {
+                          const email = getDisplayEmail(stu);
+                          return email ? (
+                            <span className="flex items-center gap-1.5 text-xs text-blue-500 dark:text-blue-400" title={email}>
+                              <Mail className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                              <span className="truncate max-w-[200px]">{email}</span>
+                            </span>
+                          ) : (
+                            <span className="text-blue-500 text-xs">{stu.username}</span>
+                          );
+                        })()}
                       </td>
                       <td className="py-3 px-4 font-mono text-slate-400">
                         <span className="flex items-center gap-1">
@@ -521,7 +534,7 @@ export const TeacherClassDetail: React.FC<TeacherClassDetailProps> = ({ classId 
                     <option value="">-- Chọn học sinh --</option>
                     {availableStudents.map((s) => (
                       <option key={s.id} value={s.id}>
-                        {s.fullName} ({s.email || s.username})
+                        {s.fullName} ({getDisplayEmail(s) || s.username})
                       </option>
                     ))}
                   </select>

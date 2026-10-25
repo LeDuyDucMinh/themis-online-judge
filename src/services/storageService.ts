@@ -420,7 +420,18 @@ export const storageService = {
       return initialRelations;
     }
     try {
-      return JSON.parse(raw);
+      const list: ClassStudent[] = JSON.parse(raw);
+      if (!Array.isArray(list)) return [];
+      return list.map((rel) => {
+        if (rel.studentEmail === 'leduyducminh@gmail.com' || rel.studentUsername === 'leduyducminh@gmail.com') {
+          return {
+            ...rel,
+            studentEmail: 'minh.ldd2610979@sis.hust.edu.vn',
+            studentUsername: 'minh.ldd2610979@sis.hust.edu.vn',
+          };
+        }
+        return rel;
+      });
     } catch {
       return [];
     }
@@ -504,7 +515,8 @@ export const storageService = {
         (rel.studentUsername ? studentMap.get(rel.studentUsername.toLowerCase()) : undefined) ||
         (rel.studentName ? studentMap.get(rel.studentName.toLowerCase()) : undefined);
       if (found) {
-        const studentEmail = found.email || rel.studentEmail || (found.username?.includes('@') ? found.username : rel.studentUsername?.includes('@') ? rel.studentUsername : undefined);
+        const rawEmail = found.email || rel.studentEmail || (found.username?.includes('@') ? found.username : rel.studentUsername?.includes('@') ? rel.studentUsername : undefined);
+        const studentEmail = rawEmail === 'leduyducminh@gmail.com' ? 'minh.ldd2610979@sis.hust.edu.vn' : rawEmail;
         return {
           ...found,
           fullName: found.fullName && found.fullName !== 'Học sinh' ? found.fullName : (rel.studentName || found.fullName || 'Học sinh'),
@@ -512,7 +524,8 @@ export const storageService = {
           username: studentEmail || found.username,
         };
       }
-      const studentEmail = rel.studentEmail || (rel.studentUsername?.includes('@') ? rel.studentUsername : undefined);
+      const rawEmail = rel.studentEmail || (rel.studentUsername?.includes('@') ? rel.studentUsername : undefined);
+      const studentEmail = rawEmail === 'leduyducminh@gmail.com' ? 'minh.ldd2610979@sis.hust.edu.vn' : rawEmail;
       return {
         id: rel.studentId,
         fullName: rel.studentName || 'Học sinh',
@@ -541,7 +554,8 @@ export const storageService = {
         (rel.studentEmail ? studentMap.get(rel.studentEmail.toLowerCase()) : undefined) ||
         (rel.studentUsername ? studentMap.get(rel.studentUsername.toLowerCase()) : undefined) ||
         (rel.studentName ? studentMap.get(rel.studentName.toLowerCase()) : undefined);
-      const studentEmail = (found?.email) || rel.studentEmail || (found?.username?.includes('@') ? found.username : rel.studentUsername?.includes('@') ? rel.studentUsername : undefined);
+      const rawEmail = (found?.email) || rel.studentEmail || (found?.username?.includes('@') ? found.username : rel.studentUsername?.includes('@') ? rel.studentUsername : undefined);
+      const studentEmail = rawEmail === 'leduyducminh@gmail.com' ? 'minh.ldd2610979@sis.hust.edu.vn' : rawEmail;
       const stu: StudentUser = found ? {
         ...found,
         fullName: found.fullName && found.fullName !== 'Học sinh' ? found.fullName : (rel.studentName || found.fullName || 'Học sinh'),
@@ -819,8 +833,18 @@ export const storageService = {
       return [];
     }
     try {
-      const parsed = JSON.parse(raw);
-      return Array.isArray(parsed) ? parsed : [];
+      const parsed: StudentUser[] = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return [];
+      return parsed.map((s) => {
+        if (s.email === 'leduyducminh@gmail.com' || s.username === 'leduyducminh@gmail.com') {
+          return {
+            ...s,
+            email: 'minh.ldd2610979@sis.hust.edu.vn',
+            username: 'minh.ldd2610979@sis.hust.edu.vn',
+          };
+        }
+        return s;
+      });
     } catch {
       return [];
     }

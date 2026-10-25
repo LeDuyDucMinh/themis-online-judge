@@ -476,7 +476,8 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         (rel.studentEmail ? studentMap.get(rel.studentEmail.toLowerCase()) : undefined) ||
         (rel.studentUsername ? studentMap.get(rel.studentUsername.toLowerCase()) : undefined) ||
         (rel.studentName ? studentMap.get(rel.studentName.toLowerCase()) : undefined);
-      const studentEmail = found?.email || rel.studentEmail || (found?.username?.includes('@') ? found.username : rel.studentUsername?.includes('@') ? rel.studentUsername : undefined);
+      const rawEmail = found?.email || rel.studentEmail || (found?.username?.includes('@') ? found.username : rel.studentUsername?.includes('@') ? rel.studentUsername : undefined);
+      const studentEmail = rawEmail === 'leduyducminh@gmail.com' ? 'minh.ldd2610979@sis.hust.edu.vn' : rawEmail;
       const stu: StudentUser = found ? {
         ...found,
         fullName: found.fullName && found.fullName !== 'Học sinh' ? found.fullName : (rel.studentName || found.fullName || 'Học sinh'),
@@ -514,7 +515,8 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         (rel.studentUsername ? studentMap.get(rel.studentUsername.toLowerCase()) : undefined) ||
         (rel.studentName ? studentMap.get(rel.studentName.toLowerCase()) : undefined);
       if (found) {
-        const studentEmail = found.email || rel.studentEmail || (found.username?.includes('@') ? found.username : rel.studentUsername?.includes('@') ? rel.studentUsername : undefined);
+        const rawEmail = found.email || rel.studentEmail || (found.username?.includes('@') ? found.username : rel.studentUsername?.includes('@') ? rel.studentUsername : undefined);
+        const studentEmail = rawEmail === 'leduyducminh@gmail.com' ? 'minh.ldd2610979@sis.hust.edu.vn' : rawEmail;
         return {
           ...found,
           fullName: found.fullName && found.fullName !== 'Học sinh' ? found.fullName : (rel.studentName || found.fullName || 'Học sinh'),
@@ -522,7 +524,8 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
           username: studentEmail || found.username,
         };
       }
-      const studentEmail = rel.studentEmail || (rel.studentUsername?.includes('@') ? rel.studentUsername : undefined);
+      const rawEmail = rel.studentEmail || (rel.studentUsername?.includes('@') ? rel.studentUsername : undefined);
+      const studentEmail = rawEmail === 'leduyducminh@gmail.com' ? 'minh.ldd2610979@sis.hust.edu.vn' : rawEmail;
       return {
         id: rel.studentId,
         fullName: rel.studentName || 'Học sinh',
@@ -599,11 +602,20 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       if (cloudStudents || storageService.getStudents().length > 0) {
         const local = storageService.getStudents();
         const studentMap = new Map<string, StudentUser>();
-        local.forEach((s) => studentMap.set((s.username || '').toLowerCase(), s));
+        // Cloud là Single Source of Truth
         if (cloudStudents && cloudStudents.length > 0) {
-          cloudStudents.forEach((s) => studentMap.set((s.username || '').toLowerCase(), s));
+          cloudStudents.forEach((s) => {
+            const key = (s.id || s.username || '').toLowerCase();
+            if (key && s.username !== 'leduyducminh@gmail.com') studentMap.set(key, s);
+          });
         }
-        const mergedStudents = Array.from(studentMap.values()).filter((s) => s.username);
+        local.forEach((s) => {
+          const key = (s.id || s.username || '').toLowerCase();
+          if (key && !studentMap.has(key) && s.username !== 'leduyducminh@gmail.com') {
+            studentMap.set(key, s);
+          }
+        });
+        const mergedStudents = Array.from(studentMap.values()).filter((s) => s.username && s.username !== 'leduyducminh@gmail.com');
         if (mergedStudents.length > 0) {
           setStudents(mergedStudents);
           storageService.saveStudents(mergedStudents);

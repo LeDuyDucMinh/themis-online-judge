@@ -352,11 +352,14 @@ export const apiService = {
     // Hợp nhất an toàn: Không làm mất học sinh cục bộ còn đang hoạt động
     const localList = storageService.getStudents();
     const studentMap = new Map<string, StudentUser>();
-    cloudStudents.forEach((s) => studentMap.set((s.username || '').trim().toLowerCase(), s));
+    cloudStudents.forEach((s) => {
+      const k = (s.id || s.username || '').trim().toLowerCase();
+      if (k && s.username !== 'leduyducminh@gmail.com') studentMap.set(k, s);
+    });
     localList.forEach((s) => {
-      const u = (s.username || '').trim().toLowerCase();
-      if (u && !studentMap.has(u)) {
-        studentMap.set(u, s);
+      const k = (s.id || s.username || '').trim().toLowerCase();
+      if (k && !studentMap.has(k) && s.username !== 'leduyducminh@gmail.com') {
+        studentMap.set(k, s);
       }
     });
     const mergedList = Array.from(studentMap.values());
@@ -389,18 +392,18 @@ export const apiService = {
       // Không đọc được Cloud -> chỉ lưu trên máy, tuyệt đối không ghi đè Cloud bằng danh sách không đầy đủ
       list.forEach((s) => {
         const k = getKey(s);
-        if (k && !removeSet.has(s.id)) merged.set(k, s);
+        if (k && !removeSet.has(s.id) && s.username !== 'leduyducminh@gmail.com') merged.set(k, s);
       });
       storageService.saveStudents(Array.from(merged.values()));
       throw new Error('Không đọc được danh sách học sinh trên Cloud (mạng chậm hoặc mất kết nối)');
     }
     cloudLatest.forEach((s) => {
       const k = getKey(s);
-      if (k && !removeSet.has(s.id)) merged.set(k, s);
+      if (k && !removeSet.has(s.id) && s.username !== 'leduyducminh@gmail.com') merged.set(k, s);
     });
     list.forEach((s) => {
       const k = getKey(s);
-      if (k && !removeSet.has(s.id)) {
+      if (k && !removeSet.has(s.id) && s.username !== 'leduyducminh@gmail.com') {
         const prev = merged.get(k);
         merged.set(k, {
           ...prev,
