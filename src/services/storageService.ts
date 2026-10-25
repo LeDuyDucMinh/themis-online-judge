@@ -494,21 +494,30 @@ export const storageService = {
     this.getStudents().forEach((s) => {
       studentMap.set(s.id, s);
       if (s.username) studentMap.set(s.username.toLowerCase(), s);
+      if (s.email) studentMap.set(s.email.toLowerCase(), s);
+      if (s.fullName) studentMap.set(s.fullName.toLowerCase(), s);
     });
 
     return relations.map((rel) => {
-      const found = studentMap.get(rel.studentId) || (rel.studentUsername ? studentMap.get(rel.studentUsername.toLowerCase()) : undefined);
+      const found = studentMap.get(rel.studentId) ||
+        (rel.studentEmail ? studentMap.get(rel.studentEmail.toLowerCase()) : undefined) ||
+        (rel.studentUsername ? studentMap.get(rel.studentUsername.toLowerCase()) : undefined) ||
+        (rel.studentName ? studentMap.get(rel.studentName.toLowerCase()) : undefined);
       if (found) {
+        const studentEmail = found.email || rel.studentEmail || (found.username?.includes('@') ? found.username : rel.studentUsername?.includes('@') ? rel.studentUsername : undefined);
         return {
           ...found,
           fullName: found.fullName && found.fullName !== 'Học sinh' ? found.fullName : (rel.studentName || found.fullName || 'Học sinh'),
+          email: studentEmail,
+          username: studentEmail || found.username,
         };
       }
+      const studentEmail = rel.studentEmail || (rel.studentUsername?.includes('@') ? rel.studentUsername : undefined);
       return {
         id: rel.studentId,
         fullName: rel.studentName || 'Học sinh',
-        username: rel.studentUsername || rel.studentEmail || rel.studentId,
-        email: rel.studentEmail,
+        username: studentEmail || rel.studentUsername || rel.studentId,
+        email: studentEmail,
         password: '',
         createdAt: rel.joinedAt,
       };
@@ -519,22 +528,30 @@ export const storageService = {
     const relations = this.getClassStudents().filter(
       (cs) => cs.classId === classId && cs.status === 'pending'
     );
-    const studentMap = new Map(this.getStudents().map((s) => [s.id, s]));
+    const studentMap = new Map<string, StudentUser>();
     this.getStudents().forEach((s) => {
       studentMap.set(s.id, s);
       if (s.username) studentMap.set(s.username.toLowerCase(), s);
+      if (s.email) studentMap.set(s.email.toLowerCase(), s);
+      if (s.fullName) studentMap.set(s.fullName.toLowerCase(), s);
     });
     const result: Array<{ student: StudentUser; joinedAt: string }> = [];
     for (const rel of relations) {
-      const found = studentMap.get(rel.studentId) || (rel.studentUsername ? studentMap.get(rel.studentUsername.toLowerCase()) : undefined);
+      const found = studentMap.get(rel.studentId) ||
+        (rel.studentEmail ? studentMap.get(rel.studentEmail.toLowerCase()) : undefined) ||
+        (rel.studentUsername ? studentMap.get(rel.studentUsername.toLowerCase()) : undefined) ||
+        (rel.studentName ? studentMap.get(rel.studentName.toLowerCase()) : undefined);
+      const studentEmail = (found?.email) || rel.studentEmail || (found?.username?.includes('@') ? found.username : rel.studentUsername?.includes('@') ? rel.studentUsername : undefined);
       const stu: StudentUser = found ? {
         ...found,
         fullName: found.fullName && found.fullName !== 'Học sinh' ? found.fullName : (rel.studentName || found.fullName || 'Học sinh'),
+        email: studentEmail,
+        username: studentEmail || found.username,
       } : {
         id: rel.studentId,
         fullName: rel.studentName || 'Học sinh',
-        username: rel.studentUsername || rel.studentEmail || rel.studentId,
-        email: rel.studentEmail,
+        username: studentEmail || rel.studentUsername || rel.studentId,
+        email: studentEmail,
         password: '',
         createdAt: rel.joinedAt,
       };

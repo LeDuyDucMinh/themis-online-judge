@@ -330,7 +330,8 @@ export const apiService = {
             id: s.id || `student_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
             fullName: s.fullName || s.username || 'Học sinh',
             username: s.username,
-            password: s.password || '123',
+            email: s.email || (s.username && s.username.includes('@') ? s.username : undefined),
+            password: s.password || '',
             createdAt: s.createdAt || new Date().toISOString(),
           }));
       } catch (e) {
@@ -379,7 +380,7 @@ export const apiService = {
    */
   async saveStudents(list: StudentUser[], removeIds: string[] = []): Promise<StudentUser[]> {
     const removeSet = new Set(removeIds);
-    const normalize = (s: StudentUser) => (s.username || '').trim().toLowerCase();
+    const getKey = (s: StudentUser) => (s.id || s.username || '').trim().toLowerCase();
 
     // Hợp nhất với danh sách MỚI NHẤT trên Cloud: không bao giờ ghi đè làm mất học sinh do máy khác tạo
     const merged = new Map<string, StudentUser>();
@@ -387,16 +388,28 @@ export const apiService = {
     if (cloudLatest === null) {
       // Không đọc được Cloud -> chỉ lưu trên máy, tuyệt đối không ghi đè Cloud bằng danh sách không đầy đủ
       list.forEach((s) => {
-        if (normalize(s) && !removeSet.has(s.id)) merged.set(normalize(s), s);
+        const k = getKey(s);
+        if (k && !removeSet.has(s.id)) merged.set(k, s);
       });
       storageService.saveStudents(Array.from(merged.values()));
       throw new Error('Không đọc được danh sách học sinh trên Cloud (mạng chậm hoặc mất kết nối)');
     }
     cloudLatest.forEach((s) => {
-      if (normalize(s) && !removeSet.has(s.id)) merged.set(normalize(s), s);
+      const k = getKey(s);
+      if (k && !removeSet.has(s.id)) merged.set(k, s);
     });
     list.forEach((s) => {
-      if (normalize(s) && !removeSet.has(s.id)) merged.set(normalize(s), s);
+      const k = getKey(s);
+      if (k && !removeSet.has(s.id)) {
+        const prev = merged.get(k);
+        merged.set(k, {
+          ...prev,
+          ...s,
+          fullName: s.fullName || prev?.fullName || 'Học sinh',
+          username: s.username || prev?.username || '',
+          email: s.email || prev?.email || (s.username?.includes('@') ? s.username : prev?.username?.includes('@') ? prev.username : undefined),
+        });
+      }
     });
     const finalList = Array.from(merged.values());
 

@@ -19,6 +19,7 @@ import {
   BookOpen,
   ListTree,
   RefreshCw,
+  Mail,
 } from 'lucide-react';
 
 interface TeacherClassDetailProps {
@@ -114,8 +115,13 @@ export const TeacherClassDetail: React.FC<TeacherClassDetailProps> = ({ classId 
   };
 
   const filteredStudents = classStudents.filter((s) => {
-    const q = studentSearch.toLowerCase();
-    return s.fullName.toLowerCase().includes(q) || s.username.toLowerCase().includes(q);
+    const q = studentSearch.trim().toLowerCase();
+    if (!q) return true;
+    return (
+      s.fullName.toLowerCase().includes(q) ||
+      s.username.toLowerCase().includes(q) ||
+      (s.email ? s.email.toLowerCase().includes(q) : false)
+    );
   });
 
   return (
@@ -326,9 +332,16 @@ export const TeacherClassDetail: React.FC<TeacherClassDetailProps> = ({ classId 
                           <div className="font-bold text-slate-900 dark:text-white truncate text-xs">
                             {stu.fullName}
                           </div>
-                          <div className="font-mono text-[11px] text-blue-500 truncate">
-                            @{stu.username}
-                          </div>
+                          {stu.email || (stu.username && stu.username.includes('@')) ? (
+                            <div className="font-mono text-[11px] text-blue-500 dark:text-blue-400 truncate flex items-center gap-1 mt-0.5" title={stu.email || stu.username}>
+                              <Mail className="w-3 h-3 text-blue-400 shrink-0" />
+                              <span className="truncate">{stu.email || stu.username}</span>
+                            </div>
+                          ) : (
+                            <div className="font-mono text-[11px] text-blue-500 dark:text-blue-400 truncate mt-0.5">
+                              @{stu.username}
+                            </div>
+                          )}
                         </div>
                       </div>
                       <div className="text-[10px] text-slate-400 mt-1 flex items-center gap-1">
@@ -406,7 +419,7 @@ export const TeacherClassDetail: React.FC<TeacherClassDetailProps> = ({ classId 
                 }`}>
                   <th className="py-3 px-4">#</th>
                   <th className="py-3 px-4">Họ và tên</th>
-                  <th className="py-3 px-4">Tên đăng nhập</th>
+                  <th className="py-3 px-4">Email / Tên đăng nhập</th>
                   <th className="py-3 px-4">Mật khẩu</th>
                   <th className="py-3 px-4">Ngày tạo</th>
                   <th className="py-3 px-4 text-right">Thao tác</th>
@@ -430,7 +443,16 @@ export const TeacherClassDetail: React.FC<TeacherClassDetailProps> = ({ classId 
                         </div>
                         <span>{stu.fullName}</span>
                       </td>
-                      <td className="py-3 px-4 font-mono text-blue-500 font-semibold">{stu.username}</td>
+                      <td className="py-3 px-4 font-mono font-semibold">
+                        {stu.email || (stu.username && stu.username.includes('@')) ? (
+                          <span className="flex items-center gap-1.5 text-xs text-blue-500 dark:text-blue-400" title={stu.email || stu.username}>
+                            <Mail className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                            <span className="truncate max-w-[200px]">{stu.email || stu.username}</span>
+                          </span>
+                        ) : (
+                          <span className="text-blue-500 text-xs">{stu.username}</span>
+                        )}
+                      </td>
                       <td className="py-3 px-4 font-mono text-slate-400">
                         <span className="flex items-center gap-1">
                           <KeyRound className="w-3 h-3 text-amber-500" />
@@ -499,7 +521,7 @@ export const TeacherClassDetail: React.FC<TeacherClassDetailProps> = ({ classId 
                     <option value="">-- Chọn học sinh --</option>
                     {availableStudents.map((s) => (
                       <option key={s.id} value={s.id}>
-                        {s.fullName} ({s.username})
+                        {s.fullName} ({s.email || s.username})
                       </option>
                     ))}
                   </select>
