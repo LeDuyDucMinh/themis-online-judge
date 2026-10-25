@@ -702,11 +702,13 @@ export const SubmissionHistory: React.FC = () => {
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="bg-slate-900 border border-slate-800 rounded-3xl max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-2xl p-6 relative space-y-6"
+            className={`border rounded-3xl max-w-4xl w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden relative transition-colors ${
+              theme === 'light' ? 'bg-white border-slate-200' : 'bg-slate-900 border-slate-800'
+            }`}
           >
-            {/* Header: Chỉ 1 nút đóng góc trên bên phải, hiển thị TÊN BÀI TẬP rõ ràng, decor đẹp mắt */}
-            <div className={`sticky top-0 z-20 backdrop-blur-md px-6 py-4 border-b -mx-6 -mt-6 rounded-t-3xl flex items-start justify-between gap-4 transition-colors ${
-              theme === 'light' ? 'bg-white/95 border-slate-200' : 'bg-slate-900/95 border-slate-800'
+            {/* Header: Cố định ở trên, không bao giờ bị cuộn nội dung tràn qua */}
+            <div className={`shrink-0 px-6 py-4 border-b flex items-start justify-between gap-4 transition-colors ${
+              theme === 'light' ? 'bg-white border-slate-200' : 'bg-slate-900 border-slate-800'
             }`}>
               <div className="space-y-1.5">
                 <div className="flex flex-wrap items-center gap-2">
@@ -757,7 +759,7 @@ export const SubmissionHistory: React.FC = () => {
               {/* Chỉ 1 nút Đóng duy nhất ở góc trên bên phải */}
               <button
                 onClick={() => setSelectedSub(null)}
-                className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl transition-all border shadow-sm shrink-0 ${
+                className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl transition-all border shadow-sm shrink-0 cursor-pointer ${
                   theme === 'light'
                     ? 'bg-slate-100 hover:bg-rose-600 hover:text-white text-slate-700 border-slate-200 hover:border-rose-500'
                     : 'bg-slate-800 hover:bg-rose-600 text-slate-300 hover:text-white border-slate-700 hover:border-rose-500'
@@ -769,24 +771,27 @@ export const SubmissionHistory: React.FC = () => {
               </button>
             </div>
 
-            {/* Themis Table */}
-            <div className="w-full">
-              <ThemisGradingTable
-                submission={selectedSub}
-                isGrading={false}
-              />
-            </div>
+            {/* Scrollable Body: Chứa Bảng điểm Themis và Mã nguồn, cuộn mượt mà bên trong, không bao giờ tràn ra viền */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+              {/* Themis Table */}
+              <div className="w-full">
+                <ThemisGradingTable
+                  submission={selectedSub}
+                  isGrading={false}
+                />
+              </div>
 
-            {/* Source Code View */}
-            <div className="w-full">
-              <h4 className={`text-xs font-bold uppercase tracking-wider mb-2 flex items-center gap-2 ${
-                theme === 'light' ? 'text-slate-700' : 'text-slate-300'
-              }`}>
-                <Code2 className="w-4 h-4 text-blue-500 dark:text-blue-400" /> Mã nguồn đã nộp ({(typeof selectedSub.language === 'string' ? selectedSub.language : String(selectedSub.language || '')).toUpperCase()}):
-              </h4>
-              <pre className="p-4 bg-slate-950 rounded-2xl text-emerald-400 font-mono text-xs overflow-x-auto max-h-64 border border-slate-800">
-                {typeof selectedSub.sourceCode === 'object' ? JSON.stringify(selectedSub.sourceCode, null, 2) : String(selectedSub.sourceCode || '')}
-              </pre>
+              {/* Source Code View */}
+              <div className="w-full">
+                <h4 className={`text-xs font-bold uppercase tracking-wider mb-2 flex items-center gap-2 ${
+                  theme === 'light' ? 'text-slate-700' : 'text-slate-300'
+                }`}>
+                  <Code2 className="w-4 h-4 text-blue-500 dark:text-blue-400" /> Mã nguồn đã nộp ({(typeof selectedSub.language === 'string' ? selectedSub.language : String(selectedSub.language || '')).toUpperCase()}):
+                </h4>
+                <pre className="p-4 bg-slate-950 rounded-2xl text-emerald-400 font-mono text-xs overflow-x-auto max-h-64 border border-slate-800">
+                  {typeof selectedSub.sourceCode === 'object' ? JSON.stringify(selectedSub.sourceCode, null, 2) : String(selectedSub.sourceCode || '')}
+                </pre>
+              </div>
             </div>
           </div>
         </div>
