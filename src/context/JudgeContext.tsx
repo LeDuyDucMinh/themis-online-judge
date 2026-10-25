@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useRef, type ReactNode } from 'react';
-import type { UserRole, Topic, Problem, Submission, UserStats, StudentUser, Classroom, ClassStudent } from '../types/judge';
+import type { UserRole, Topic, Problem, Submission, UserStats, StudentUser, Classroom, ClassStudent, TestCase } from '../types/judge';
 import { storageService, DEFAULT_CLASS } from '../services/storageService';
 import { apiService } from '../services/apiService';
 import { idbService } from '../services/db';
@@ -1436,15 +1436,18 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     if (!existing) return;
 
     // BẢO VỆ TEST CASES: Không bao giờ để một cập nhật bài tập thông thường làm mất bộ test case đang có
+    const hasRealContent = (tests?: TestCase[] | null) =>
+      Boolean(tests && tests.length > 0 && tests.some((t) => (t.input && t.input.trim()) || (t.expectedOutput && t.expectedOutput.trim())));
+
     let mergedTestCases =
       updated.testCases && updated.testCases.length > 0
         ? updated.testCases
         : (existing.testCases && existing.testCases.length > 0 ? existing.testCases : []);
 
-    if (mergedTestCases.length === 0) {
+    if (!hasRealContent(mergedTestCases)) {
       const idbTests = await idbService.getTestCases(id);
-      if (idbTests && idbTests.length > 0) {
-        mergedTestCases = idbTests;
+      if (hasRealContent(idbTests)) {
+        mergedTestCases = idbTests!;
       }
     }
 
@@ -1458,7 +1461,7 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     try {
       // 1. BẮT BUỘC AWAIT ĐỂ LƯU THÀNH CÔNG VÀO DATABASE THỰC TẾ TRƯỚC
       await apiService.saveProblem(updatedProblem);
-      if (mergedTestCases && mergedTestCases.length > 0) {
+      if (hasRealContent(mergedTestCases)) {
         await apiService.saveTestCases(id, mergedTestCases);
       }
 

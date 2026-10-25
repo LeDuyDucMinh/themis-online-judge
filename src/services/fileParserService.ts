@@ -349,7 +349,7 @@ export function pairTestFiles(
 
   // Tạo TestCase: Lưu 100% dữ liệu gốc cho việc chấm thi
   const testCases: TestCase[] = validPairs.map((pair, idx) => ({
-    id: `test_themis_${Date.now()}_${idx + 1}_${Math.random().toString(36).substring(2, 6)}`,
+    id: `tc_${idx + 1}`,
     name: `Test #${String(idx + 1).padStart(2, '0')}`,
     input: pair.input,
     expectedOutput: pair.output,

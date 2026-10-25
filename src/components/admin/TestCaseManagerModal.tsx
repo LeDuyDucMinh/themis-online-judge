@@ -65,23 +65,50 @@ export const TestCaseManagerModal: React.FC<TestCaseManagerModalProps> = ({
   const [timeLimit, setTimeLimit] = useState(problem.timeLimit || 1.0);
   const [memoryLimit, setMemoryLimit] = useState(problem.memoryLimit || 1024);
   const [totalPoints, setTotalPoints] = useState(problem.totalPoints || 10);
-  const [testCases, setTestCases] = useState<TestCase[]>(problem.testCases || []);
+  const [testCases, setTestCases] = useState<TestCase[]>(() => {
+    if (!problem.testCases || problem.testCases.length === 0) return [];
+    // Deduplicate by name/order in case props has duplicate rows
+    const seen = new Set<string>();
+    return problem.testCases.filter((tc, idx) => {
+      const key = tc.name || `Test #${idx + 1}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  });
   const [isLoadingTests, setIsLoadingTests] = useState(false);
   const [loadingProgress, setLoadingProgress] = useState<{ current: number; total: number } | null>(null);
   const [parseError, setParseError] = useState<string | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
 
-  // Tự động nạp test cases từ IndexedDB hoặc Cloud nếu problem trong props chưa có test cases
+  // Tự động nạp test cases từ IndexedDB hoặc Cloud nếu problem trong props chưa có test cases HOẶC test cases bị rỗng nội dung input/output
   useEffect(() => {
     let isMounted = true;
     (async () => {
-      if (!problem.testCases || problem.testCases.length === 0) {
-        let dbTests = await idbService.getTestCases(problem.id);
-        if (!dbTests || dbTests.length === 0) {
-          dbTests = await apiService.fetchTestCases(problem.id);
-        }
-        if (isMounted && dbTests && dbTests.length > 0) {
-          setTestCases(dbTests);
+      const hasContent = (tests?: TestCase[] | null) =>
+        Boolean(tests && tests.length > 0 && tests.some((t) => (t.input && t.input.trim()) || (t.expectedOutput && t.expectedOutput.trim())));
+
+      const isDuplicated = Boolean(
+        problem.testCases &&
+        problem.testCases.length > 1 &&
+        problem.testCases.some((t, i) => problem.testCases!.findIndex((o) => o.name === t.name) !== i)
+      );
+
+      // Nếu không có nội dung thực tế (chỉ là metadata) hoặc có test trùng lặp
+      if (!hasContent(problem.testCases) || isDuplicated) {
+        setIsLoadingTests(true);
+        try {
+          let dbTests = await idbService.getTestCases(problem.id);
+          if (!hasContent(dbTests) || isDuplicated) {
+            dbTests = await apiService.fetchTestCases(problem.id);
+          }
+          if (isMounted && dbTests && dbTests.length > 0) {
+            setTestCases(dbTests);
+          }
+        } catch (err) {
+          console.warn('[TestCaseManagerModal] Lỗi nạp test cases:', err);
+        } finally {
+          if (isMounted) setIsLoadingTests(false);
         }
       }
     })();
@@ -90,16 +117,35 @@ export const TestCaseManagerModal: React.FC<TestCaseManagerModalProps> = ({
     };
   }, [problem.id, problem.testCases]);
 
-  // Lắng nghe phím ESC để đóng modal
+  // Đóng an toàn: Tự động lưu test cases nếu có nội dung để không bao giờ bị mất dữ liệu
+  const handleSafeClose = async () => {
+    const hasContent = testCases.some((t) => (t.input && t.input.trim()) || (t.expectedOutput && t.expectedOutput.trim()));
+    if (hasContent && testCases.length > 0) {
+      try {
+        await idbService.saveTestCases(problem.id, testCases);
+        await updateProblem(problem.id, {
+          testCases,
+          totalPoints: Number(totalPoints) || 10,
+          timeLimit: Number(timeLimit) || 1.0,
+          memoryLimit: Number(memoryLimit) || 1024,
+        });
+      } catch (err) {
+        console.warn('[TestCaseManagerModal] Lỗi lưu tự động khi đóng:', err);
+      }
+    }
+    onClose();
+  };
+
+  // Lắng nghe phím ESC để đóng modal an toàn
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        onClose();
+        handleSafeClose();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onClose]);
+  }, [testCases, totalPoints, timeLimit, memoryLimit]);
 
   // Tự động chia đều điểm cho các test case
   const handleAutoDistributePoints = () => {
@@ -119,7 +165,7 @@ export const TestCaseManagerModal: React.FC<TestCaseManagerModalProps> = ({
     const nextIdx = testCases.length + 1;
     const defaultPts = +(totalPoints / Math.max(1, nextIdx)).toFixed(2);
     const newTest: TestCase = {
-      id: `test_manual_${Date.now()}_${nextIdx}`,
+      id: `${problem.id}_tc_${nextIdx}`,
       name: `Test #${String(nextIdx).padStart(2, '0')}`,
       input: '',
       expectedOutput: '',
@@ -150,7 +196,26 @@ export const TestCaseManagerModal: React.FC<TestCaseManagerModalProps> = ({
         totalPoints,
         (current, total) => setLoadingProgress({ current, total })
       );
-      setTestCases(parsedTests);
+      // Chuẩn hóa ID xác định theo bài toán
+      const standardizedTests: TestCase[] = parsedTests.map((tc, idx) => ({
+        ...tc,
+        id: `${problem.id}_tc_${idx + 1}`,
+        name: `Test #${String(idx + 1).padStart(2, '0')}`,
+      }));
+      setTestCases(standardizedTests);
+
+      // TỰ ĐỘNG LƯU NGAY: Lưu vào IndexedDB và JudgeContext để khi người dùng ấn nút "X" Đóng thì test KHÔNG BỊ MẤT!
+      await idbService.saveTestCases(problem.id, standardizedTests);
+      await updateProblem(problem.id, {
+        testCases: standardizedTests,
+        totalPoints: Number(totalPoints) || 10,
+        timeLimit: Number(timeLimit) || 1.0,
+        memoryLimit: Number(memoryLimit) || 1024,
+      });
+      await apiService.saveTestCases(problem.id, standardizedTests).catch((err) => {
+        console.warn('[TestCaseManagerModal] Lỗi lưu ngầm lên Cloud:', err);
+      });
+
       showToast('Nạp Test Themis thành công', summary, 'success');
       if (warnings && warnings.length > 0) {
         showToast('Lưu ý nạp test', warnings.join(' '), 'warning');
@@ -184,7 +249,26 @@ export const TestCaseManagerModal: React.FC<TestCaseManagerModalProps> = ({
         totalPoints,
         (current, total) => setLoadingProgress({ current, total })
       );
-      setTestCases(parsedTests);
+      // Chuẩn hóa ID xác định theo bài toán
+      const standardizedTests: TestCase[] = parsedTests.map((tc, idx) => ({
+        ...tc,
+        id: `${problem.id}_tc_${idx + 1}`,
+        name: `Test #${String(idx + 1).padStart(2, '0')}`,
+      }));
+      setTestCases(standardizedTests);
+
+      // TỰ ĐỘNG LƯU NGAY: Lưu vào IndexedDB và JudgeContext để khi người dùng ấn nút "X" Đóng thì test KHÔNG BỊ MẤT!
+      await idbService.saveTestCases(problem.id, standardizedTests);
+      await updateProblem(problem.id, {
+        testCases: standardizedTests,
+        totalPoints: Number(totalPoints) || 10,
+        timeLimit: Number(timeLimit) || 1.0,
+        memoryLimit: Number(memoryLimit) || 1024,
+      });
+      await apiService.saveTestCases(problem.id, standardizedTests).catch((err) => {
+        console.warn('[TestCaseManagerModal] Lỗi lưu ngầm lên Cloud:', err);
+      });
+
       showToast('Nạp Test Themis thành công', summary, 'success');
       if (warnings && warnings.length > 0) {
         showToast('Lưu ý nạp test', warnings.join(' '), 'warning');
@@ -254,7 +338,7 @@ export const TestCaseManagerModal: React.FC<TestCaseManagerModalProps> = ({
   return (
     <div
       onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
+        if (e.target === e.currentTarget) handleSafeClose();
       }}
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-150"
     >
@@ -276,7 +360,7 @@ export const TestCaseManagerModal: React.FC<TestCaseManagerModalProps> = ({
           </div>
 
           <button
-            onClick={onClose}
+            onClick={handleSafeClose}
             className="p-2 rounded-xl bg-slate-800 hover:bg-rose-600 text-slate-400 hover:text-white transition-all flex items-center gap-1 text-xs font-semibold"
             title="Đóng (Phím ESC hoặc click ra ngoài)"
           >
@@ -719,7 +803,7 @@ export const TestCaseManagerModal: React.FC<TestCaseManagerModalProps> = ({
 
           <div className="flex items-center gap-2">
             <button
-              onClick={onClose}
+              onClick={handleSafeClose}
               className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-semibold border border-slate-700 transition-colors"
             >
               Đóng / Hủy

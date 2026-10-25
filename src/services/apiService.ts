@@ -641,38 +641,60 @@ export const apiService = {
       throw new Error('Mã bài tập không hợp lệ khi lưu test case');
     }
 
-    // 1. Luôn lưu vào IndexedDB cục bộ của trình duyệt trước để không bao giờ mất trên client
-    await idbService.saveTestCases(problemId, testCases);
+    // Chuẩn hóa danh sách test case và ID xác định theo bài toán
+    const standardizedTests: TestCase[] = testCases.map((tc, index) => ({
+      ...tc,
+      id: `${problemId}_tc_${index + 1}`,
+      name: tc.name || `Test #${String(index + 1).padStart(2, '0')}`,
+      points: Number(tc.points) || 1,
+      isHidden: Boolean(tc.isHidden),
+    }));
 
-    // 2. Nếu đã cấu hình Supabase Cloud, gọi API PUT/POST (Upsert) lên bảng test_cases
+    // 1. Luôn lưu vào IndexedDB cục bộ của trình duyệt trước để không bao giờ mất trên client
+    await idbService.saveTestCases(problemId, standardizedTests);
+
+    // 2. Nếu đã cấu hình Supabase Cloud, đồng bộ lên bảng test_cases
     if (isSupabaseConfigured()) {
       try {
-        const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/test_cases?on_conflict=id`;
-        const rows = testCases.map((tc, index) => ({
-          id: tc.id || `${problemId}_tc_${index + 1}`,
-          problem_id: problemId,
-          test_name: tc.name || `Test #${index + 1}`,
-          input: tc.input || '',
-          expected_output: tc.expectedOutput || '',
-          points: Number(tc.points) || 1,
-          is_hidden: Boolean(tc.isHidden),
-          order_index: index + 1,
-          updated_at: new Date().toISOString(),
-        }));
-
-        const res = await fetch(targetUrl, {
-          method: 'POST',
+        // Xóa sạch các test case cũ của problem này trên cloud để không bị trùng lặp / nhân đôi test
+        await fetch(`${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/test_cases?problem_id=eq.${encodeURIComponent(problemId)}`, {
+          method: 'DELETE',
           headers: {
             ...this.getAntiCacheHeaders(),
-            'Content-Type': 'application/json',
-            Prefer: 'resolution=merge-duplicates',
+            apikey: ENV.SUPABASE_ANON_KEY,
+            Authorization: `Bearer ${ENV.SUPABASE_ANON_KEY}`,
           },
-          body: JSON.stringify(rows),
         });
 
-        if (!res.ok) {
-          const errDetail = await res.text();
-          throw new Error(`Lỗi Supabase (${res.status}): ${errDetail.slice(0, 150)}`);
+        if (standardizedTests.length > 0) {
+          const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/test_cases`;
+          const rows = standardizedTests.map((tc, index) => ({
+            id: tc.id,
+            problem_id: problemId,
+            test_name: tc.name,
+            input: tc.input || '',
+            expected_output: tc.expectedOutput || '',
+            points: Number(tc.points) || 1,
+            is_hidden: Boolean(tc.isHidden),
+            order_index: index + 1,
+            updated_at: new Date().toISOString(),
+          }));
+
+          const res = await fetch(targetUrl, {
+            method: 'POST',
+            headers: {
+              ...this.getAntiCacheHeaders(),
+              'Content-Type': 'application/json',
+              apikey: ENV.SUPABASE_ANON_KEY,
+              Authorization: `Bearer ${ENV.SUPABASE_ANON_KEY}`,
+            },
+            body: JSON.stringify(rows),
+          });
+
+          if (!res.ok) {
+            const errDetail = await res.text();
+            throw new Error(`Lỗi Supabase (${res.status}): ${errDetail.slice(0, 150)}`);
+          }
         }
       } catch (err: unknown) {
         console.error('[apiService] Lỗi lưu test cases lên Supabase Cloud:', err);
@@ -689,25 +711,41 @@ export const apiService = {
   async fetchTestCases(problemId: string): Promise<TestCase[] | null> {
     if (isSupabaseConfigured()) {
       try {
-        const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/test_cases?problem_id=eq.${problemId}&order=order_index.asc`;
+        const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/test_cases?problem_id=eq.${encodeURIComponent(problemId)}&order=order_index.asc,updated_at.desc`;
         const res = await fetch(targetUrl, {
           headers: {
+            ...this.getAntiCacheHeaders(),
             apikey: ENV.SUPABASE_ANON_KEY,
             Authorization: `Bearer ${ENV.SUPABASE_ANON_KEY}`,
           },
+          cache: 'no-store',
         });
         if (res.ok) {
           const data = await res.json();
           if (Array.isArray(data) && data.length > 0) {
-            const mapped: TestCase[] = data.map((d: any) => ({
-              id: d.id,
-              name: d.test_name || `Test #${d.order_index}`,
+            // Loại bỏ trùng lặp nếu trong database có nhiều hàng cùng order_index (do lỗi merge trước đây)
+            const seenOrders = new Set<number>();
+            const uniqueRows: any[] = [];
+            for (const d of data) {
+              const ord = Number(d.order_index) || 0;
+              if (ord > 0 && seenOrders.has(ord)) continue;
+              if (ord > 0) seenOrders.add(ord);
+              uniqueRows.push(d);
+            }
+
+            const mapped: TestCase[] = uniqueRows.map((d: any, idx) => ({
+              id: d.id || `${problemId}_tc_${idx + 1}`,
+              name: d.test_name || `Test #${String(idx + 1).padStart(2, '0')}`,
               input: d.input || '',
               expectedOutput: d.expected_output || '',
-              points: d.points || 1,
+              points: Number(d.points) || 1,
               isHidden: Boolean(d.is_hidden),
             }));
-            await idbService.saveTestCases(problemId, mapped);
+
+            const hasReal = mapped.some((t) => (t.input && t.input.trim()) || (t.expectedOutput && t.expectedOutput.trim()));
+            if (hasReal) {
+              await idbService.saveTestCases(problemId, mapped);
+            }
             return mapped;
           }
         }
@@ -1046,7 +1084,7 @@ export const apiService = {
             // Tải siêu nhẹ metadata test cases từ Supabase Cloud để gộp số lượng test vào cloudProblems (giảm từ 2.9MB xuống 4.5KB)
             const cloudTcMap = new Map<string, TestCase[]>();
             try {
-              const tcUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/test_cases?select=id,problem_id,test_name,points,is_hidden,order_index&order=order_index.asc`;
+              const tcUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/test_cases?select=id,problem_id,test_name,points,is_hidden,order_index&order=order_index.asc,updated_at.desc`;
               const tcRes = await fetch(tcUrl, {
                 headers: {
                   ...this.getAntiCacheHeaders(),
@@ -1058,8 +1096,16 @@ export const apiService = {
               if (tcRes.ok) {
                 const allTcRows = await tcRes.json();
                 if (Array.isArray(allTcRows)) {
+                  // Deduplicate: Mỗi problem_id chỉ lấy 1 hàng cho mỗi order_index
+                  const seenOrdersByPid = new Map<string, Set<number>>();
                   for (const row of allTcRows) {
                     const pid = row.problem_id;
+                    if (!seenOrdersByPid.has(pid)) seenOrdersByPid.set(pid, new Set());
+                    const orderSet = seenOrdersByPid.get(pid)!;
+                    const ord = Number(row.order_index) || 0;
+                    if (ord > 0 && orderSet.has(ord)) continue;
+                    if (ord > 0) orderSet.add(ord);
+
                     if (!cloudTcMap.has(pid)) cloudTcMap.set(pid, []);
                     cloudTcMap.get(pid)!.push({
                       id: row.id,
@@ -1080,22 +1126,33 @@ export const apiService = {
             const idbMap = new Map(idbProblems.map((p) => [p.id, p]));
             const storageMap = new Map(storageProblems.map((p) => [p.id, p]));
 
+            const hasContent = (tests?: TestCase[]) =>
+              Boolean(tests && tests.length > 0 && tests.some((t) => (t.input && t.input.trim()) || (t.expectedOutput && t.expectedOutput.trim())));
+
             for (const cp of cloudProblems) {
               const fromCloud = cloudTcMap.get(cp.id);
               const fromIdb = idbMap.get(cp.id)?.testCases;
               const fromStorage = storageMap.get(cp.id)?.testCases;
 
-              const tests = (fromCloud && fromCloud.length > 0)
-                ? fromCloud
-                : (fromIdb && fromIdb.length > 0)
-                ? fromIdb
-                : (fromStorage && fromStorage.length > 0)
-                ? fromStorage
-                : [];
+              // Ưu tiên giữ lại bộ test case có dữ liệu nội dung thật (input/output) từ local IndexedDB hoặc Storage
+              let tests: TestCase[] = [];
+              if (hasContent(fromIdb)) {
+                tests = fromIdb!;
+              } else if (hasContent(fromStorage)) {
+                tests = fromStorage!;
+              } else if (fromCloud && fromCloud.length > 0) {
+                tests = fromCloud;
+              } else if (fromIdb && fromIdb.length > 0) {
+                tests = fromIdb;
+              } else if (fromStorage && fromStorage.length > 0) {
+                tests = fromStorage;
+              }
 
               cp.testCases = tests;
 
-              if (tests.length > 0) {
+              // CHỈ LƯU VÀO IndexedDB KHI TESTS THỰC SỰ CÓ DỮ LIỆU INPUT HOẶC OUTPUT!
+              // TUYỆT ĐỐI KHÔNG GHI ĐÈ BỘ TEST CASE RỖNG CỦA METADATA LÊN IndexedDB!
+              if (hasContent(tests)) {
                 idbService.saveTestCases(cp.id, tests).catch(() => {});
               }
             }

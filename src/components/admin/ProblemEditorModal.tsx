@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useJudge } from '../../context/JudgeContext';
 import type { Problem, SampleIO, TestCase } from '../../types/judge';
 import { idbService } from '../../services/db';
+import { apiService } from '../../services/apiService';
 import { MathRenderer } from '../common/MathRenderer';
 import {
   parseDocxFile,
@@ -94,8 +95,13 @@ export const ProblemEditorModal: React.FC<ProblemEditorModalProps> = ({
   useEffect(() => {
     let isMounted = true;
     (async () => {
-      if (problem && (!problem.testCases || problem.testCases.length === 0)) {
-        const dbTests = await idbService.getTestCases(problem.id);
+      const hasContent = (tests?: TestCase[] | null) =>
+        Boolean(tests && tests.length > 0 && tests.some((t) => (t.input && t.input.trim()) || (t.expectedOutput && t.expectedOutput.trim())));
+      if (problem && !hasContent(problem.testCases)) {
+        let dbTests = await idbService.getTestCases(problem.id);
+        if (!hasContent(dbTests)) {
+          dbTests = await apiService.fetchTestCases(problem.id);
+        }
         if (isMounted && dbTests && dbTests.length > 0) {
           setTestCases(dbTests);
         }
