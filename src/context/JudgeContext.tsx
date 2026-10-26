@@ -678,25 +678,50 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         // Tự động làm sạch bài nộp của các tài khoản đã bị xóa khỏi hệ thống
         const currentStudentList = cloudStudents && cloudStudents.length > 0 ? cloudStudents : storageService.getStudents();
         const validStudentUsers = new Set(currentStudentList.map((s) => (s.username || '').trim().toLowerCase()));
+        const validStudentEmails = new Set(currentStudentList.map((s) => (s.email || '').trim().toLowerCase()));
         const validStudentNames = new Set(currentStudentList.map((s) => (s.fullName || '').trim().toLowerCase()));
-        const validStudentIds = new Set(currentStudentList.map((s) => (s.id || '').trim()));
+        const validStudentIds = new Set(currentStudentList.map((s) => (s.id || '').trim().toLowerCase()));
+
+        const curSession = storageService.getStudentSession();
+        if (curSession) {
+          if (curSession.id) validStudentIds.add(curSession.id.trim().toLowerCase());
+          if (curSession.username) validStudentUsers.add(curSession.username.trim().toLowerCase());
+          if (curSession.email) validStudentEmails.add(curSession.email.trim().toLowerCase());
+          if (curSession.fullName) validStudentNames.add(curSession.fullName.trim().toLowerCase());
+        }
 
         const activeSubs = cloudSubs.filter((sub) => {
           if (sub.userId === 'admin_faminh' || sub.userName === 'Giáo viên FAMINH') return true;
-          const matchId = sub.userId && validStudentIds.has(sub.userId.trim());
-          const matchUser = sub.userId && validStudentUsers.has(sub.userId.trim().toLowerCase());
-          const matchName = sub.userName && validStudentNames.has(sub.userName.trim().toLowerCase());
-          return Boolean(matchId || matchUser || matchName);
+          const subUser = (sub.userId || '').trim().toLowerCase();
+          const subName = (sub.userName || '').trim().toLowerCase();
+          const matchId = Boolean(subUser && validStudentIds.has(subUser));
+          const matchUser = Boolean(subUser && validStudentUsers.has(subUser));
+          const matchEmail = Boolean(subUser && validStudentEmails.has(subUser));
+          const matchName = Boolean(subName && validStudentNames.has(subName));
+          return matchId || matchUser || matchEmail || matchName;
         });
 
         const currentSubMap = new Map(submissions.map((s) => [s.id, s]));
         const enrichedSubs = activeSubs.map((sub) => {
-          if (sub.testResults && sub.testResults.length > 0) return sub;
-          const localMatch = currentSubMap.get(sub.id);
-          if (localMatch?.testResults && localMatch.testResults.length > 0) {
-            return { ...sub, testResults: localMatch.testResults };
+          let updatedUserName = sub.userName;
+          // Đồng bộ với tên mới nhất của học sinh hiện tại nếu bài nộp thuộc học sinh này
+          if (
+            curSession &&
+            ((sub.userId && curSession.id && sub.userId.trim().toLowerCase() === curSession.id.trim().toLowerCase()) ||
+              (sub.userId && curSession.username && sub.userId.trim().toLowerCase() === curSession.username.trim().toLowerCase()) ||
+              (sub.userId && curSession.email && sub.userId.trim().toLowerCase() === curSession.email.trim().toLowerCase()))
+          ) {
+            const custom = storageService.getStudentCustomName(curSession.id, curSession.email);
+            updatedUserName = custom || curSession.fullName || updatedUserName;
           }
-          return sub;
+
+          let res: Submission = { ...sub, userName: updatedUserName };
+          if (res.testResults && res.testResults.length > 0) return res;
+          const localMatch = currentSubMap.get(res.id);
+          if (localMatch?.testResults && localMatch.testResults.length > 0) {
+            return { ...res, testResults: localMatch.testResults };
+          }
+          return res;
         });
 
         setSubmissions(enrichedSubs);
@@ -1079,13 +1104,27 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
     // 4. Cập nhật tên trong các bài nộp (submissions) của học sinh
     setSubmissions((prevSubs) => {
+      const sId = (student.id || '').trim().toLowerCase();
+      const sUser = (student.username || '').trim().toLowerCase();
+      const sEmail = (student.email || '').trim().toLowerCase();
+      const oldName = (student.fullName || '').trim().toLowerCase();
+
       const updatedSubs = prevSubs.map((sub) => {
-        if (sub.userId === student.id || (student.username && sub.userId === student.username)) {
+        const subUser = (sub.userId || '').trim().toLowerCase();
+        const subName = (sub.userName || '').trim().toLowerCase();
+
+        const matchId = Boolean(sId && subUser && subUser === sId);
+        const matchUser = Boolean(sUser && subUser && subUser === sUser);
+        const matchEmail = Boolean(sEmail && subUser && subUser === sEmail);
+        const matchOldName = Boolean(oldName && subName && subName === oldName);
+
+        if (matchId || matchUser || matchEmail || matchOldName) {
           return { ...sub, userName: cleanName };
         }
         return sub;
       });
       storageService.saveSubmissions(updatedSubs);
+      idbService.saveSubmissions(updatedSubs).catch(() => {});
       return updatedSubs;
     });
 
@@ -1094,6 +1133,7 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       await Promise.all([
         apiService.saveStudents([updatedStudent]),
         apiService.saveClassStudents(updatedClassStudents),
+        apiService.updateSubmissionsUserName(student.id, student.username, student.email, cleanName),
         supabase.auth.updateUser({ data: { custom_full_name: cleanName, full_name: cleanName, name: cleanName } }).catch(() => {}),
       ]);
     } catch (e) {
@@ -1646,12 +1686,20 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     if (!isAdminAuthenticated) {
       if (!currentStudent) return 'UNSOLVED';
       relevantSubs = relevantSubs.filter((s) => {
-        const matchId = Boolean(s.userId && currentStudent.id && s.userId === currentStudent.id);
-        const matchName = Boolean(s.userName && currentStudent.fullName &&
-          s.userName.trim().toLowerCase() === currentStudent.fullName.trim().toLowerCase());
-        const matchUser = Boolean(s.userId && currentStudent.username &&
-          s.userId.trim().toLowerCase() === currentStudent.username.trim().toLowerCase());
-        return matchId || matchName || matchUser;
+        const subUser = (s.userId || '').trim().toLowerCase();
+        const subName = (s.userName || '').trim().toLowerCase();
+        const sId = (currentStudent.id || '').trim().toLowerCase();
+        const sUser = (currentStudent.username || '').trim().toLowerCase();
+        const sEmail = (currentStudent.email || '').trim().toLowerCase();
+        const sName = (currentStudent.fullName || '').trim().toLowerCase();
+        const customName = storageService.getStudentCustomName(currentStudent.id, currentStudent.email)?.trim().toLowerCase();
+
+        const matchId = Boolean(sId && subUser && subUser === sId);
+        const matchUser = Boolean(sUser && subUser && subUser === sUser);
+        const matchEmail = Boolean(sEmail && subUser && subUser === sEmail);
+        const matchName = Boolean(sName && subName && subName === sName);
+        const matchCustom = Boolean(customName && subName && subName === customName);
+        return matchId || matchName || matchUser || matchEmail || matchCustom;
       });
     }
 

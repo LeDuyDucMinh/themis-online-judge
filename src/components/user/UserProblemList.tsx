@@ -56,13 +56,21 @@ export const UserProblemList: React.FC<UserProblemListProps> = ({ onSelectProble
   const getProblemScore = (problemId: string) => {
     let subs = submissions.filter((s) => s.problemId === problemId);
     if (!isAdminAuthenticated && currentStudent) {
+      const sId = (currentStudent.id || '').trim().toLowerCase();
+      const sUser = (currentStudent.username || '').trim().toLowerCase();
+      const sEmail = (currentStudent.email || '').trim().toLowerCase();
+      const sName = (currentStudent.fullName || '').trim().toLowerCase();
+      const customName = storageService.getStudentCustomName(currentStudent.id, currentStudent.email)?.trim().toLowerCase();
+
       subs = subs.filter((s) => {
-        const matchId = Boolean(s.userId && currentStudent.id && s.userId === currentStudent.id);
-        const matchName = Boolean(s.userName && currentStudent.fullName &&
-          s.userName.trim().toLowerCase() === currentStudent.fullName.trim().toLowerCase());
-        const matchUser = Boolean(s.userId && currentStudent.username &&
-          s.userId.trim().toLowerCase() === currentStudent.username.trim().toLowerCase());
-        return matchId || matchName || matchUser;
+        const subUser = (s.userId || '').trim().toLowerCase();
+        const subName = (s.userName || '').trim().toLowerCase();
+        const matchId = Boolean(sId && subUser && subUser === sId);
+        const matchUser = Boolean(sUser && subUser && subUser === sUser);
+        const matchEmail = Boolean(sEmail && subUser && subUser === sEmail);
+        const matchName = Boolean(sName && subName && subName === sName);
+        const matchCustom = Boolean(customName && subName && subName === customName);
+        return matchId || matchName || matchUser || matchEmail || matchCustom;
       });
     }
     if (subs.length === 0) return null;

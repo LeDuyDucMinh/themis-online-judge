@@ -724,6 +724,88 @@ OUTPUT:
     assert.equal(resolvedOnLogin, 'Lê Duy Đức Minh');
   });
 
+  console.log('\nNhom 14: Bao toan lich su nop bai cua hoc sinh sau khi doi ten (Submission History Persistence After Name Change)');
+
+  await runTest('Hoc sinh nop bai roi doi ten tu "Minh Đức" sang "Đức Minh", lich su nop bai va trang thai khong bao gio bi mat', async () => {
+    const studentId = '2bd92891-785d-4c67-801b-92148026a5eb';
+    const email = 'minh.ldd@sis.hust.edu.vn';
+    const oldName = 'Minh Đức';
+    const newName = 'Đức Minh';
+
+    let student: StudentUser = {
+      id: studentId,
+      fullName: oldName,
+      username: email,
+      email: email,
+      password: '',
+      createdAt: new Date().toISOString(),
+    };
+
+    // Gia lap hoc sinh nop bai khi con mang ten cu "Minh Đức"
+    const subId = 'sub_history_rename_test';
+    const problemId = 'prob_math_01';
+    const testSub: Submission = {
+      id: subId,
+      problemId: problemId,
+      problemCode: 'MATH01',
+      problemTitle: 'Tính tổng',
+      userId: studentId, // UUID luu trong submission
+      userName: oldName, // Ten cu
+      language: 'cpp',
+      sourceCode: '#include <iostream>',
+      status: 'COMPLETED',
+      overallVerdict: 'AC',
+      totalPointsEarned: 10,
+      maxTotalPoints: 10,
+      passedCount: 5,
+      totalTests: 5,
+      executionTime: 0.05,
+      memory: 2.1,
+      submittedAt: new Date().toISOString(),
+    };
+
+    storageService.saveSubmission(testSub);
+
+    // 1. Kiem tra truoc khi doi ten: hoc sinh tim thay bai nop cua minh
+    const statsBefore = storageService.getUserStats(student);
+    assert.equal(statsBefore.totalSubmissions, 1, 'Truoc khi doi ten phai co 1 bai nop');
+    assert.equal(storageService.getProblemStatus(problemId, 10, student), 'SOLVED');
+
+    // 2. Hoc sinh thao tac doi ten sang "Đức Minh"
+    storageService.setStudentCustomName(studentId, email, newName);
+    student = {
+      ...student,
+      fullName: newName,
+    };
+    storageService.setStudentSession(student);
+
+    // 3. Sau khi doi ten, du bai nop luu ten cu tren Cloud hay Database, stats va problem status van bao toan 100%
+    const statsAfter = storageService.getUserStats(student);
+    assert.equal(statsAfter.totalSubmissions, 1, 'Sau khi doi ten lich su nop bai KHONG DUOC BI MAT');
+    assert.equal(statsAfter.solvedCount, 1, 'Sau khi doi ten so bai solved van phai la 1');
+    assert.equal(storageService.getProblemStatus(problemId, 10, student), 'SOLVED', 'Trang thai bai van la SOLVED');
+
+    // 4. Kiem tra bo loc hien thi trong SubmissionHistory:
+    // Kiem tra matcher phai tra ve true vi sub.userId === currentStudent.id
+    const sId = student.id.toLowerCase();
+    const sUser = (student.username || '').toLowerCase();
+    const sEmail = (student.email || '').toLowerCase();
+    const sName = student.fullName.toLowerCase();
+    const customName = storageService.getStudentCustomName(student.id, student.email)?.toLowerCase();
+
+    const subUser = (testSub.userId || '').toLowerCase();
+    const subName = (testSub.userName || '').toLowerCase();
+
+    const matchId = Boolean(sId && subUser && subUser === sId);
+    const matchUser = Boolean(sUser && subUser && subUser === sUser);
+    const matchEmail = Boolean(sEmail && subUser && subUser === sEmail);
+    const matchName = Boolean(sName && subName && subName === sName);
+    const matchCustom = Boolean(customName && subName && subName === customName);
+
+    const isVisibleToStudent = matchId || matchUser || matchEmail || matchName || matchCustom;
+    assert.equal(isVisibleToStudent, true, 'Bai nop phai luon hien thi trong man lich su nop bai cua hoc sinh sau khi doi ten');
+  });
+
   console.log('\n====================================================');
   console.log(`KET QUA: ${passedTests}/${totalTestsRun} TESTS PASS (100% THANH CONG)`);
   console.log('====================================================\n');

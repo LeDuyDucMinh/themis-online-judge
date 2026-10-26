@@ -846,6 +846,47 @@ export const apiService = {
   },
 
   /**
+   * Cập nhật họ tên hiển thị trong các bài nộp của học sinh trên Supabase Cloud
+   * Đảm bảo khi học sinh đổi tên, toàn bộ bài nộp trên Cloud được cập nhật tên mới
+   */
+  async updateSubmissionsUserName(
+    studentId: string,
+    studentUsername?: string,
+    studentEmail?: string,
+    newName?: string
+  ): Promise<void> {
+    const cleanName = (newName || '').trim();
+    if (!cleanName || !isSupabaseConfigured()) return;
+    try {
+      const headers = {
+        ...this.getAntiCacheHeaders(),
+        'Content-Type': 'application/json',
+      };
+      const body = JSON.stringify({ user_name: cleanName });
+
+      const targets = new Set<string>();
+      if (studentId) targets.add(studentId);
+      if (studentUsername) targets.add(studentUsername);
+      if (studentEmail) targets.add(studentEmail);
+
+      await Promise.all(
+        Array.from(targets).map((uid) =>
+          fetch(
+            `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/submissions?user_id=eq.${encodeURIComponent(uid)}`,
+            {
+              method: 'PATCH',
+              headers,
+              body,
+            }
+          ).catch(() => {})
+        )
+      );
+    } catch (err) {
+      console.warn('[apiService] Lỗi cập nhật tên bài nộp trên Cloud:', err);
+    }
+  },
+
+  /**
    * Lấy lịch sử nộp bài (Toàn bộ hoặc theo học sinh) từ Database thực tế
    * Tối ưu hiệu năng: Tải các trường thông tin cần thiết, bỏ trường test_results khổng lồ (giảm từ 7.5MB xuống 12KB)
    */
@@ -861,6 +902,22 @@ export const apiService = {
         if (res.ok) {
           const list = await res.json();
           if (Array.isArray(list)) {
+            // Lấy trước thông tin học sinh hiện tại và danh sách tên tùy chỉnh để đồng bộ tên mới nhất
+            let activeStudentName: string | null = null;
+            let activeStudentId: string | null = null;
+            let activeStudentUsername: string | null = null;
+            let activeStudentEmail: string | null = null;
+            try {
+              const session = storageService.getStudentSession();
+              if (session) {
+                activeStudentId = session.id;
+                activeStudentUsername = session.username || null;
+                activeStudentEmail = session.email || null;
+                const custom = storageService.getStudentCustomName(session.id, session.email);
+                activeStudentName = custom || session.fullName;
+              }
+            } catch {}
+
             cloudSubmissions = list.map((item: any): Submission => {
               let parsedTestResults: TestResult[] = [];
               if (Array.isArray(item.test_results)) {
@@ -871,13 +928,25 @@ export const apiService = {
                   if (Array.isArray(p)) parsedTestResults = p;
                 } catch {}
               }
+
+              // Luôn bảo toàn tên mới nhất của học sinh nếu bài nộp thuộc về học sinh hiện tại
+              let resolvedUserName = item.user_name;
+              if (
+                activeStudentName &&
+                (item.user_id === activeStudentId ||
+                  (activeStudentUsername && item.user_id === activeStudentUsername) ||
+                  (activeStudentEmail && item.user_id === activeStudentEmail))
+              ) {
+                resolvedUserName = activeStudentName;
+              }
+
               return {
                 id: item.id,
                 problemId: item.problem_id,
                 problemCode: item.problem_code,
                 problemTitle: item.problem_title || item.problem_code || '',
                 userId: item.user_id,
-                userName: item.user_name,
+                userName: resolvedUserName || item.user_name,
                 classId: item.class_id,
                 language: item.language,
                 sourceCode: item.source_code,

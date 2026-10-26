@@ -786,13 +786,21 @@ export const storageService = {
       subs = subs.filter((s) => s.classId === classId);
     }
     if (student) {
+      const sId = (student.id || '').trim().toLowerCase();
+      const sUser = (student.username || '').trim().toLowerCase();
+      const sEmail = (student.email || '').trim().toLowerCase();
+      const sName = (student.fullName || '').trim().toLowerCase();
+      const customName = this.getStudentCustomName(student.id, student.email)?.trim().toLowerCase();
+
       subs = subs.filter((s) => {
-        const matchId = s.userId && student.id && s.userId === student.id;
-        const matchName = s.userName && student.fullName &&
-          s.userName.trim().toLowerCase() === student.fullName.trim().toLowerCase();
-        const matchUser = s.userId && student.username &&
-          s.userId.trim().toLowerCase() === student.username.trim().toLowerCase();
-        return Boolean(matchId || matchName || matchUser);
+        const subUser = (s.userId || '').trim().toLowerCase();
+        const subName = (s.userName || '').trim().toLowerCase();
+        const matchId = Boolean(sId && subUser && subUser === sId);
+        const matchUser = Boolean(sUser && subUser && subUser === sUser);
+        const matchEmail = Boolean(sEmail && subUser && subUser === sEmail);
+        const matchName = Boolean(sName && subName && subName === sName);
+        const matchCustom = Boolean(customName && subName && subName === customName);
+        return matchId || matchName || matchUser || matchEmail || matchCustom;
       });
     }
     const solvedProblemIds = new Set<string>();
@@ -831,12 +839,21 @@ export const storageService = {
   getProblemStatus(problemId: string, maxPoints: number, student?: StudentUser | null, classId?: string | null): 'UNSOLVED' | 'PARTIAL' | 'SOLVED' {
     let subs = this.getSubmissions(classId).filter((s) => s.problemId === problemId);
     if (student) {
+      const sId = (student.id || '').trim().toLowerCase();
+      const sUser = (student.username || '').trim().toLowerCase();
+      const sEmail = (student.email || '').trim().toLowerCase();
+      const sName = (student.fullName || '').trim().toLowerCase();
+      const customName = this.getStudentCustomName(student.id, student.email)?.trim().toLowerCase();
+
       subs = subs.filter((s) => {
-        const matchName = s.userName && student.fullName &&
-          s.userName.trim().toLowerCase() === student.fullName.trim().toLowerCase();
-        const matchUser = s.userId && student.username &&
-          s.userId.trim().toLowerCase() === student.username.trim().toLowerCase();
-        return Boolean(matchName || matchUser);
+        const subUser = (s.userId || '').trim().toLowerCase();
+        const subName = (s.userName || '').trim().toLowerCase();
+        const matchId = Boolean(sId && subUser && subUser === sId);
+        const matchUser = Boolean(sUser && subUser && subUser === sUser);
+        const matchEmail = Boolean(sEmail && subUser && subUser === sEmail);
+        const matchName = Boolean(sName && subName && subName === sName);
+        const matchCustom = Boolean(customName && subName && subName === customName);
+        return matchId || matchName || matchUser || matchEmail || matchCustom;
       });
     }
     if (subs.length === 0) return 'UNSOLVED';

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useJudge } from '../../context/JudgeContext';
-import type { Submission, StudentUser, Problem } from '../../types/judge';
+import { isProblemInClass, type Submission, type StudentUser, type Problem } from '../../types/judge';
 import {
   Trophy,
   CheckCircle2,
@@ -113,29 +113,64 @@ export const SubmissionHistory: React.FC = () => {
       if (!currentStudent) {
         return [];
       }
+      const sId = (currentStudent.id || '').trim().toLowerCase();
+      const sUser = (currentStudent.username || '').trim().toLowerCase();
+      const sEmail = (currentStudent.email || '').trim().toLowerCase();
+      const sName = (currentStudent.fullName || '').trim().toLowerCase();
+      const customName = storageService.getStudentCustomName(currentStudent.id, currentStudent.email)?.trim().toLowerCase();
+
       list = list.filter((sub) => {
-        const matchName = sub.userName && currentStudent.fullName &&
-          sub.userName.trim().toLowerCase() === currentStudent.fullName.trim().toLowerCase();
-        const matchUser = sub.userId && currentStudent.username &&
-          sub.userId.trim().toLowerCase() === currentStudent.username.trim().toLowerCase();
-        return Boolean(matchName || matchUser);
+        const subUser = (sub.userId || '').trim().toLowerCase();
+        const subName = (sub.userName || '').trim().toLowerCase();
+
+        const matchId = Boolean(sId && subUser && subUser === sId);
+        const matchUser = Boolean(sUser && subUser && subUser === sUser);
+        const matchEmail = Boolean(sEmail && subUser && subUser === sEmail);
+        const matchName = Boolean(sName && subName && subName === sName);
+        const matchCustom = Boolean(customName && subName && subName === customName);
+
+        return matchId || matchUser || matchEmail || matchName || matchCustom;
       });
     }
 
     if (selectedClassId !== 'ALL') {
       const enrolled = getStudentsInClass(selectedClassId);
-      const enrolledIds = new Set(enrolled.map((s) => s.id));
+      const enrolledIds = new Set(enrolled.map((s) => (s.id || '').trim().toLowerCase()));
       const enrolledUsernames = new Set(enrolled.map((s) => (s.username || '').trim().toLowerCase()));
+      const enrolledEmails = new Set(enrolled.map((s) => (s.email || '').trim().toLowerCase()));
       const enrolledNames = new Set(enrolled.map((s) => (s.fullName || '').trim().toLowerCase()));
 
+      // Nếu người dùng hiện tại là học sinh và đang trong lớp này, đảm bảo các định danh của học sinh có trong tập lớp
+      if (currentStudent) {
+        const isStudentInClass = enrolled.some((s) =>
+          (s.id && currentStudent.id && s.id.toLowerCase() === currentStudent.id.toLowerCase()) ||
+          (s.username && currentStudent.username && s.username.toLowerCase() === currentStudent.username.toLowerCase()) ||
+          (s.email && currentStudent.email && s.email.toLowerCase() === currentStudent.email.toLowerCase())
+        );
+        if (isStudentInClass || activeClassId === selectedClassId) {
+          if (currentStudent.id) enrolledIds.add(currentStudent.id.trim().toLowerCase());
+          if (currentStudent.username) enrolledUsernames.add(currentStudent.username.trim().toLowerCase());
+          if (currentStudent.email) enrolledEmails.add(currentStudent.email.trim().toLowerCase());
+          if (currentStudent.fullName) enrolledNames.add(currentStudent.fullName.trim().toLowerCase());
+          const custom = storageService.getStudentCustomName(currentStudent.id, currentStudent.email);
+          if (custom) enrolledNames.add(custom.trim().toLowerCase());
+        }
+      }
+
       list = list.filter((sub) => {
-        const matchesClass = sub.classId === selectedClassId || (!sub.classId && selectedClassId === 'class_default_faminh');
+        const prob = problems.find((p) => p.id === sub.problemId || (p.code && p.code === sub.problemCode));
+        const isProbInSelectedClass = prob ? isProblemInClass(prob, selectedClassId, topics) : false;
+        const matchesClass = sub.classId === selectedClassId || isProbInSelectedClass || (!sub.classId && selectedClassId === 'class_default_faminh');
         if (!matchesClass) return false;
+
         // Kiểm tra học sinh có thực sự thuộc lớp này không
-        const matchId = sub.userId && enrolledIds.has(sub.userId.trim());
-        const matchUser = sub.userId && enrolledUsernames.has(sub.userId.trim().toLowerCase());
-        const matchName = sub.userName && enrolledNames.has(sub.userName.trim().toLowerCase());
-        return Boolean(matchId || matchUser || matchName);
+        const subUser = (sub.userId || '').trim().toLowerCase();
+        const subName = (sub.userName || '').trim().toLowerCase();
+        const matchId = Boolean(subUser && enrolledIds.has(subUser));
+        const matchUser = Boolean(subUser && enrolledUsernames.has(subUser));
+        const matchEmail = Boolean(subUser && enrolledEmails.has(subUser));
+        const matchName = Boolean(subName && enrolledNames.has(subName));
+        return matchId || matchUser || matchEmail || matchName;
       });
     }
 
@@ -145,7 +180,7 @@ export const SubmissionHistory: React.FC = () => {
 
     // Chỉ hiển thị tối đa 15 lượt nộp bài gần đây nhất (các lượt nộp quá 15 lượt sẽ không hiển thị ở bảng này)
     return sorted.slice(0, 15);
-  }, [submissions, isAdminAuthenticated, currentStudent, selectedClassId, getStudentsInClass]);
+  }, [submissions, isAdminAuthenticated, currentStudent, selectedClassId, activeClassId, problems, topics, getStudentsInClass]);
 
 
   // Dữ liệu cho Chế độ 2: Bảng điểm theo Chủ đề
@@ -240,12 +275,20 @@ export const SubmissionHistory: React.FC = () => {
     const studentSubs = submissions.filter((s) => {
       const matchProb = s.problemId === prob.id || (prob.code && s.problemCode && s.problemCode === prob.code);
       if (!matchProb) return false;
-      const matchId = Boolean(s.userId && student.id && s.userId === student.id);
-      const matchName = Boolean(s.userName && student.fullName &&
-        s.userName.trim().toLowerCase() === student.fullName.trim().toLowerCase());
-      const matchUser = Boolean(s.userId && student.username &&
-        s.userId.trim().toLowerCase() === student.username.trim().toLowerCase());
-      return matchId || matchName || matchUser;
+      const subUser = (s.userId || '').trim().toLowerCase();
+      const subName = (s.userName || '').trim().toLowerCase();
+      const sId = (student.id || '').trim().toLowerCase();
+      const sUser = (student.username || '').trim().toLowerCase();
+      const sEmail = (student.email || '').trim().toLowerCase();
+      const sName = (student.fullName || '').trim().toLowerCase();
+      const custom = storageService.getStudentCustomName(student.id, student.email)?.trim().toLowerCase();
+
+      const matchId = Boolean(sId && subUser && subUser === sId);
+      const matchUser = Boolean(sUser && subUser && subUser === sUser);
+      const matchEmail = Boolean(sEmail && subUser && subUser === sEmail);
+      const matchName = Boolean(sName && subName && subName === sName);
+      const matchCustom = Boolean(custom && subName && subName === custom);
+      return matchId || matchName || matchUser || matchEmail || matchCustom;
     });
 
     if (studentSubs.length === 0) return { bestSub: null, isFull: false };
@@ -276,16 +319,65 @@ export const SubmissionHistory: React.FC = () => {
   // Bảo vệ bảo mật: Ẩn hoàn toàn bài nộp của Giáo viên và của học sinh khác khỏi học sinh hiện tại
   useEffect(() => {
     if (!isAdminAuthenticated && currentStudent && selectedSub) {
-      const matchId = selectedSub.userId && currentStudent.id && selectedSub.userId === currentStudent.id;
-      const matchName = selectedSub.userName && currentStudent.fullName &&
-        selectedSub.userName.trim().toLowerCase() === currentStudent.fullName.trim().toLowerCase();
-      const matchUser = selectedSub.userId && currentStudent.username &&
-        selectedSub.userId.trim().toLowerCase() === currentStudent.username.trim().toLowerCase();
-      if (!matchId && !matchName && !matchUser) {
+      const subUser = (selectedSub.userId || '').trim().toLowerCase();
+      const subName = (selectedSub.userName || '').trim().toLowerCase();
+      const sId = (currentStudent.id || '').trim().toLowerCase();
+      const sUser = (currentStudent.username || '').trim().toLowerCase();
+      const sEmail = (currentStudent.email || '').trim().toLowerCase();
+      const sName = (currentStudent.fullName || '').trim().toLowerCase();
+      const custom = storageService.getStudentCustomName(currentStudent.id, currentStudent.email)?.trim().toLowerCase();
+
+      const matchId = Boolean(sId && subUser && subUser === sId);
+      const matchUser = Boolean(sUser && subUser && subUser === sUser);
+      const matchEmail = Boolean(sEmail && subUser && subUser === sEmail);
+      const matchName = Boolean(sName && subName && subName === sName);
+      const matchCustom = Boolean(custom && subName && subName === custom);
+      if (!matchId && !matchName && !matchUser && !matchEmail && !matchCustom) {
         setSelectedSub(null);
       }
     }
   }, [isAdminAuthenticated, currentStudent, selectedSub]);
+
+  // Helper lấy họ tên hiển thị chuẩn xác nhất cho bài nộp (luôn phản ánh tên mới nhất của học sinh)
+  const getSubDisplayName = (sub: Submission): string => {
+    if (sub.userId === 'admin_faminh' || sub.userName === 'Giáo viên FAMINH') {
+      return 'Giáo viên FAMINH';
+    }
+    const subUser = (sub.userId || '').trim().toLowerCase();
+    const subName = (sub.userName || '').trim().toLowerCase();
+
+    if (currentStudent) {
+      const sId = (currentStudent.id || '').trim().toLowerCase();
+      const sUser = (currentStudent.username || '').trim().toLowerCase();
+      const sEmail = (currentStudent.email || '').trim().toLowerCase();
+      const sName = (currentStudent.fullName || '').trim().toLowerCase();
+      const custom = storageService.getStudentCustomName(currentStudent.id, currentStudent.email)?.trim().toLowerCase();
+      if (
+        (sId && subUser && subUser === sId) ||
+        (sUser && subUser && subUser === sUser) ||
+        (sEmail && subUser && subUser === sEmail) ||
+        (sName && subName && subName === sName) ||
+        (custom && subName && subName === custom)
+      ) {
+        return currentStudent.fullName;
+      }
+    }
+
+    const matchedStudent = students.find((s) => {
+      const stuId = (s.id || '').trim().toLowerCase();
+      const stuUser = (s.username || '').trim().toLowerCase();
+      const stuEmail = (s.email || '').trim().toLowerCase();
+      const stuName = (s.fullName || '').trim().toLowerCase();
+      return (
+        (stuId && subUser && subUser === stuId) ||
+        (stuUser && subUser && subUser === stuUser) ||
+        (stuEmail && subUser && subUser === stuEmail) ||
+        (stuName && subName && subName === stuName)
+      );
+    });
+
+    return matchedStudent?.fullName || sub.userName || 'Học sinh';
+  };
 
   // Lấy thông tin bài tập và chủ đề tương ứng của bài nộp đang chọn
   const activeProblem = selectedSub ? problems.find((p) => p.id === selectedSub.problemId) : null;
@@ -478,7 +570,7 @@ export const SubmissionHistory: React.FC = () => {
                       <td className="py-3 px-4 font-sans font-semibold text-blue-400">
                         <div className="flex items-center gap-1.5">
                           <User className="w-3.5 h-3.5 text-blue-500 shrink-0" />
-                          <span>{sub.userName || 'Học sinh'}</span>
+                          <span>{getSubDisplayName(sub)}</span>
                         </div>
                       </td>
                       <td className="py-3 px-4 font-sans font-semibold text-slate-200">
@@ -801,7 +893,7 @@ export const SubmissionHistory: React.FC = () => {
                       : 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
                   }`}>
                     <User className="w-3.5 h-3.5 text-emerald-500" />
-                    Học sinh: {selectedSub.userName || 'Học sinh'}
+                    Học sinh: {getSubDisplayName(selectedSub)}
                   </span>
                   {activeTopic && (
                     <span className={`inline-flex items-center gap-1 text-xs font-medium px-2.5 py-0.5 rounded-lg border ${
