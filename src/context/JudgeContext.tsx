@@ -1623,11 +1623,12 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     if (!isAdminAuthenticated) {
       if (!currentStudent) return 'UNSOLVED';
       relevantSubs = relevantSubs.filter((s) => {
-        const matchName = s.userName && currentStudent.fullName &&
-          s.userName.trim().toLowerCase() === currentStudent.fullName.trim().toLowerCase();
-        const matchUser = s.userId && currentStudent.username &&
-          s.userId.trim().toLowerCase() === currentStudent.username.trim().toLowerCase();
-        return Boolean(matchName || matchUser);
+        const matchId = Boolean(s.userId && currentStudent.id && s.userId === currentStudent.id);
+        const matchName = Boolean(s.userName && currentStudent.fullName &&
+          s.userName.trim().toLowerCase() === currentStudent.fullName.trim().toLowerCase());
+        const matchUser = Boolean(s.userId && currentStudent.username &&
+          s.userId.trim().toLowerCase() === currentStudent.username.trim().toLowerCase());
+        return matchId || matchName || matchUser;
       });
     }
 

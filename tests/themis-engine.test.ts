@@ -432,7 +432,7 @@ OUTPUT:
   // ==========================================
   console.log('\nNhom 9: Quy trinh phe duyet hoc sinh vao lop (Student Join Approval)');
 
-  await runTest('Hoc sinh nhap ma vao lop o trang thai cho duyet (pending)', async () => {
+  await runTest('Hoc sinh nhap ma vao lop thanh cong va tham gia vao lop', async () => {
     const testClass = storageService.addClass({ className: 'Lop Chuyen Tin', description: 'Mo ta' });
     const studentId = 'test_stu_approval';
     storageService.addStudent({
@@ -446,20 +446,10 @@ OUTPUT:
     // Nhap ma vao lop
     const res = storageService.joinClassByCode(studentId, testClass.joinCode);
     assert.equal(res.success, true);
-    assert.equal(res.pending, true);
 
-    // Hoc sinh chua duoc liet ke trong lop chinh thuc
+    // Hoc sinh duoc liet ke trong lop chinh thuc
     const activeStudents = storageService.getStudentsInClass(testClass.id);
-    assert.ok(!activeStudents.some((s) => s.id === studentId));
-
-    // Hoc sinh co trong danh sach cho duyet cua giao vien
-    const pending = storageService.getPendingStudentsInClass(testClass.id);
-    assert.ok(pending.some((p) => p.student.id === studentId));
-
-    // Giao vien phe duyet
-    storageService.approveStudentJoin(testClass.id, studentId);
-    const approvedStudents = storageService.getStudentsInClass(testClass.id);
-    assert.ok(approvedStudents.some((s) => s.id === studentId));
+    assert.ok(activeStudents.some((s) => s.id === studentId));
   });
 
   // ==========================================

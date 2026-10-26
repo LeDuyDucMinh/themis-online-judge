@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useJudge } from '../../context/JudgeContext';
-import type { Submission, StudentUser } from '../../types/judge';
+import type { Submission, StudentUser, Problem } from '../../types/judge';
 import {
   Trophy,
   CheckCircle2,
@@ -244,15 +244,27 @@ export const SubmissionHistory: React.FC = () => {
     return students;
   }, [currentGradeTopic, topicClassIds, selectedClassId, students, classes, getStudentsInClass]);
 
+  // Helper: Kiểm tra một bài nộp có đạt Full AC (100% test hoặc điểm tối đa) hay không
+  const checkIsFullAc = (sub: Submission | null, maxPoints: number): boolean => {
+    if (!sub) return false;
+    if (sub.overallVerdict === 'AC') return true;
+    if (sub.totalTests > 0 && sub.passedCount === sub.totalTests) return true;
+    if (sub.maxTotalPoints > 0 && sub.totalPointsEarned >= sub.maxTotalPoints) return true;
+    if (maxPoints > 0 && sub.totalPointsEarned >= maxPoints) return true;
+    return false;
+  };
+
   // Helper: Tìm bài nộp có điểm số cao nhất của 1 học sinh đối với 1 bài tập cụ thể
-  const getStudentProblemBest = (student: StudentUser, problemId: string): Submission | null => {
+  const getStudentProblemBest = (student: StudentUser, prob: Problem): Submission | null => {
     const studentSubs = submissions.filter((s) => {
-      if (s.problemId !== problemId) return false;
-      const matchName = s.userName && student.fullName &&
-        s.userName.trim().toLowerCase() === student.fullName.trim().toLowerCase();
-      const matchUser = s.userId && student.username &&
-        s.userId.trim().toLowerCase() === student.username.trim().toLowerCase();
-      return Boolean(matchName || matchUser);
+      const matchProb = s.problemId === prob.id || (prob.code && s.problemCode && s.problemCode === prob.code);
+      if (!matchProb) return false;
+      const matchId = Boolean(s.userId && student.id && s.userId === student.id);
+      const matchName = Boolean(s.userName && student.fullName &&
+        s.userName.trim().toLowerCase() === student.fullName.trim().toLowerCase());
+      const matchUser = Boolean(s.userId && student.username &&
+        s.userId.trim().toLowerCase() === student.username.trim().toLowerCase());
+      return matchId || matchName || matchUser;
     });
 
     if (studentSubs.length === 0) return null;
@@ -260,8 +272,13 @@ export const SubmissionHistory: React.FC = () => {
     return studentSubs.reduce((best, cur) => {
       if (!best) return cur;
       if (cur.totalPointsEarned > best.totalPointsEarned) return cur;
+      if (cur.totalPointsEarned < best.totalPointsEarned) return best;
+      // Nếu bằng điểm nhau, ưu tiên bài nộp đạt AC full test
+      const curIsFull = (cur.totalTests > 0 && cur.passedCount === cur.totalTests) || cur.overallVerdict === 'AC';
+      const bestIsFull = (best.totalTests > 0 && best.passedCount === best.totalTests) || best.overallVerdict === 'AC';
+      if (curIsFull && !bestIsFull) return cur;
+      if (!curIsFull && bestIsFull) return best;
       if (
-        cur.totalPointsEarned === best.totalPointsEarned &&
         new Date(cur.submittedAt).getTime() > new Date(best.submittedAt).getTime()
       ) {
         return cur;
@@ -273,11 +290,12 @@ export const SubmissionHistory: React.FC = () => {
   // Bảo vệ bảo mật: Ẩn hoàn toàn bài nộp của Giáo viên và của học sinh khác khỏi học sinh hiện tại
   useEffect(() => {
     if (!isAdminAuthenticated && currentStudent && selectedSub) {
+      const matchId = selectedSub.userId && currentStudent.id && selectedSub.userId === currentStudent.id;
       const matchName = selectedSub.userName && currentStudent.fullName &&
         selectedSub.userName.trim().toLowerCase() === currentStudent.fullName.trim().toLowerCase();
       const matchUser = selectedSub.userId && currentStudent.username &&
         selectedSub.userId.trim().toLowerCase() === currentStudent.username.trim().toLowerCase();
-      if (!matchName && !matchUser) {
+      if (!matchId && !matchName && !matchUser) {
         setSelectedSub(null);
       }
     }
@@ -645,21 +663,25 @@ export const SubmissionHistory: React.FC = () => {
                   </thead>
                   <tbody className="divide-y divide-slate-800/60 font-mono">
                     {topicEligibleStudents.map((st, idx) => {
-                      let attemptedCount = 0;
+                      let completedCount = 0;
                       let totalPointsEarned = 0;
 
                       const problemBests = topicProblems.map((prob) => {
-                        const bestSub = getStudentProblemBest(st, prob.id);
+                        const maxPts = prob.totalPoints || 10;
+                        const bestSub = getStudentProblemBest(st, prob);
+                        const isFull = checkIsFullAc(bestSub, maxPts);
                         if (bestSub) {
-                          attemptedCount++;
                           totalPointsEarned += bestSub.totalPointsEarned;
                         }
-                        return { prob, bestSub };
+                        if (isFull) {
+                          completedCount++;
+                        }
+                        return { prob, bestSub, isFull, maxPts };
                       });
 
                       const progressPercent =
                         topicProblems.length > 0
-                          ? Math.round((attemptedCount / topicProblems.length) * 100)
+                          ? Math.round((completedCount / topicProblems.length) * 100)
                           : 0;
 
                       return (
@@ -689,7 +711,7 @@ export const SubmissionHistory: React.FC = () => {
                             <div className="space-y-1.5">
                               <div className="flex items-center justify-between text-[11px]">
                                 <span className="text-slate-300 font-medium">
-                                  Đã làm {attemptedCount} / {topicProblems.length} bài
+                                  Đã làm {completedCount} / {topicProblems.length} bài
                                 </span>
                                 <span className="font-mono font-bold text-blue-400">
                                   {progressPercent}%
@@ -705,13 +727,7 @@ export const SubmissionHistory: React.FC = () => {
                           </td>
 
                           {/* Điểm từng bài tập */}
-                          {problemBests.map(({ prob, bestSub }) => {
-                            const maxPts = prob.totalPoints || 10;
-                            const isFull =
-                              bestSub &&
-                              bestSub.passedCount === bestSub.totalTests &&
-                              bestSub.totalTests > 0;
-
+                          {problemBests.map(({ prob, bestSub, isFull, maxPts }) => {
                             return (
                               <td
                                 key={prob.id}

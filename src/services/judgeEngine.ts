@@ -1085,7 +1085,7 @@ export async function gradeSubmission(
       overallVerdict: 'WA',
       executionTime: 0,
       memory: 0,
-      compilationMessage: 'Bài tập này chưa có bộ dữ liệu Test Case thực tế (Input/Output). Vui lòng liên hệ Giáo viên/Quản trị viên để nạp test.',
+      compilationMessage: 'Bài tập này chưa có bộ test case thực tế (Input/Output). Vui lòng liên hệ Giáo viên/Quản trị viên để nạp test.',
       testResults: [],
       freopenHandled,
     };
