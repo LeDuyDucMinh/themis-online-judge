@@ -97,7 +97,7 @@ export function naturalCompare(a: string, b: string): number {
 export function normalizeThemisOutput(output: string): string {
   if (!output) return '';
   const lines = output.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
-  const trimmedLines = lines.map((line) => line.trimEnd());
+  const trimmedLines = lines.map((line) => line.replace(/[\s\x00-\x1F\x7F]+$/, ''));
 
   while (trimmedLines.length > 0 && trimmedLines[trimmedLines.length - 1] === '') {
     trimmedLines.pop();
@@ -108,6 +108,10 @@ export function normalizeThemisOutput(output: string): string {
 
 /**
  * So sánh kết quả đầu ra giữa Actual Output và Expected Output chuẩn Themis
+ * - Chấp nhận nếu test đầu ra có khoảng trắng ở cuối hoặc xuống dòng thừa ở cuối
+ * - Chấp nhận sai khác khoảng trắng phân cách giữa các token
+ * - So sánh số thực với sai số 1e-6
+ * - Không phân biệt hoa thường với YES/NO/TRUE/FALSE
  */
 export function compareThemisOutputs(actual: string, expected: string): boolean {
   const normActual = normalizeThemisOutput(actual);
@@ -117,6 +121,27 @@ export function compareThemisOutputs(actual: string, expected: string): boolean 
     return true;
   }
 
+  // 1. Chấp nhận nếu giống hệt nhau khi loại bỏ khoảng trắng thừa toàn văn (ở đầu/cuối và xuống dòng cuối)
+  if (normActual.trim() === normExpected.trim()) {
+    return true;
+  }
+
+  // 2. So sánh từng dòng nếu loại bỏ khoảng trắng ở cuối mỗi dòng
+  const linesActual = normActual.split('\n');
+  const linesExpected = normExpected.split('\n');
+
+  if (linesActual.length === linesExpected.length) {
+    let allLinesMatch = true;
+    for (let i = 0; i < linesActual.length; i++) {
+      if (linesActual[i].trimEnd() !== linesExpected[i].trimEnd()) {
+        allLinesMatch = false;
+        break;
+      }
+    }
+    if (allLinesMatch) return true;
+  }
+
+  // 3. So sánh theo token (chuẩn Themis: chấp nhận sai lệch số lượng khoảng trắng giữa các token)
   const actualTokens = normActual.trim().split(/\s+/).filter(Boolean);
   const expectedTokens = normExpected.trim().split(/\s+/).filter(Boolean);
 
@@ -586,7 +611,7 @@ export async function executeWithJudge0(
       body: JSON.stringify({
         source_code: sourceCode,
         language_id: langId,
-        stdin: stdin || '',
+        stdin: (stdin || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n'),
         cpu_time_limit: timeLimitSec > 0 ? timeLimitSec : 1.0,
       }),
       signal: controller.signal,
@@ -738,7 +763,7 @@ async function executeWithWandboxFallback(
   const payload: Record<string, string> = {
     compiler,
     code: cleanedCode,
-    stdin: stdin || '',
+    stdin: (stdin || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n'),
   };
 
   if (language === 'cpp') {
@@ -926,9 +951,11 @@ export async function gradeWithJudge0(
       continue;
     }
 
+    const cleanInput = (test.input || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+
     const j0Res = await executeWithJudge0(
       cleanedCode,
-      test.input,
+      cleanInput,
       timeLimit,
       language,
       judge0Url
@@ -993,6 +1020,11 @@ export async function gradeWithJudge0(
     maxExecutionTime = Math.max(maxExecutionTime, testTime);
     peakMemory = Math.max(peakMemory, testMemory);
 
+    const cleanActual = (j0Res.stdout || '')
+      .replace(/\r\n/g, '\n')
+      .replace(/\r/g, '\n')
+      .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]+$/, '');
+
     const singleResult: TestResult = {
       testId: test.id,
       testName,
@@ -1001,7 +1033,7 @@ export async function gradeWithJudge0(
       memory: testMemory,
       pointsEarned,
       maxPoints: testPoints,
-      actualOutput: j0Res.stdout || '',
+      actualOutput: cleanActual,
       expectedOutput: testExpected,
       errorMessage,
       errorLog: verdict === 'RTE' ? (j0Res.stderr || errorMessage) : undefined,
@@ -1108,6 +1140,10 @@ export async function gradeSubmission(
     }
     return {
       ...tc,
+      input: (tc.input || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n'),
+      expectedOutput: ((tc.expectedOutput !== undefined ? tc.expectedOutput : (tc as any).output) || '')
+        .replace(/\r\n/g, '\n')
+        .replace(/\r/g, '\n'),
       points: effectivePts,
     };
   });

@@ -53,7 +53,16 @@ export default async function handler(req, res) {
     };
 
     if (req.method !== 'GET' && req.method !== 'HEAD' && req.body) {
-      fetchOptions.body = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
+      let bodyData = req.body;
+      if (typeof bodyData === 'string') {
+        try {
+          bodyData = JSON.parse(bodyData);
+        } catch {}
+      }
+      if (bodyData && typeof bodyData === 'object' && typeof bodyData.stdin === 'string') {
+        bodyData.stdin = bodyData.stdin.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+      }
+      fetchOptions.body = typeof bodyData === 'object' ? JSON.stringify(bodyData) : bodyData;
     }
 
     const upstreamResponse = await fetch(targetUrl.toString(), fetchOptions);

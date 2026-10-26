@@ -351,8 +351,8 @@ export function pairTestFiles(
   const testCases: TestCase[] = validPairs.map((pair, idx) => ({
     id: `tc_${idx + 1}`,
     name: `Test #${String(idx + 1).padStart(2, '0')}`,
-    input: pair.input,
-    expectedOutput: pair.output,
+    input: (pair.input || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n'),
+    expectedOutput: (pair.output || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n'),
     points: pointsPerTest,
     isHidden: idx >= 3,
   }));

@@ -302,7 +302,11 @@ export const TestCaseManagerModal: React.FC<TestCaseManagerModalProps> = ({
       const targetPoints = Number(totalPoints) || 10;
       // Đảm bảo tổng điểm các test case luôn tương ứng với thang điểm bài toán
       const currentSum = testCases.reduce((sum, tc) => sum + (Number(tc.points) || 0), 0);
-      let finalizedTests = [...testCases];
+      let finalizedTests = testCases.map((tc) => ({
+        ...tc,
+        input: (tc.input || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n'),
+        expectedOutput: (tc.expectedOutput || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n'),
+      }));
       if (finalizedTests.length > 0 && Math.abs(currentSum - targetPoints) > 0.05) {
         const pts = +(targetPoints / finalizedTests.length).toFixed(2);
         finalizedTests = finalizedTests.map((tc, idx, arr) => ({

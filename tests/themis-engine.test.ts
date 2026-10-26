@@ -185,10 +185,16 @@ async function main() {
     assert.equal(normalized, 'line 1\nline 2');
   });
 
-  await runTest('compareThemisOutputs chap nhan sai khac khoang trang cuoi file', () => {
+  await runTest('compareThemisOutputs chap nhan sai khac khoang trang cuoi file, xuong dong va dau cach thua', () => {
     assert.equal(compareThemisOutputs('12\n\n', '12'), true);
     assert.equal(compareThemisOutputs('12\r\n', '12\n'), true);
     assert.equal(compareThemisOutputs('   12   ', '12'), true);
+    assert.equal(compareThemisOutputs('kgn s fx waca hbs u mnicpqfppqiodlw hob vphg   ', 'kgn s fx waca hbs u mnicpqfppqiodlw hob vphg'), true);
+    assert.equal(compareThemisOutputs('kgn s fx waca hbs u mnicpqfppqiodlw hob vphg\n', 'kgn s fx waca hbs u mnicpqfppqiodlw hob vphg'), true);
+    assert.equal(compareThemisOutputs('kgn s fx waca hbs u mnicpqfppqiodlw hob vphg \r\n\n', 'kgn s fx waca hbs u mnicpqfppqiodlw hob vphg'), true);
+    assert.equal(compareThemisOutputs('a \n', 'a'), true);
+    assert.equal(compareThemisOutputs('a\r\n', 'a'), true);
+    assert.equal(compareThemisOutputs('a\r', 'a'), true);
   });
 
   await runTest('compareThemisOutputs chap nhan khoang trang giua cac token giong nhau', () => {
