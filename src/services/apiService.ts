@@ -100,13 +100,21 @@ export const apiService = {
           const data = await res.json();
           if (Array.isArray(data)) {
             const cloudClasses = data
-              .filter((c: any) => c.id && !c.id.startsWith('__system_'))
+              .filter(
+                (c: any) =>
+                  c.id &&
+                  !c.id.startsWith('__system_') &&
+                  c.id !== 'ALL' &&
+                  c.id !== 'class_default_faminh' &&
+                  c.join_code !== 'OXYZ' &&
+                  c.class_name !== 'Lớp Học FAMINH'
+              )
               .map((c: any): Classroom => ({
                 id: c.id,
-                className: c.class_name || 'Lớp Học FAMINH',
+                className: c.class_name || 'Lớp học',
                 description: c.description || '',
                 teacherId: 'admin',
-                joinCode: c.join_code || 'OXYZ',
+                joinCode: c.join_code || '',
                 createdAt: c.created_at || new Date().toISOString(),
               }));
 
@@ -161,33 +169,9 @@ export const apiService = {
   /**
    * Đảm bảo Lớp học (Classroom) tồn tại trên Supabase Cloud để tránh lỗi Foreign Key Constraint 409
    */
-  async ensureClassroom(classId: string, className?: string, joinCode?: string): Promise<void> {
-    if (!isSupabaseConfigured() || !classId) return;
-    // Lớp 'ALL' và 'class_default_faminh' là hệ thống và đã tồn tại, không bao giờ ghi đè tránh làm mất tên lớp người dùng đã đổi
-    if (classId === 'ALL' || classId === 'class_default_faminh') return;
-    try {
-      const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/classrooms?on_conflict=id`;
-      const defaultName = 'Lớp Học FAMINH';
-      const defaultCode = 'OXYZ';
-
-      await fetch(targetUrl, {
-        method: 'POST',
-        headers: {
-          ...this.getAntiCacheHeaders(),
-          'Content-Type': 'application/json',
-          Prefer: 'resolution=ignore-duplicates',
-        },
-        body: JSON.stringify({
-          id: classId,
-          class_name: className || defaultName,
-          description: 'Lớp học lập trình FAMINH',
-          join_code: joinCode || defaultCode,
-          updated_at: new Date().toISOString(),
-        }),
-      });
-    } catch (e) {
-      console.warn('[apiService] ensureClassroom warning:', e);
-    }
+  async ensureClassroom(_classId: string, _className?: string, _joinCode?: string): Promise<void> {
+    // Không tự động tạo lớp học mặc định khi lưu bài tập
+    return;
   },
 
   /**
@@ -820,7 +804,7 @@ export const apiService = {
           problem_title: submission.problemTitle || submission.problemCode || '',
           user_id: submission.userId,
           user_name: submission.userName,
-          class_id: submission.classId || 'class_default_faminh',
+          class_id: submission.classId || null,
           language: submission.language,
           source_code: submission.sourceCode,
           verdict: submission.overallVerdict,
@@ -1018,12 +1002,8 @@ export const apiService = {
 
     if (isSupabaseConfigured()) {
       try {
-        const isNone = problem.classId === 'NONE' || !problem.classId;
-        const targetClassId = isNone ? null : (problem.classId !== 'class_default_faminh' ? problem.classId : 'ALL');
-        // Đảm bảo lớp học luôn tồn tại trên Supabase để tránh lỗi Foreign Key Constraint 409
-        if (targetClassId) {
-          await this.ensureClassroom(targetClassId);
-        }
+        const isNone = problem.classId === 'NONE' || !problem.classId || problem.classId === 'ALL' || problem.classId === 'class_default_faminh';
+        const targetClassId = isNone ? null : problem.classId;
 
         const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/problems?on_conflict=id`;
         const payload = {
@@ -1293,12 +1273,13 @@ export const apiService = {
     // 0. Luôn kéo mật mã Admin mới nhất từ Cloud Database về máy này (Cloud là Single Source of Truth)
     await this.getAdminPasswordFromDatabase().catch(() => {});
 
-    // 1. Đồng bộ Classrooms: chỉ khởi tạo nếu Cloud chưa có lớp nào
     const cloudClasses = await this.fetchClassrooms();
     if (cloudClasses.length === 0) {
       const localClasses = storageService.getClasses();
       for (const cls of localClasses) {
-        await this.saveClassroom(cls);
+        if (cls.id !== 'class_default_faminh' && cls.className !== 'Lớp Học FAMINH' && cls.joinCode !== 'OXYZ') {
+          await this.saveClassroom(cls);
+        }
       }
     }
 

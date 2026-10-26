@@ -340,13 +340,13 @@ export const StudentClassList: React.FC = () => {
                   maxLength={6}
                   value={joinCodeInput}
                   onChange={(e) => setJoinCodeInput(e.target.value.toUpperCase())}
-                  placeholder="Ví dụ: OXYZ"
+                  placeholder="Ví dụ: ABCXYZ"
                   className="w-full text-center tracking-widest font-mono uppercase text-xl font-black py-3 bg-slate-50 dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-700 rounded-2xl text-red-600 dark:text-red-400 placeholder-slate-400 focus:outline-none focus:border-red-500"
                   autoFocus
                   required
                 />
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-2 text-center">
-                  Mã lớp học gồm các chữ cái/số do Giáo viên cung cấp (ví dụ: <b className="font-mono text-slate-700 dark:text-slate-300">OXYZ</b>).
+                  Mã lớp học gồm các chữ cái/số do Giáo viên cung cấp (ví dụ: <b className="font-mono text-slate-700 dark:text-slate-300">ABCXYZ</b>).
                 </p>
               </div>
 

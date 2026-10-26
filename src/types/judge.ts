@@ -177,11 +177,6 @@ export function isProblemInClass(
     }
   }
 
-  // 3. Fallback cho lớp mặc định nếu bài tập chưa được gán lớp cụ thể
-  if (!problem.classId && classId === 'class_default_faminh') {
-    return true;
-  }
-
   return false;
 }
 

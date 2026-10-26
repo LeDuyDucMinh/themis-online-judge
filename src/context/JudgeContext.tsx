@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useRef, type ReactNode } from 'react';
 import type { UserRole, Topic, Problem, Submission, UserStats, StudentUser, Classroom, ClassStudent, TestCase } from '../types/judge';
-import { storageService, DEFAULT_CLASS } from '../services/storageService';
+import { storageService } from '../services/storageService';
 import { apiService } from '../services/apiService';
 import { idbService } from '../services/db';
 import { gradeSubmission, type GradingProgressCallback, type SupportedLanguage } from '../services/judgeEngine';
@@ -1398,7 +1398,7 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       throw new Error('Chỉ quản trị viên mới có quyền tạo đề bài');
     }
     let targetClassId = probData.classId;
-    if (!targetClassId || targetClassId === DEFAULT_CLASS.id) {
+    if (!targetClassId || targetClassId === 'class_default_faminh') {
       if (activeClassId) {
         targetClassId = activeClassId;
       } else if (probData.topicId) {
@@ -1413,7 +1413,7 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         }
       }
     }
-    if (!targetClassId) targetClassId = DEFAULT_CLASS.id;
+    if (!targetClassId || targetClassId === 'class_default_faminh') targetClassId = 'ALL';
 
     const newProblem: Problem = {
       ...probData,
@@ -1569,7 +1569,7 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     );
 
     // Gắn classId cho bài nộp để dễ dàng lọc bảng điểm theo lớp
-    submission.classId = activeClassId || problem.classId || DEFAULT_CLASS.id;
+    submission.classId = activeClassId || (problem.classId !== 'class_default_faminh' ? problem.classId : undefined);
 
     // 1. BẮT BUỘC AWAIT ĐỂ LƯU THÀNH CÔNG SUBMISSION VÀO DATABASE THỰC TẾ TRƯỚC
     try {

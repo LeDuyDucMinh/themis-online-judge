@@ -242,7 +242,7 @@ export const storageService = {
     try {
       const list: Submission[] = JSON.parse(raw);
       if (classId) {
-        return list.filter((s) => s.classId === classId || (!s.classId && classId === DEFAULT_CLASS.id));
+        return list.filter((s) => s.classId === classId);
       }
       return list;
     } catch {
@@ -341,15 +341,26 @@ export const storageService = {
   getClasses(): Classroom[] {
     const raw = localStorage.getItem(STORAGE_KEYS.CLASSES);
     if (raw === null) {
-      this.saveClasses([DEFAULT_CLASS]);
-      return [DEFAULT_CLASS];
+      return [];
     }
     try {
       const list: Classroom[] = JSON.parse(raw);
       if (!Array.isArray(list)) {
         return [];
       }
-      return list;
+      // Loại bỏ các lớp học mặc định hệ thống rác hoặc zombie tự sinh
+      const filtered = list.filter(
+        (c) =>
+          c &&
+          c.id !== 'class_default_faminh' &&
+          c.id !== 'ALL' &&
+          c.joinCode !== 'OXYZ' &&
+          c.className !== 'Lớp Học FAMINH'
+      );
+      if (filtered.length !== list.length) {
+        this.saveClasses(filtered);
+      }
+      return filtered;
     } catch {
       return [];
     }
@@ -416,18 +427,13 @@ export const storageService = {
   getClassStudents(): ClassStudent[] {
     const raw = localStorage.getItem(STORAGE_KEYS.CLASS_STUDENTS);
     if (!raw) {
-      const initialRelations: ClassStudent[] = DEFAULT_STUDENTS.map((s) => ({
-        classId: DEFAULT_CLASS.id,
-        studentId: s.id,
-        joinedAt: new Date().toISOString(),
-      }));
-      this.saveClassStudents(initialRelations);
-      return initialRelations;
+      return [];
     }
     try {
       const list: ClassStudent[] = JSON.parse(raw);
       if (!Array.isArray(list)) return [];
-      return list.map((rel) => {
+      const filtered = list.filter((rel) => rel.classId !== 'class_default_faminh');
+      return filtered.map((rel) => {
         if (rel.studentEmail === 'leduyducminh@gmail.com' || rel.studentUsername === 'leduyducminh@gmail.com') {
           return {
             ...rel,
@@ -776,7 +782,7 @@ export const storageService = {
   ): UserStats {
     let subs = customSubs ? [...customSubs] : this.getSubmissions(classId);
     if (classId && customSubs) {
-      subs = subs.filter((s) => s.classId === classId || (!s.classId && classId === DEFAULT_CLASS.id));
+      subs = subs.filter((s) => s.classId === classId);
     }
     if (student) {
       subs = subs.filter((s) => {
@@ -1070,13 +1076,8 @@ export const storageService = {
   resetToDefault(): void {
     localStorage.setItem(STORAGE_KEYS.TOPICS, JSON.stringify([]));
     localStorage.setItem(STORAGE_KEYS.PROBLEMS, JSON.stringify([]));
-    localStorage.setItem(STORAGE_KEYS.CLASSES, JSON.stringify([DEFAULT_CLASS]));
-    const defaultRelations: ClassStudent[] = DEFAULT_STUDENTS.map((s) => ({
-      classId: DEFAULT_CLASS.id,
-      studentId: s.id,
-      joinedAt: new Date().toISOString(),
-    }));
-    localStorage.setItem(STORAGE_KEYS.CLASS_STUDENTS, JSON.stringify(defaultRelations));
+    localStorage.setItem(STORAGE_KEYS.CLASSES, JSON.stringify([]));
+    localStorage.setItem(STORAGE_KEYS.CLASS_STUDENTS, JSON.stringify([]));
     localStorage.removeItem(STORAGE_KEYS.SUBMISSIONS);
     localStorage.removeItem(STORAGE_KEYS.ADMIN_PASSWORD);
     localStorage.removeItem(STORAGE_KEYS.STUDENTS);
