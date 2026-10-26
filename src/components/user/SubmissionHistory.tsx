@@ -245,17 +245,19 @@ export const SubmissionHistory: React.FC = () => {
   }, [currentGradeTopic, topicClassIds, selectedClassId, students, classes, getStudentsInClass]);
 
   // Helper: Kiểm tra một bài nộp có đạt Full AC (100% test hoặc điểm tối đa) hay không
+  // Không kiểm tra sub.overallVerdict === 'AC' đơn thuần vì bản ghi có thể bị gán nhầm
   const checkIsFullAc = (sub: Submission | null, maxPoints: number): boolean => {
     if (!sub) return false;
-    if (sub.overallVerdict === 'AC') return true;
-    if (sub.totalTests > 0 && sub.passedCount === sub.totalTests) return true;
-    if (sub.maxTotalPoints > 0 && sub.totalPointsEarned >= sub.maxTotalPoints) return true;
-    if (maxPoints > 0 && sub.totalPointsEarned >= maxPoints) return true;
-    return false;
+    const targetMax = maxPoints > 0 ? maxPoints : (sub.maxTotalPoints > 0 ? sub.maxTotalPoints : 10);
+    const isFullPoints = targetMax > 0 && sub.totalPointsEarned >= targetMax;
+    const isAllTestsPassed = sub.totalTests > 0 && sub.passedCount === sub.totalTests;
+    return isFullPoints || isAllTestsPassed;
   };
 
-  // Helper: Tìm bài nộp có điểm số cao nhất của 1 học sinh đối với 1 bài tập cụ thể
-  const getStudentProblemBest = (student: StudentUser, prob: Problem): Submission | null => {
+  // Helper: Tìm bài nộp tốt nhất của 1 học sinh đối với 1 bài tập cụ thể
+  // Nếu học sinh đã từng làm đạt tối đa (Full AC) bài này rồi, luôn giữ kết quả Full AC đó
+  // để dù sau này học sinh có thử nghiệm nộp bài bị sai/điểm thấp hơn thì vẫn giữ trạng thái Full AC
+  const getStudentProblemBest = (student: StudentUser, prob: Problem): { bestSub: Submission | null; isFull: boolean } => {
     const studentSubs = submissions.filter((s) => {
       const matchProb = s.problemId === prob.id || (prob.code && s.problemCode && s.problemCode === prob.code);
       if (!matchProb) return false;
@@ -267,24 +269,29 @@ export const SubmissionHistory: React.FC = () => {
       return matchId || matchName || matchUser;
     });
 
-    if (studentSubs.length === 0) return null;
+    if (studentSubs.length === 0) return { bestSub: null, isFull: false };
 
-    return studentSubs.reduce((best, cur) => {
+    const maxPts = prob.totalPoints || 10;
+    const hasEverSolved = studentSubs.some((s) => checkIsFullAc(s, maxPts));
+
+    const bestSub = studentSubs.reduce((best, cur) => {
       if (!best) return cur;
-      if (cur.totalPointsEarned > best.totalPointsEarned) return cur;
-      if (cur.totalPointsEarned < best.totalPointsEarned) return best;
-      // Nếu bằng điểm nhau, ưu tiên bài nộp đạt AC full test
-      const curIsFull = (cur.totalTests > 0 && cur.passedCount === cur.totalTests) || cur.overallVerdict === 'AC';
-      const bestIsFull = (best.totalTests > 0 && best.passedCount === best.totalTests) || best.overallVerdict === 'AC';
+      // 1. Ưu tiên bài đạt Full AC nếu một trong hai đạt Full AC
+      const curIsFull = checkIsFullAc(cur, maxPts);
+      const bestIsFull = checkIsFullAc(best, maxPts);
       if (curIsFull && !bestIsFull) return cur;
       if (!curIsFull && bestIsFull) return best;
-      if (
-        new Date(cur.submittedAt).getTime() > new Date(best.submittedAt).getTime()
-      ) {
+      // 2. Ưu tiên bài có điểm cao nhất
+      if (cur.totalPointsEarned > best.totalPointsEarned) return cur;
+      if (cur.totalPointsEarned < best.totalPointsEarned) return best;
+      // 3. Nếu bằng điểm, ưu tiên bài nộp mới hơn
+      if (new Date(cur.submittedAt).getTime() > new Date(best.submittedAt).getTime()) {
         return cur;
       }
       return best;
     }, null as Submission | null);
+
+    return { bestSub, isFull: hasEverSolved };
   };
 
   // Bảo vệ bảo mật: Ẩn hoàn toàn bài nộp của Giáo viên và của học sinh khác khỏi học sinh hiện tại
@@ -321,7 +328,9 @@ export const SubmissionHistory: React.FC = () => {
   }, [selectedSub]);
 
   const getVerdictBadge = (sub: Submission) => {
-    const isFull = sub.passedCount === sub.totalTests && sub.totalTests > 0;
+    const isFull =
+      (sub.passedCount === sub.totalTests && sub.totalTests > 0) ||
+      (sub.maxTotalPoints > 0 && sub.totalPointsEarned >= sub.maxTotalPoints);
     if (isFull) {
       return (
         <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
@@ -330,10 +339,9 @@ export const SubmissionHistory: React.FC = () => {
         </span>
       );
     }
-    if (sub.passedCount > 0) {
+    if (sub.passedCount > 0 || sub.totalPointsEarned > 0) {
       return (
         <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30">
-          <CheckCircle2 className="w-3.5 h-3.5" />
           PARTIAL ({sub.totalPointsEarned}đ)
         </span>
       );
@@ -668,8 +676,7 @@ export const SubmissionHistory: React.FC = () => {
 
                       const problemBests = topicProblems.map((prob) => {
                         const maxPts = prob.totalPoints || 10;
-                        const bestSub = getStudentProblemBest(st, prob);
-                        const isFull = checkIsFullAc(bestSub, maxPts);
+                        const { bestSub, isFull } = getStudentProblemBest(st, prob);
                         if (bestSub) {
                           totalPointsEarned += bestSub.totalPointsEarned;
                         }

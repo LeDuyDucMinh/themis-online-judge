@@ -1633,13 +1633,12 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     }
 
     if (relevantSubs.length === 0) return 'UNSOLVED';
-    const isFullAc = relevantSubs.some(
-      (s) =>
-        s.overallVerdict === 'AC' ||
-        (s.maxTotalPoints > 0 && s.totalPointsEarned >= s.maxTotalPoints) ||
-        (s.totalTests > 0 && s.passedCount === s.totalTests) ||
-        s.totalPointsEarned >= maxPoints
-    );
+    const isFullAc = relevantSubs.some((s) => {
+      const targetMax = maxPoints > 0 ? maxPoints : (s.maxTotalPoints > 0 ? s.maxTotalPoints : 10);
+      const isFullPoints = targetMax > 0 && s.totalPointsEarned >= targetMax;
+      const isAllTestsPassed = s.totalTests > 0 && s.passedCount === s.totalTests;
+      return isFullPoints || isAllTestsPassed;
+    });
     if (isFullAc) return 'SOLVED';
     const maxEarned = Math.max(...relevantSubs.map((s) => s.totalPointsEarned));
     if (maxEarned > 0) return 'PARTIAL';

@@ -1142,8 +1142,6 @@ export async function gradeSubmission(
         overallVerdict = 'CE';
       } else if (passedCount === totalTests && totalTests > 0) {
         overallVerdict = 'AC';
-      } else if (passedCount > 0) {
-        overallVerdict = 'AC';
       } else {
         const firstNonAc = j0Outcome.testResults.find((r) => r.verdict !== 'AC');
         overallVerdict = firstNonAc ? firstNonAc.verdict : 'WA';
@@ -1491,8 +1489,6 @@ export async function gradeSubmission(
   } else if (passedCount === totalTests && totalTests > 0) {
     overallVerdict = 'AC';
     totalPointsEarned = problem.totalPoints || 10;
-  } else if (passedCount > 0) {
-    overallVerdict = 'AC'; // Partial scoring chuẩn Themis
   } else {
     const firstNonAc = testResults.find((r) => r.verdict !== 'AC');
     overallVerdict = firstNonAc ? firstNonAc.verdict : 'WA';

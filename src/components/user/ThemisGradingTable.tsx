@@ -226,7 +226,7 @@ export const ThemisGradingTable: React.FC<ThemisGradingTableProps> = ({
                 : 'bg-amber-500/20 text-amber-400 border-amber-500/40'
             }`}
           >
-            {isFullAC ? 'AC' : submission.overallVerdict}
+            {isFullAC ? 'AC' : submission.overallVerdict === 'AC' ? 'WA' : submission.overallVerdict}
           </div>
           <div>
             <div className="flex items-center gap-2">

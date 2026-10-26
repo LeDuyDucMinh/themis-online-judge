@@ -801,11 +801,10 @@ export const storageService = {
       if (sub.totalPointsEarned > currentBest) {
         bestScoreMap.set(sub.problemId, sub.totalPointsEarned);
       }
-      if (
-        sub.overallVerdict === 'AC' ||
+      const isFull =
         (Number(sub.passedCount) === Number(sub.totalTests) && Number(sub.totalTests) > 0) ||
-        (Number(sub.maxTotalPoints) > 0 && Number(sub.totalPointsEarned) >= Number(sub.maxTotalPoints))
-      ) {
+        (Number(sub.maxTotalPoints) > 0 && Number(sub.totalPointsEarned) >= Number(sub.maxTotalPoints));
+      if (isFull) {
         solvedProblemIds.add(sub.problemId);
       }
     }

@@ -584,6 +584,93 @@ OUTPUT:
     assert.equal(storageService.getStudentSession(), null);
   });
 
+  // ==========================================
+  console.log('\nNhom 12: Tien do Full AC va bao toan ket qua toi da (Full AC Persistence)');
+
+  await runTest('Chi tinh SOLVED khi dat full test va bao toan Full AC khi nop lai bi loi', async () => {
+    const studentUser: StudentUser = {
+      id: 'stu_progress_test',
+      fullName: 'Hoc Sinh Test Tien Do',
+      username: 'stu_progress_test',
+      createdAt: new Date().toISOString(),
+    };
+
+    // 1. Bai 1 chi dung 1/20 test (0.5/10) -> Trang thai phai la PARTIAL, khong phai SOLVED
+    const partialSub: Submission = {
+      id: 'sub_partial_1',
+      problemId: 'prob_bai1',
+      problemCode: 'BAI1',
+      problemTitle: 'Bai 1',
+      userId: studentUser.id,
+      userName: studentUser.fullName,
+      language: 'cpp',
+      sourceCode: 'code',
+      submittedAt: new Date(Date.now() - 5000).toISOString(),
+      status: 'COMPLETED',
+      totalPointsEarned: 0.5,
+      maxTotalPoints: 10,
+      passedCount: 1,
+      totalTests: 20,
+      overallVerdict: 'WA',
+      executionTime: 10,
+      memory: 1.5,
+      testResults: [],
+      freopenHandled: false,
+    };
+    storageService.saveSubmissions([partialSub]);
+    assert.equal(storageService.getProblemStatus('prob_bai1', 10, studentUser), 'PARTIAL');
+
+    // 2. Bai 2 dung 20/20 test (10/10) -> Trang thai la SOLVED
+    const fullSub: Submission = {
+      id: 'sub_full_1',
+      problemId: 'prob_bai2',
+      problemCode: 'BAI2',
+      problemTitle: 'Bai 2',
+      userId: studentUser.id,
+      userName: studentUser.fullName,
+      language: 'cpp',
+      sourceCode: 'code',
+      submittedAt: new Date(Date.now() - 3000).toISOString(),
+      status: 'COMPLETED',
+      totalPointsEarned: 10,
+      maxTotalPoints: 10,
+      passedCount: 20,
+      totalTests: 20,
+      overallVerdict: 'AC',
+      executionTime: 10,
+      memory: 1.5,
+      testResults: [],
+      freopenHandled: false,
+    };
+    storageService.saveSubmissions([partialSub, fullSub]);
+    assert.equal(storageService.getProblemStatus('prob_bai2', 10, studentUser), 'SOLVED');
+
+    // 3. Hoc sinh nop lai Bai 2 nhung bi loi/khong full (0.5/10) -> Bai 2 van phai la SOLVED vi tung Full AC
+    const subsequentFailSub: Submission = {
+      id: 'sub_fail_after_full',
+      problemId: 'prob_bai2',
+      problemCode: 'BAI2',
+      problemTitle: 'Bai 2',
+      userId: studentUser.id,
+      userName: studentUser.fullName,
+      language: 'cpp',
+      sourceCode: 'code thử cách khác',
+      submittedAt: new Date().toISOString(),
+      status: 'COMPLETED',
+      totalPointsEarned: 0.5,
+      maxTotalPoints: 10,
+      passedCount: 1,
+      totalTests: 20,
+      overallVerdict: 'WA',
+      executionTime: 10,
+      memory: 1.5,
+      testResults: [],
+      freopenHandled: false,
+    };
+    storageService.saveSubmissions([partialSub, fullSub, subsequentFailSub]);
+    assert.equal(storageService.getProblemStatus('prob_bai2', 10, studentUser), 'SOLVED');
+  });
+
   console.log('\n====================================================');
   console.log(`KET QUA: ${passedTests}/${totalTestsRun} TESTS PASS (100% THANH CONG)`);
   console.log('====================================================\n');
