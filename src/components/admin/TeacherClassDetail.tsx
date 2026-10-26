@@ -11,7 +11,6 @@ import {
   FileCode2,
   Copy,
   Check,
-  UserPlus,
   Trash2,
   KeyRound,
   Calendar,
@@ -34,8 +33,6 @@ export const TeacherClassDetail: React.FC<TeacherClassDetailProps> = ({ classId 
     getPendingStudentsInClass,
     approveStudentJoin,
     rejectStudentJoin,
-    students,
-    enrollStudentToClass,
     removeStudentFromClass,
     problems,
     topics,
@@ -62,10 +59,6 @@ export const TeacherClassDetail: React.FC<TeacherClassDetailProps> = ({ classId 
   };
   const [copiedCode, setCopiedCode] = useState(false);
   const [studentSearch, setStudentSearch] = useState('');
-
-  // Modal thêm học sinh
-  const [isAddStudentModalOpen, setIsAddStudentModalOpen] = useState(false);
-  const [selectedExistingStudentId, setSelectedExistingStudentId] = useState('');
 
   const currentClass = classes.find((c) => c.id === classId);
   const classStudents = getStudentsInClass(classId);
@@ -112,21 +105,7 @@ export const TeacherClassDetail: React.FC<TeacherClassDetailProps> = ({ classId 
     });
   };
 
-  // Các học sinh trong hệ thống chưa thuộc lớp này
-  const classStudentIds = new Set(classStudents.map((s) => s.id));
-  const availableStudents = students.filter((s) => !classStudentIds.has(s.id));
 
-  const handleEnrollStudent = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedExistingStudentId) {
-      showToast('Vui lòng chọn', 'Chọn một học sinh từ danh sách để thêm vào lớp', 'warning');
-      return;
-    }
-    enrollStudentToClass(classId, selectedExistingStudentId);
-    setIsAddStudentModalOpen(false);
-    setSelectedExistingStudentId('');
-    showToast('Đã thêm', 'Đã thêm học sinh vào lớp học thành công', 'success');
-  };
 
   const getDisplayEmail = (stu: { email?: string; username?: string }) => {
     const raw = stu.email || (stu.username && stu.username.includes('@') ? stu.username : null);
@@ -408,16 +387,6 @@ export const TeacherClassDetail: React.FC<TeacherClassDetailProps> = ({ classId 
                 className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-red-500"
               />
             </div>
-
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setIsAddStudentModalOpen(true)}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold transition-all shadow-md shadow-blue-600/20 cursor-pointer"
-              >
-                <UserPlus className="w-4 h-4" />
-                <span>Thêm học sinh vào lớp</span>
-              </button>
-            </div>
           </div>
 
           {/* Table Học sinh */}
@@ -441,8 +410,8 @@ export const TeacherClassDetail: React.FC<TeacherClassDetailProps> = ({ classId 
                 {filteredStudents.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="py-12 text-center text-slate-500 dark:text-slate-400">
-                      Chưa có học sinh nào trong lớp này. Hãy bấm "Thêm học sinh vào lớp" hoặc gửi mã{' '}
-                      <b className="text-red-500 font-mono">{currentClass.joinCode}</b> cho học sinh.
+                      Chưa có học sinh nào trong lớp này. Hãy gửi mã vào lớp{' '}
+                      <b className="text-red-500 font-mono">{currentClass.joinCode}</b> cho học sinh để tham gia.
                     </td>
                   </tr>
                 ) : (
@@ -498,75 +467,6 @@ export const TeacherClassDetail: React.FC<TeacherClassDetailProps> = ({ classId 
         </div>
       )}
 
-      {/* Modal Thêm Học Sinh */}
-      {isAddStudentModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-150">
-          <div className={`border rounded-3xl max-w-md w-full p-6 shadow-2xl relative ${
-            theme === 'light' ? 'bg-white border-slate-200' : 'bg-slate-900 border-slate-800'
-          }`}>
-            <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
-              <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                <UserPlus className="w-5 h-5 text-blue-500" />
-                <span>Thêm học sinh vào {currentClass.className}</span>
-              </h3>
-              <button
-                onClick={() => setIsAddStudentModalOpen(false)}
-                className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <form onSubmit={handleEnrollStudent} className="space-y-4 mt-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  Chọn học sinh đã đăng ký tài khoản trong hệ thống:
-                </label>
-                {availableStudents.length === 0 ? (
-                  <div className="p-3 text-xs text-slate-400 bg-slate-50 dark:bg-slate-800 rounded-xl text-center">
-                    Tất cả học sinh trong hệ thống đã có mặt trong lớp này.
-                  </div>
-                ) : (
-                  <select
-                    value={selectedExistingStudentId}
-                    onChange={(e) => setSelectedExistingStudentId(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500"
-                    required
-                  >
-                    <option value="">-- Chọn học sinh --</option>
-                    {availableStudents.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.fullName} ({getDisplayEmail(s) || s.username})
-                      </option>
-                    ))}
-                  </select>
-                )}
-              </div>
-
-              <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl text-xs text-blue-400 leading-relaxed">
-                💡 <strong>Mẹo:</strong> Học sinh tự tạo tài khoản (Email hoặc Google) rồi nhập mã lớp <span className="font-mono font-bold text-amber-300">{currentClass.joinCode}</span> để xin vào lớp. Giáo viên chỉ cần duyệt tại danh sách phía trên.
-              </div>
-
-              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200 dark:border-slate-800">
-                <button
-                  type="button"
-                  onClick={() => setIsAddStudentModalOpen(false)}
-                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-500 hover:text-white hover:bg-slate-800 cursor-pointer"
-                >
-                  Đóng
-                </button>
-                <button
-                  type="submit"
-                  disabled={availableStudents.length === 0}
-                  className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-xs font-bold shadow-md shadow-blue-600/20 cursor-pointer"
-                >
-                  Thêm vào lớp
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
