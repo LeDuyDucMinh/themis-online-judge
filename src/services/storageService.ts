@@ -722,13 +722,13 @@ export const storageService = {
       classId: targetClass.id,
       studentId,
       joinedAt: new Date().toISOString(),
-      status: 'approved',
+      status: 'pending',
     };
     this.saveClassStudents([...relations, newRelation]);
     return {
       success: true,
-      pending: false,
-      message: `Đã tham gia lớp "${targetClass.className}" thành công!`,
+      pending: true,
+      message: `Đã gửi yêu cầu tham gia lớp "${targetClass.className}". Vui lòng chờ giáo viên duyệt!`,
       classroom: targetClass,
     };
   },

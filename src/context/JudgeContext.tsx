@@ -392,7 +392,7 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       }
     }
 
-    // 4. Tạo quan hệ tham gia lớp học
+    // 4. Tạo quan hệ tham gia lớp học ở trạng thái CHỜ PHÊ DUYỆT (pending)
     const newRelation: ClassStudent = {
       classId: targetClass.id,
       studentId: student.id,
@@ -400,7 +400,7 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       studentUsername: student.username,
       studentEmail: student.email,
       joinedAt: new Date().toISOString(),
-      status: 'approved',
+      status: 'pending',
     };
 
     const updatedRelations = [
@@ -417,19 +417,22 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       console.warn('Lỗi ghi liên kết lớp lên Cloud:', e);
     }
 
-    // Luôn đồng bộ hồ sơ học sinh lên Cloud để Giáo viên nhìn thấy ngay trong danh sách
+    // Luôn đồng bộ hồ sơ học sinh lên Cloud để Giáo viên nhìn thấy ngay trong danh sách chờ duyệt
     try {
       await apiService.saveStudents([student]);
     } catch (e) {
       console.warn('Lỗi ghi thông tin học sinh lên Cloud:', e);
     }
 
-    setActiveClassId(targetClass.id);
-    showToast('Tham gia thành công', `Em đã tham gia lớp "${targetClass.className}" thành công!`, 'success');
+    showToast(
+      'Đã gửi yêu cầu tham gia',
+      `Yêu cầu tham gia lớp "${targetClass.className}" đã được gửi tới Giáo viên. Vui lòng chờ Thầy/Cô phê duyệt để vào lớp!`,
+      'info'
+    );
     return {
       success: true,
-      pending: false,
-      message: `Bạn đã là thành viên chính thức của lớp "${targetClass.className}"!`,
+      pending: true,
+      message: `Yêu cầu tham gia lớp "${targetClass.className}" đang chờ giáo viên phê duyệt!`,
       classroom: targetClass,
     };
   };

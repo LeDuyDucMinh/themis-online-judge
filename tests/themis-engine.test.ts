@@ -438,7 +438,7 @@ OUTPUT:
   // ==========================================
   console.log('\nNhom 9: Quy trinh phe duyet hoc sinh vao lop (Student Join Approval)');
 
-  await runTest('Hoc sinh nhap ma vao lop thanh cong va tham gia vao lop', async () => {
+  await runTest('Hoc sinh nhap ma vao lop phai cho giao vien duyet truoc khi duoc vao lop chinh thuc', async () => {
     const testClass = storageService.addClass({ className: 'Lop Chuyen Tin', description: 'Mo ta' });
     const studentId = 'test_stu_approval';
     storageService.addStudent({
@@ -449,13 +449,25 @@ OUTPUT:
       createdAt: new Date().toISOString(),
     });
 
-    // Nhap ma vao lop
+    // 1. Hoc sinh nhap ma vao lop -> Bat buoc o trang thai Cho Duyet (pending = true)
     const res = storageService.joinClassByCode(studentId, testClass.joinCode);
     assert.equal(res.success, true);
+    assert.equal(res.pending, true);
 
-    // Hoc sinh duoc liet ke trong lop chinh thuc
-    const activeStudents = storageService.getStudentsInClass(testClass.id);
-    assert.ok(activeStudents.some((s) => s.id === studentId));
+    // 2. Kiem tra hoc sinh co ten trong danh sach Cho Duyet cua giao vien
+    const pendingStudents = storageService.getPendingStudentsInClass(testClass.id);
+    assert.ok(pendingStudents.some((p) => p.student.id === studentId));
+
+    // 3. Hoc sinh CHUA duoc phep co mat trong lop chinh thuc
+    const activeBeforeApproval = storageService.getStudentsInClass(testClass.id);
+    assert.equal(activeBeforeApproval.some((s) => s.id === studentId), false);
+
+    // 4. Giao vien bam phe duyet (approve)
+    storageService.approveStudentJoin(testClass.id, studentId);
+
+    // 5. Sau khi giao vien duyet -> Hoc sinh chinh thuc co mat trong lop
+    const activeAfterApproval = storageService.getStudentsInClass(testClass.id);
+    assert.ok(activeAfterApproval.some((s) => s.id === studentId));
   });
 
   // ==========================================
