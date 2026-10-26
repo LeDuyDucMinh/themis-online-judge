@@ -74,8 +74,8 @@ export const SubmissionHistory: React.FC = () => {
     prevActiveClassIdRef.current = activeClassId;
   }, [activeClassId]);
 
-  // Bộ lọc: Mặc định chỉ hiển thị bài nộp mới nhất của mỗi học sinh cho từng bài tập
-  const [onlyLatest, setOnlyLatest] = useState<boolean>(true);
+  // Bộ lọc: Mặc định hiển thị từng lượt nộp theo thứ tự thời gian (false)
+  const [onlyLatest, setOnlyLatest] = useState<boolean>(false);
 
   // Tự động làm mới dữ liệu ngầm khi mở màn hình Lịch sử nộp bài & Polling nhận bài nộp mới
   const refreshRef = React.useRef(refreshAllData);
@@ -165,7 +165,8 @@ export const SubmissionHistory: React.FC = () => {
       );
     }
 
-    return list;
+    // Chỉ hiển thị tối đa 15 lượt nộp bài gần đây nhất (các lượt nộp quá 15 lượt sẽ không hiển thị ở bảng này)
+    return list.slice(0, 15);
   }, [submissions, isAdminAuthenticated, currentStudent, selectedClassId, onlyLatest, getStudentsInClass]);
 
 
@@ -397,7 +398,7 @@ export const SubmissionHistory: React.FC = () => {
           </h2>
           <p className="text-xs text-slate-400 mt-1">
             {viewMode === 'log'
-              ? 'Theo dõi chi tiết điểm số từng test case của tất cả các lần nộp bài gần nhất'
+              ? 'Theo dõi chi tiết kết quả của 15 lượt nộp bài gần đây nhất'
               : 'Thống kê tổng điểm và tiến độ hoàn thành từng bài tập của học sinh theo từng chuyên đề'}
           </p>
         </div>
@@ -468,7 +469,7 @@ export const SubmissionHistory: React.FC = () => {
           )}
 
           <span className="text-xs font-mono text-slate-400 bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-700">
-            {viewMode === 'log' ? `${displayedSubmissions.length} bài nộp` : `${topicEligibleStudents.length} học sinh được giao`}
+            {viewMode === 'log' ? `${displayedSubmissions.length} lượt nộp gần nhất` : `${topicEligibleStudents.length} học sinh được giao`}
           </span>
         </div>
       </div>
@@ -547,6 +548,15 @@ export const SubmissionHistory: React.FC = () => {
                   ))}
                 </tbody>
               </table>
+            </div>
+            <div className="px-4 py-2.5 bg-slate-800/40 border-t border-slate-800/80 text-[11px] text-slate-400 flex items-center justify-between">
+              <span className="flex items-center gap-1.5">
+                <Clock className="w-3.5 h-3.5 text-slate-500" />
+                Chỉ hiển thị tối đa 15 lượt nộp bài gần đây nhất
+              </span>
+              <span className="text-slate-500 font-mono text-[10px]">
+                (Các lượt nộp quá 15 lượt được ẩn trên bảng này)
+              </span>
             </div>
           </div>
         )
