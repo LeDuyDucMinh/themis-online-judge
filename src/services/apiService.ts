@@ -608,13 +608,39 @@ export const apiService = {
     storageService.setAdminPassword(cleanPass);
     if (isSupabaseConfigured()) {
       try {
-        const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/classrooms?on_conflict=id`;
-        const res = await fetch(targetUrl, {
+        // 1. Thử cập nhật trực tiếp (PATCH) vào bản ghi __system_admin_auth__
+        const patchUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/classrooms?id=eq.__system_admin_auth__`;
+        const patchRes = await fetch(patchUrl, {
+          method: 'PATCH',
+          headers: {
+            ...this.getAntiCacheHeaders(),
+            'Content-Type': 'application/json',
+            Prefer: 'return=representation',
+          },
+          body: JSON.stringify({
+            class_name: 'ADMIN_CREDENTIAL',
+            description: cleanPass,
+            join_code: 'ROOT',
+            updated_at: new Date().toISOString(),
+          }),
+        });
+
+        if (patchRes.ok) {
+          const patched = await patchRes.json().catch(() => null);
+          if (Array.isArray(patched) && patched.length > 0) {
+            storageService.setAdminPassword(cleanPass);
+            return true;
+          }
+        }
+
+        // 2. Nếu chưa có bản ghi (lần đầu tạo), dùng POST upsert on_conflict=id
+        const postUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/classrooms?on_conflict=id`;
+        const postRes = await fetch(postUrl, {
           method: 'POST',
           headers: {
             ...this.getAntiCacheHeaders(),
             'Content-Type': 'application/json',
-            Prefer: 'resolution=merge-duplicates',
+            Prefer: 'resolution=merge-duplicates,return=representation',
           },
           body: JSON.stringify({
             id: '__system_admin_auth__',
@@ -624,7 +650,12 @@ export const apiService = {
             updated_at: new Date().toISOString(),
           }),
         });
-        return res.ok;
+
+        if (postRes.ok) {
+          storageService.setAdminPassword(cleanPass);
+          return true;
+        }
+        return false;
       } catch (err) {
         console.error('[apiService] Lỗi cập nhật Admin Password lên Supabase Cloud:', err);
         return false;
@@ -1259,11 +1290,8 @@ export const apiService = {
       throw new Error('Supabase Cloud chưa được cấu hình địa chỉ URL và API Key');
     }
 
-    // 0. Tự động đồng bộ mật mã Admin nếu máy này đã đổi mật khẩu
-    const localPass = storageService.getAdminPassword();
-    if (localPass && localPass !== DEFAULT_ADMIN_PASSWORD && localPass.length >= 6) {
-      await this.updateAdminPasswordInDatabase(localPass);
-    }
+    // 0. Luôn kéo mật mã Admin mới nhất từ Cloud Database về máy này (Cloud là Single Source of Truth)
+    await this.getAdminPasswordFromDatabase().catch(() => {});
 
     // 1. Đồng bộ Classrooms: chỉ khởi tạo nếu Cloud chưa có lớp nào
     const cloudClasses = await this.fetchClassrooms();

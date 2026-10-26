@@ -1212,16 +1212,13 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     // 1. Đối chiếu trực tiếp với Supabase Cloud Database qua API
     let isValid = await apiService.verifyAdminPassword(cleanPass);
 
-    // Nếu mật mã trên Cloud chưa khớp nhưng khớp với mật mã lưu trên máy này
-    // (do lần đổi hôm qua trên máy A chưa kịp đẩy lên Cloud) -> Tự động khôi phục và cập nhật lên Cloud!
-    if (!isValid && cleanPass === storageService.getAdminPassword().trim()) {
-      const synced = await apiService.updateAdminPasswordInDatabase(cleanPass);
-      if (synced) {
-        isValid = true;
-      }
+    // Fallback chỉ khi không cấu hình Supabase Cloud hoặc offline
+    if (!isValid && !apiService.isConfigured()) {
+      isValid = cleanPass === storageService.getAdminPassword().trim();
     }
 
     if (isValid) {
+      storageService.setAdminPassword(cleanPass);
       // Dọn dẹp session học sinh nếu có
       storageService.setStudentSession(null);
       setCurrentStudent(null);
@@ -1287,9 +1284,9 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     oldPass: string,
     newPass: string
   ): Promise<{ success: boolean; message: string }> => {
-    // 1. Kiểm tra mật khẩu cũ trực tiếp qua Database hoặc fallback mật khẩu máy này
+    // 1. Kiểm tra mật khẩu cũ trực tiếp qua Database
     let isOldValid = await apiService.verifyAdminPassword(oldPass);
-    if (!isOldValid && oldPass.trim() === storageService.getAdminPassword().trim()) {
+    if (!isOldValid && !apiService.isConfigured() && oldPass.trim() === storageService.getAdminPassword().trim()) {
       isOldValid = true;
     }
     if (!isOldValid) {
@@ -1299,17 +1296,20 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       return { success: false, message: 'Mật mã mới phải có ít nhất 6 ký tự!' };
     }
 
-    // 2. Cập nhật mật mã mới lên Database Supabase Cloud
-    const updated = await apiService.updateAdminPasswordInDatabase(newPass.trim());
+    const cleanNewPass = newPass.trim();
+
+    // 2. Cập nhật mật mã mới trực tiếp lên Database Supabase Cloud
+    const updated = await apiService.updateAdminPasswordInDatabase(cleanNewPass);
     if (updated) {
-      sessionStorage.setItem('faminh_admin_verified_pass', newPass.trim());
-      try { localStorage.setItem('faminh_admin_verified_pass', newPass.trim()); } catch {}
-      storageService.setCookie('faminh_admin_verified_pass', newPass.trim(), 30);
+      storageService.setAdminPassword(cleanNewPass);
+      sessionStorage.setItem('faminh_admin_verified_pass', cleanNewPass);
+      try { localStorage.setItem('faminh_admin_verified_pass', cleanNewPass); } catch {}
+      storageService.setCookie('faminh_admin_verified_pass', cleanNewPass, 30);
       setIsChangePasswordModalOpen(false);
       showToast('Đổi mật mã thành công', 'Mật mã quản trị FAMINH mới đã được cập nhật an toàn lên Database đám mây.', 'success');
       return { success: true, message: 'Đổi mật mã thành công' };
     } else {
-      return { success: false, message: 'Không thể kết nối đến Database để đổi mật mã!' };
+      return { success: false, message: 'Không thể kết nối đến Database để đổi mật mã mới! Vui lòng thử lại.' };
     }
   };
 
