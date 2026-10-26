@@ -74,8 +74,6 @@ export const SubmissionHistory: React.FC = () => {
     prevActiveClassIdRef.current = activeClassId;
   }, [activeClassId]);
 
-  // Bộ lọc: Mặc định hiển thị từng lượt nộp theo thứ tự thời gian (false)
-  const [onlyLatest, setOnlyLatest] = useState<boolean>(false);
 
   // Tự động làm mới dữ liệu ngầm khi mở màn hình Lịch sử nộp bài & Polling nhận bài nộp mới
   const refreshRef = React.useRef(refreshAllData);
@@ -141,33 +139,13 @@ export const SubmissionHistory: React.FC = () => {
       });
     }
 
-    // Nếu bật chế độ "Chỉ hiện bài nộp mới nhất của mỗi học sinh"
-    // Giữ lại 1 bài mới nhất cho mỗi cặp (Học sinh + Bài tập), tránh bài của cùng 1 bạn đè đẩy các học sinh khác xuống
-    if (onlyLatest) {
-      const seen = new Set<string>();
-      const deduped: Submission[] = [];
-      const sorted = [...list].sort(
-        (a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime()
-      );
-      for (const sub of sorted) {
-        const userKey = (sub.userId || sub.userName || '').trim().toLowerCase();
-        const probKey = (sub.problemId || sub.problemCode || '').trim().toLowerCase();
-        const key = `${userKey}_${probKey}`;
-        if (!seen.has(key)) {
-          seen.add(key);
-          deduped.push(sub);
-        }
-      }
-      list = deduped;
-    } else {
-      list = [...list].sort(
-        (a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime()
-      );
-    }
+    const sorted = [...list].sort(
+      (a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime()
+    );
 
     // Chỉ hiển thị tối đa 15 lượt nộp bài gần đây nhất (các lượt nộp quá 15 lượt sẽ không hiển thị ở bảng này)
-    return list.slice(0, 15);
-  }, [submissions, isAdminAuthenticated, currentStudent, selectedClassId, onlyLatest, getStudentsInClass]);
+    return sorted.slice(0, 15);
+  }, [submissions, isAdminAuthenticated, currentStudent, selectedClassId, getStudentsInClass]);
 
 
   // Dữ liệu cho Chế độ 2: Bảng điểm theo Chủ đề
@@ -420,22 +398,6 @@ export const SubmissionHistory: React.FC = () => {
             </select>
           </div>
 
-          {/* Nút lọc Chỉ hiện lần nộp mới nhất của mỗi học sinh */}
-          {(viewMode === 'log' || !isAdminAuthenticated) && (
-            <button
-              type="button"
-              onClick={() => setOnlyLatest(!onlyLatest)}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
-                onlyLatest
-                  ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/25'
-                  : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-white hover:bg-slate-700/50'
-              }`}
-              title="Bật/Tắt chế độ chỉ hiển thị bài nộp mới nhất của mỗi học sinh cho từng bài tập"
-            >
-              <CheckCircle2 className={`w-3.5 h-3.5 ${onlyLatest ? 'text-emerald-400' : 'text-slate-500'}`} />
-              <span>{onlyLatest ? 'Mới nhất mỗi học sinh' : 'Tất cả lần nộp'}</span>
-            </button>
-          )}
 
           {/* 2 Nút chuyển chế độ xem dành riêng cho Giáo viên */}
           {isAdminAuthenticated && (
