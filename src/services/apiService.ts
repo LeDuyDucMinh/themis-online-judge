@@ -389,10 +389,12 @@ export const apiService = {
       const k = getKey(s);
       if (k && !removeSet.has(s.id) && s.username !== 'leduyducminh@gmail.com') {
         const prev = merged.get(k);
+        const customName = storageService.getStudentCustomName(s.id, s.email || s.username) || storageService.getStudentCustomName(prev?.id, prev?.email || prev?.username);
+        const chosenFullName = customName || (s.fullName && s.fullName !== 'Học sinh' ? s.fullName : (prev?.fullName || s.fullName || 'Học sinh'));
         merged.set(k, {
           ...prev,
           ...s,
-          fullName: s.fullName || prev?.fullName || 'Học sinh',
+          fullName: chosenFullName,
           username: s.username || prev?.username || '',
           email: s.email || prev?.email || (s.username?.includes('@') ? s.username : prev?.username?.includes('@') ? prev.username : undefined),
         });

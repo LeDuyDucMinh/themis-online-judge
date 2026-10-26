@@ -21,6 +21,7 @@ const STORAGE_KEYS = {
   TOPIC_MANAGER_TAB: 'faminh_judge_topic_manager_tab_v1',
   SUBMISSIONS_CLASS_FILTER: 'faminh_judge_submissions_class_filter_v1',
   SUBMISSIONS_VIEW_MODE: 'faminh_judge_submissions_view_mode_v1',
+  STUDENT_CUSTOM_NAMES: 'faminh_student_custom_names_v1',
 };
 
 // Dọn dẹp bộ nhớ đệm mẫu cũ (v1) nếu có trong trình duyệt người dùng
@@ -958,6 +959,34 @@ export const storageService = {
     this.saveStudents(list);
   },
 
+  getStudentCustomName(userId?: string | null, emailOrUser?: string | null): string | null {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEYS.STUDENT_CUSTOM_NAMES);
+      if (!raw) return null;
+      const map: Record<string, string> = JSON.parse(raw);
+      if (typeof map !== 'object' || !map) return null;
+      if (userId && map[userId] && map[userId].trim()) return map[userId].trim();
+      if (emailOrUser && map[emailOrUser.toLowerCase()] && map[emailOrUser.toLowerCase()].trim()) {
+        return map[emailOrUser.toLowerCase()].trim();
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  },
+
+  setStudentCustomName(userId?: string | null, emailOrUser?: string | null, name?: string | null): void {
+    if (!name || !name.trim()) return;
+    try {
+      const raw = localStorage.getItem(STORAGE_KEYS.STUDENT_CUSTOM_NAMES);
+      const map: Record<string, string> = raw ? JSON.parse(raw) : {};
+      const clean = name.trim();
+      if (userId) map[userId] = clean;
+      if (emailOrUser) map[emailOrUser.toLowerCase()] = clean;
+      localStorage.setItem(STORAGE_KEYS.STUDENT_CUSTOM_NAMES, JSON.stringify(map));
+    } catch {}
+  },
+
   updateStudentPassword(id: string, newPassword: string): void {
     const list = this.getStudents().map((s) =>
       s.id === id ? { ...s, password: newPassword.trim() } : s
@@ -1047,6 +1076,9 @@ export const storageService = {
 
   setStudentSession(student: StudentUser | null): void {
     if (student) {
+      if (student.fullName && student.fullName !== 'Học sinh' && student.fullName.trim()) {
+        this.setStudentCustomName(student.id, student.email || student.username, student.fullName.trim());
+      }
       const str = JSON.stringify(student);
       // Ghi đồng thời vào Cookie (30 ngày), localStorage và sessionStorage
       this.setCookie(STORAGE_KEYS.STUDENT_SESSION, str, 30);
@@ -1169,4 +1201,55 @@ export const storageService = {
     }
   },
 };
+
+/**
+ * Hàm phân giải Họ và tên chính xác của học sinh:
+ * Ưu tiên tuyệt đối tên học sinh đã tự đổi trong FAMINH,
+ * không bao giờ để tên mặc định từ Google OAuth (u.user_metadata) đè mất tên người dùng.
+ */
+export function resolveStudentFullName(
+  userId?: string | null,
+  userEmail?: string | null,
+  fallbackFromOAuth?: string | null
+): string {
+  // 1. Kiểm tra bảng tên tùy chỉnh bền vững (không bao giờ bị reset khi logout/login)
+  const customName = storageService.getStudentCustomName(userId, userEmail);
+  if (customName && customName.trim()) {
+    return customName.trim();
+  }
+
+  // 2. Kiểm tra trong danh sách học sinh lưu trữ cục bộ (students)
+  const localStudents = storageService.getStudents();
+  const foundStu = localStudents.find((s) => {
+    const matchId = Boolean(userId && s.id === userId);
+    const matchEmail = Boolean(userEmail && s.email && s.email.toLowerCase() === userEmail.toLowerCase());
+    const matchUser = Boolean(userEmail && s.username && s.username.toLowerCase() === userEmail.toLowerCase());
+    return matchId || matchEmail || matchUser;
+  });
+  if (foundStu?.fullName && foundStu.fullName !== 'Học sinh' && foundStu.fullName.trim()) {
+    storageService.setStudentCustomName(userId, userEmail, foundStu.fullName.trim());
+    return foundStu.fullName.trim();
+  }
+
+  // 3. Kiểm tra trong danh sách quan hệ lớp học (class_students)
+  const classStudents = storageService.getClassStudents();
+  const foundRel = classStudents.find((r) => {
+    const matchId = Boolean(userId && r.studentId === userId);
+    const matchEmail = Boolean(userEmail && r.studentEmail && r.studentEmail.toLowerCase() === userEmail.toLowerCase());
+    const matchUser = Boolean(userEmail && r.studentUsername && r.studentUsername.toLowerCase() === userEmail.toLowerCase());
+    return matchId || matchEmail || matchUser;
+  });
+  if (foundRel?.studentName && foundRel.studentName !== 'Học sinh' && foundRel.studentName.trim()) {
+    storageService.setStudentCustomName(userId, userEmail, foundRel.studentName.trim());
+    return foundRel.studentName.trim();
+  }
+
+  // 4. Fallback: Nếu là tài khoản hoàn toàn mới chưa từng đổi tên, dùng tên từ Google OAuth hoặc email
+  const oauthName = (fallbackFromOAuth || '').trim();
+  if (oauthName && oauthName !== 'Học sinh') {
+    return oauthName;
+  }
+
+  return userEmail?.split('@')[0] || 'Học sinh';
+}
 

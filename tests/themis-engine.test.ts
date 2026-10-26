@@ -13,6 +13,7 @@ import {
   INITIAL_TOPICS,
   INITIAL_PROBLEMS,
   storageService,
+  resolveStudentFullName,
 } from '../src/services/storageService.ts';
 import type { Problem } from '../src/types/judge.ts';
 
@@ -687,6 +688,40 @@ OUTPUT:
     };
     storageService.saveSubmissions([partialSub, fullSub, subsequentFailSub]);
     assert.equal(storageService.getProblemStatus('prob_bai2', 10, studentUser), 'SOLVED');
+  });
+
+  console.log('\nNhom 13: Bao ve va duy tri ho ten tuy chinh cua hoc sinh (Custom Name Persistence)');
+
+  await runTest('Hoc sinh doi ten tu "Minh Đức" sang "Lê Duy Đức Minh", khi logout va login lai khong bi reset ve "Minh Đức"', async () => {
+    const studentId = 'student_test_minh';
+    const email = 'minh.ldd@sis.hust.edu.vn';
+    const originalOauthName = 'Minh Đức';
+    const newCustomName = 'Lê Duy Đức Minh';
+
+    // 1. Truoc khi doi ten, lay fallback tu Google OAuth tra ve Minh Duc
+    const initialName = resolveStudentFullName(studentId, email, originalOauthName);
+    assert.equal(initialName, 'Minh Đức');
+
+    // 2. Hoc sinh thao tac doi ten thanh "Lê Duy Đức Minh"
+    storageService.setStudentCustomName(studentId, email, newCustomName);
+    storageService.setStudentSession({
+      id: studentId,
+      fullName: newCustomName,
+      username: email,
+      email: email,
+      password: '',
+      createdAt: new Date().toISOString(),
+    });
+
+    // 3. Hoc sinh dang xuat (logoutStudent) -> session bi xoa
+    storageService.setStudentSession(null);
+    assert.equal(storageService.getStudentSession(), null);
+
+    // 4. Hoc sinh dang nhap lai bang Google (Google OAuth lai gui ve user_metadata voi full_name = "Minh Đức")
+    const resolvedOnLogin = resolveStudentFullName(studentId, email, originalOauthName);
+
+    // KET QUA: Ten phai la "Lê Duy Đức Minh", tuyet doi khong bi reset ve "Minh Đức"!
+    assert.equal(resolvedOnLogin, 'Lê Duy Đức Minh');
   });
 
   console.log('\n====================================================');

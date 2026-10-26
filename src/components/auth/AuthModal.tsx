@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useJudge } from '../../context/JudgeContext';
 import { supabase, translateAuthError } from '../../services/supabaseClient';
 import { apiService } from '../../services/apiService';
+import { resolveStudentFullName } from '../../services/storageService';
 import {
   User,
   Mail,
@@ -252,11 +253,13 @@ export const AuthModal: React.FC = () => {
       }
 
       if (data.user && data.session) {
-        const studentFullName =
+        const studentFullName = resolveStudentFullName(
+          data.user.id,
+          cleanEmail,
+          data.user.user_metadata?.custom_full_name ||
           data.user.user_metadata?.full_name ||
-          data.user.user_metadata?.name ||
-          cleanEmail.split('@')[0] ||
-          'Học sinh';
+          data.user.user_metadata?.name
+        );
 
         const student = {
           id: data.user.id,

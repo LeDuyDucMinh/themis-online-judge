@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useRef, type ReactNode } from 'react';
 import type { UserRole, Topic, Problem, Submission, UserStats, StudentUser, Classroom, ClassStudent, TestCase } from '../types/judge';
-import { storageService } from '../services/storageService';
+import { storageService, resolveStudentFullName } from '../services/storageService';
 import { apiService } from '../services/apiService';
 import { idbService } from '../services/db';
 import { gradeSubmission, type GradingProgressCallback, type SupportedLanguage } from '../services/judgeEngine';
@@ -636,6 +636,23 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
           setStudents(mergedStudents);
           storageService.saveStudents(mergedStudents);
         }
+
+        // Luôn bảo vệ và cập nhật họ tên tùy chỉnh của học sinh từ Cloud nếu có
+        const activeSession = storageService.getStudentSession();
+        if (activeSession && cloudStudents && cloudStudents.length > 0) {
+          const match = cloudStudents.find((s) =>
+            (activeSession.id && s.id === activeSession.id) ||
+            (activeSession.email && s.email && s.email.toLowerCase() === activeSession.email.toLowerCase()) ||
+            (activeSession.username && s.username && s.username.toLowerCase() === activeSession.username.toLowerCase())
+          );
+          if (match?.fullName && match.fullName !== 'Học sinh' && match.fullName !== activeSession.fullName) {
+            const custom = storageService.getStudentCustomName(activeSession.id, activeSession.email);
+            const chosen = custom || match.fullName;
+            const updated = { ...activeSession, fullName: chosen };
+            setCurrentStudent(updated);
+            storageService.setStudentSession(updated);
+          }
+        }
       }
       if (cloudTopics) {
         setTopics(cloudTopics);
@@ -754,11 +771,11 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (session?.user) {
         const u = session.user;
-        const fullName =
-          u.user_metadata?.full_name ||
-          u.user_metadata?.name ||
-          u.email?.split('@')[0] ||
-          'Học sinh';
+        const fullName = resolveStudentFullName(
+          u.id,
+          u.email,
+          u.user_metadata?.custom_full_name || u.user_metadata?.full_name || u.user_metadata?.name
+        );
         const studentUser: StudentUser = {
           id: u.id,
           fullName,
@@ -801,11 +818,11 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
           const { data: { session } } = await supabase.auth.getSession();
           if (session?.user) {
             const u = session.user;
-            const fullName =
-              u.user_metadata?.full_name ||
-              u.user_metadata?.name ||
-              u.email?.split('@')[0] ||
-              'Học sinh';
+            const fullName = resolveStudentFullName(
+              u.id,
+              u.email,
+              u.user_metadata?.custom_full_name || u.user_metadata?.full_name || u.user_metadata?.name
+            );
             student = {
               id: u.id,
               fullName,
@@ -1031,6 +1048,9 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       fullName: cleanName,
     };
 
+    // 0. Lưu vào bảng tên tùy chỉnh bền vững (không bao giờ bị reset khi logout/login)
+    storageService.setStudentCustomName(student.id, student.email || student.username, cleanName);
+
     // 1. Cập nhật currentStudent và local student session
     setCurrentStudent(updatedStudent);
     storageService.setStudentSession(updatedStudent);
@@ -1074,7 +1094,7 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       await Promise.all([
         apiService.saveStudents([updatedStudent]),
         apiService.saveClassStudents(updatedClassStudents),
-        supabase.auth.updateUser({ data: { full_name: cleanName } }).catch(() => {}),
+        supabase.auth.updateUser({ data: { custom_full_name: cleanName, full_name: cleanName, name: cleanName } }).catch(() => {}),
       ]);
     } catch (e) {
       console.warn('[JudgeContext] Lỗi đồng bộ đổi tên lên Cloud:', e);
