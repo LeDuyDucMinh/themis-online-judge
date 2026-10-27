@@ -61,6 +61,22 @@ export function isSupabaseConfigured(): boolean {
   );
 }
 
+let authTokenGetter: (() => string | null) | null = null;
+
+export function registerAuthTokenGetter(fn: () => string | null): void {
+  authTokenGetter = fn;
+}
+
+export function getActiveAuthToken(): string {
+  if (authTokenGetter) {
+    try {
+      const token = authTokenGetter();
+      if (token && token.trim()) return token.trim();
+    } catch {}
+  }
+  return ENV.SUPABASE_ANON_KEY;
+}
+
 /**
  * Service API Database tập trung: Hỗ trợ cả Supabase Cloud REST API và IndexedDB dự phòng bền vững
  */
@@ -74,11 +90,13 @@ export const apiService = {
 
   /**
    * Header tiêu chuẩn chống aggressive cache trên mọi thiết bị và trình duyệt
+   * Tự động đính kèm Supabase Auth JWT của người dùng đã đăng nhập để hỗ trợ Row Level Security (RLS)
    */
   getAntiCacheHeaders(): Record<string, string> {
+    const bearerToken = getActiveAuthToken();
     return {
       apikey: ENV.SUPABASE_ANON_KEY,
-      Authorization: `Bearer ${ENV.SUPABASE_ANON_KEY}`,
+      Authorization: `Bearer ${bearerToken}`,
       'Cache-Control': 'no-cache, no-store, must-revalidate',
       Pragma: 'no-cache',
       Expires: '0',

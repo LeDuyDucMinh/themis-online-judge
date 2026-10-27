@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { ENV } from './apiService';
+import { ENV, registerAuthTokenGetter } from './apiService';
 
 /**
  * Khởi tạo Supabase Client hỗ trợ Supabase Auth (Email/Password, OAuth Google, Session auto-refresh)
@@ -163,3 +163,38 @@ export async function fetchUserRoleFromSupabase(
 
   return { role: 'student', source: 'default' };
 }
+
+let cachedAccessToken: string | null = null;
+
+// Tự động đồng bộ JWT token khi trạng thái đăng nhập thay đổi
+supabase.auth.onAuthStateChange((_event, session) => {
+  cachedAccessToken = session?.access_token || null;
+});
+
+/**
+ * Lấy JWT access token đang hoạt động của người dùng để đính kèm vào các REST API header
+ */
+export function getActiveAccessToken(): string | null {
+  if (cachedAccessToken) return cachedAccessToken;
+  if (typeof window !== 'undefined') {
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith('sb-') && key.endsWith('-auth-token')) {
+          const raw = localStorage.getItem(key);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (parsed?.access_token) {
+              cachedAccessToken = parsed.access_token;
+              return parsed.access_token;
+            }
+          }
+        }
+      }
+    } catch {}
+  }
+  return null;
+}
+
+// Đăng ký provider để apiService luôn gửi JWT thực tế của người dùng đã xác thực
+registerAuthTokenGetter(getActiveAccessToken);
