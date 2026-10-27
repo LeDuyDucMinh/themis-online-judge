@@ -297,28 +297,8 @@ export default async function handler(req, res) {
     let compilationMessage = null;
     let isCompilationFailed = false;
 
-    // 4. Lặp qua từng test case và gửi đến Judge0 VPS bí mật
-    for (let i = 0; i < testCases.length; i++) {
-      const tc = testCases[i];
-
-      // Nếu test trước bị lỗi biên dịch CE, tất cả test sau đánh CE luôn
-      if (isCompilationFailed) {
-        testResults.push({
-          testId: tc.id,
-          testName: tc.name,
-          verdict: 'CE',
-          executionTime: 0,
-          memory: 0,
-          pointsEarned: 0,
-          maxPoints: tc.points,
-          input: tc.isHidden ? '(Ẩn theo yêu cầu đề thi)' : tc.input,
-          expectedOutput: tc.isHidden ? '(Ẩn theo yêu cầu đề thi)' : tc.expectedOutput,
-          actualOutput: '',
-          errorMessage: compilationMessage || 'Lỗi biên dịch chương trình (CE)',
-        });
-        continue;
-      }
-
+    // Helper hàm chạy 1 test case trên Judge0 VPS
+    async function executeSingleTest(tc) {
       try {
         const j0Res = await fetch(`${JUDGE0_TARGET}/submissions?base64_encoded=false&wait=true`, {
           method: 'POST',
@@ -344,17 +324,14 @@ export default async function handler(req, res) {
         const memoryKb = data.memory ? parseInt(data.memory, 10) : 0;
         const memoryMb = +(memoryKb / 1024).toFixed(2);
 
-        maxExecutionTime = Math.max(maxExecutionTime, execTime);
-        peakMemory = Math.max(peakMemory, memoryMb);
-
         if (statusId === 6) {
-          // CE
-          isCompilationFailed = true;
-          compilationMessage = data.compile_output || data.stderr || 'Lỗi biên dịch chương trình (Compilation Error)';
-          testResults.push({
+          const compMsg = data.compile_output || data.stderr || 'Lỗi biên dịch chương trình (Compilation Error)';
+          return {
+            statusId,
             testId: tc.id,
             testName: tc.name,
             verdict: 'CE',
+            time: execTime,
             executionTime: execTime,
             memory: memoryMb,
             pointsEarned: 0,
@@ -362,9 +339,9 @@ export default async function handler(req, res) {
             input: tc.isHidden ? '(Ẩn theo yêu cầu đề thi)' : tc.input,
             expectedOutput: tc.isHidden ? '(Ẩn theo yêu cầu đề thi)' : tc.expectedOutput,
             actualOutput: '',
-            errorMessage: compilationMessage,
-          });
-          continue;
+            errorMessage: compMsg,
+            compilationMessage: compMsg,
+          };
         }
 
         let verdict = 'WA';
@@ -377,7 +354,6 @@ export default async function handler(req, res) {
           if (isCorrect) {
             verdict = 'AC';
             pointsEarned = tc.points;
-            totalPointsEarned += pointsEarned;
           } else {
             verdict = 'WA';
           }
@@ -393,11 +369,12 @@ export default async function handler(req, res) {
         }
 
         // BẢO VỆ TEST CASE ẨN:
-        // Nếu là test ẩn, che hoàn toàn dữ liệu Input, Expected Output và Actual Output
-        testResults.push({
+        return {
+          statusId,
           testId: tc.id,
           testName: tc.name,
           verdict,
+          time: execTime,
           executionTime: execTime,
           memory: memoryMb,
           pointsEarned,
@@ -406,12 +383,14 @@ export default async function handler(req, res) {
           expectedOutput: tc.isHidden ? '(Ẩn theo yêu cầu đề thi)' : tc.expectedOutput,
           actualOutput: tc.isHidden ? (verdict === 'AC' ? '(Chính xác)' : '(Sai khác output)') : (data.stdout || ''),
           errorMessage,
-        });
+        };
       } catch (runErr) {
-        testResults.push({
+        return {
+          statusId: 0,
           testId: tc.id,
           testName: tc.name,
           verdict: 'RTE',
+          time: 0,
           executionTime: 0,
           memory: 0,
           pointsEarned: 0,
@@ -420,7 +399,67 @@ export default async function handler(req, res) {
           expectedOutput: tc.isHidden ? '(Ẩn theo yêu cầu đề thi)' : tc.expectedOutput,
           actualOutput: '',
           errorMessage: 'Lỗi kết nối đến máy chủ chấm điểm VPS',
+        };
+      }
+    }
+
+    // 4.1. Chạy thử Test Case 1 trước để phát hiện ngay Lỗi biên dịch (CE)
+    const firstResult = await executeSingleTest(testCases[0]);
+    if (firstResult.verdict === 'CE') {
+      isCompilationFailed = true;
+      compilationMessage = firstResult.errorMessage || 'Lỗi biên dịch chương trình (Compilation Error)';
+      testResults.push(firstResult);
+      maxExecutionTime = Math.max(maxExecutionTime, firstResult.time || 0);
+      peakMemory = Math.max(peakMemory, firstResult.memory || 0);
+
+      for (let i = 1; i < testCases.length; i++) {
+        const tc = testCases[i];
+        testResults.push({
+          testId: tc.id,
+          testName: tc.name,
+          verdict: 'CE',
+          time: 0,
+          executionTime: 0,
+          memory: 0,
+          pointsEarned: 0,
+          maxPoints: tc.points,
+          input: tc.isHidden ? '(Ẩn theo yêu cầu đề thi)' : tc.input,
+          expectedOutput: tc.isHidden ? '(Ẩn theo yêu cầu đề thi)' : tc.expectedOutput,
+          actualOutput: '',
+          errorMessage: compilationMessage,
         });
+      }
+    } else {
+      // 4.2. Code biên dịch thành công! Chạy song song các test còn lại với concurrency worker pool (CONCURRENCY = 4)
+      const resultsMap = new Map();
+      resultsMap.set(0, firstResult);
+
+      if (testCases.length > 1) {
+        const CONCURRENCY = 4;
+        let nextIndex = 1;
+
+        async function worker() {
+          while (nextIndex < testCases.length) {
+            const idx = nextIndex++;
+            const tc = testCases[idx];
+            const res = await executeSingleTest(tc);
+            resultsMap.set(idx, res);
+          }
+        }
+
+        const workerCount = Math.min(CONCURRENCY, testCases.length - 1);
+        const workers = Array.from({ length: workerCount }, () => worker());
+        await Promise.all(workers);
+      }
+
+      for (let i = 0; i < testCases.length; i++) {
+        const r = resultsMap.get(i);
+        if (r) {
+          testResults.push(r);
+          totalPointsEarned += r.pointsEarned || 0;
+          maxExecutionTime = Math.max(maxExecutionTime, r.time || r.executionTime || 0);
+          peakMemory = Math.max(peakMemory, r.memory || 0);
+        }
       }
     }
 
@@ -499,6 +538,7 @@ export default async function handler(req, res) {
       totalTests,
       overallVerdict,
       executionTime: +maxExecutionTime.toFixed(3),
+      time: +maxExecutionTime.toFixed(3),
       memory: +peakMemory.toFixed(2),
       compilationMessage,
       testResults,

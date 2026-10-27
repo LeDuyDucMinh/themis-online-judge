@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useRef, type ReactNode } from 'react';
-import type { UserRole, Topic, Problem, Submission, UserStats, StudentUser, Classroom, ClassStudent, TestCase } from '../types/judge';
+import type { UserRole, Topic, Problem, Submission, UserStats, StudentUser, Classroom, ClassStudent, TestCase, TestResult } from '../types/judge';
 import { storageService, resolveStudentFullName } from '../services/storageService';
 import { apiService } from '../services/apiService';
 import { idbService } from '../services/db';
@@ -1719,7 +1719,27 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     // ƯU TIÊN #1: CHẤM BẢO MẬT PHÍA SERVER (SERVER-SIDE GRADING QUA /api/grade)
     // Giữ bí mật 100% Test Case ẩn: học sinh không thể mở Network hay Console để xem trộm input/output test
     if (typeof window !== 'undefined' && window.location.protocol.startsWith('http')) {
+      let progressTimer: any = null;
       try {
+        const estTotal = problem.testCases?.length || 10;
+        let estIndex = 1;
+        const dummyResult: TestResult = {
+          testId: 'test_temp',
+          testName: 'Đang chấm...',
+          verdict: 'JUDGING' as any,
+          time: 0,
+          memory: 0,
+          pointsEarned: 0,
+          maxPoints: 1,
+        };
+        onProgress?.(1, estTotal, dummyResult);
+        progressTimer = setInterval(() => {
+          if (estIndex < estTotal - 1) {
+            estIndex++;
+            onProgress?.(estIndex, estTotal, dummyResult);
+          }
+        }, 200);
+
         const gradeRes = await fetch('/api/grade', {
           method: 'POST',
           headers: {
@@ -1737,13 +1757,36 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
           }),
         });
 
+        if (progressTimer) clearInterval(progressTimer);
+
         if (gradeRes.ok) {
           const serverSub = await gradeRes.json();
           if (serverSub && serverSub.id) {
-            submission = serverSub as Submission;
+            const rawResults = Array.isArray(serverSub.testResults) ? serverSub.testResults : [];
+            const normalizedTestResults = rawResults.map((tr: any) => ({
+              ...tr,
+              time: typeof tr.time === 'number' ? tr.time : (typeof tr.executionTime === 'number' ? tr.executionTime : 0),
+              executionTime: typeof tr.executionTime === 'number' ? tr.executionTime : (typeof tr.time === 'number' ? tr.time : 0),
+              memory: typeof tr.memory === 'number' ? tr.memory : 0,
+              pointsEarned: typeof tr.pointsEarned === 'number' ? tr.pointsEarned : 0,
+              maxPoints: typeof tr.maxPoints === 'number' ? tr.maxPoints : 0,
+            }));
+
+            if (normalizedTestResults.length > 0) {
+              const lastTr = normalizedTestResults[normalizedTestResults.length - 1];
+              onProgress?.(normalizedTestResults.length, normalizedTestResults.length, lastTr);
+            }
+
+            submission = {
+              ...serverSub,
+              executionTime: typeof serverSub.executionTime === 'number' ? serverSub.executionTime : (typeof serverSub.time === 'number' ? serverSub.time : 0),
+              memory: typeof serverSub.memory === 'number' ? serverSub.memory : 0,
+              testResults: normalizedTestResults,
+            } as Submission;
           }
         }
       } catch (serverErr) {
+        if (progressTimer) clearInterval(progressTimer);
         console.warn('[Server-side Grading Fallback]:', serverErr);
       }
     }

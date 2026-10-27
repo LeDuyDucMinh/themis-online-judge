@@ -585,7 +585,7 @@ export const SubmissionHistory: React.FC = () => {
                         <span className="text-slate-500"> / {sub.maxTotalPoints}</span>
                       </td>
                       <td className="py-3 px-4 text-slate-400">
-                        {sub.executionTime.toFixed(3)}s
+                        {(typeof sub.executionTime === 'number' ? sub.executionTime : (typeof (sub as any).time === 'number' ? (sub as any).time : 0)).toFixed(3)}s
                       </td>
                       <td className="py-3 px-4 text-center">
                         <button

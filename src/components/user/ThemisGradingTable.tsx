@@ -54,7 +54,8 @@ export const ThemisGradingTable: React.FC<ThemisGradingTableProps> = ({
   };
 
   const formatPoint = (val: number) => {
-    const rounded = Number(val.toFixed(2));
+    const num = typeof val === 'number' && !isNaN(val) ? val : 0;
+    const rounded = Number(num.toFixed(2));
     return Number.isInteger(rounded) ? rounded.toFixed(1) : rounded.toString();
   };
 
@@ -179,8 +180,8 @@ export const ThemisGradingTable: React.FC<ThemisGradingTableProps> = ({
         testId: `test_synth_${i + 1}`,
         testName: `Test #${String(i + 1).padStart(2, '0')}`,
         verdict: isTestPassed ? ('AC' as Verdict) : (submission.overallVerdict || 'WA'),
-        time: submission.executionTime > 0 ? +(submission.executionTime).toFixed(3) : 0.005,
-        memory: submission.memory > 0 ? +(submission.memory).toFixed(1) : 2.1,
+        time: typeof submission.executionTime === 'number' && submission.executionTime > 0 ? +(submission.executionTime).toFixed(3) : 0.005,
+        memory: typeof submission.memory === 'number' && submission.memory > 0 ? +(submission.memory).toFixed(1) : 2.1,
         pointsEarned: isTestPassed ? ptsPerTest : 0,
         maxPoints: ptsPerTest,
         errorMessage: isTestPassed ? undefined : 'Kết quả không khớp với đáp án mẫu',
@@ -496,14 +497,14 @@ export const ThemisGradingTable: React.FC<ThemisGradingTableProps> = ({
                         theme === 'light' ? 'text-slate-700' : 'text-slate-300'
                       }`}
                     >
-                      {tr.time.toFixed(3)}s
+                      {(typeof tr.time === 'number' ? tr.time : (typeof (tr as any).executionTime === 'number' ? (tr as any).executionTime : 0)).toFixed(3)}s
                     </td>
                     <td
                       className={`py-3 px-4 ${
                         theme === 'light' ? 'text-slate-600' : 'text-slate-400'
                       }`}
                     >
-                      {tr.memory.toFixed(1)} MB
+                      {(typeof tr.memory === 'number' ? tr.memory : 0).toFixed(1)} MB
                     </td>
                     <td className="py-3 px-4 text-right font-bold">
                       <span
