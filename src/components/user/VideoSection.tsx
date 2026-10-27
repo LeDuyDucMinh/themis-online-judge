@@ -65,11 +65,11 @@ export const VideoSection: React.FC<VideoSectionProps> = ({
   const embedUrl = getEmbedUrl(videoConfig.url);
 
   return (
-    <div className="mt-8 bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+    <div className="mt-8 bg-[#0d121d] border border-slate-800/90 rounded-3xl overflow-hidden shadow-2xl">
       {/* Header */}
-      <div className="p-4 bg-slate-800/60 border-b border-slate-800 flex items-center justify-between">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-rose-500/20 text-rose-400 flex items-center justify-center">
+      <div className="p-5 bg-slate-950 border-b border-slate-800 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-red-500/15 border border-red-500/30 text-red-400 flex items-center justify-center">
             {videoConfig.type === 'youtube' ? <YoutubeIcon className="w-4 h-4" /> : <Video className="w-4 h-4" />}
           </div>
           <div>
@@ -83,11 +83,11 @@ export const VideoSection: React.FC<VideoSectionProps> = ({
         </div>
 
         {isUnlocked ? (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
             <CheckCircle2 className="w-3.5 h-3.5" /> Đã mở khóa
           </span>
         ) : (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-500/15 text-amber-300 border border-amber-500/30">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30">
             <Lock className="w-3.5 h-3.5" /> Đang khóa
           </span>
         )}

@@ -87,34 +87,31 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab }) => 
   };
 
   return (
-    <header className="bg-slate-900 border-b border-slate-800 text-white sticky top-0 z-40">
+    <header className="bg-slate-950/90 backdrop-blur border-b border-slate-800 text-slate-100 sticky top-0 z-40">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
         {/* Brand / Logo FAMINH */}
         <div
           onClick={handleBrandClick}
-          className="flex items-center gap-3 cursor-pointer group"
+          className="flex items-center gap-3 cursor-pointer group shrink-0"
           title="Trang chủ FAMINH Online Judge"
         >
-          <div className="w-10 h-10 rounded-xl bg-slate-800 border border-red-500/30 overflow-hidden shadow-lg shadow-red-500/10 flex items-center justify-center p-0.5 group-hover:scale-105 transition-transform">
+          <div className="w-9 h-9 rounded-lg bg-slate-800 border border-slate-700 overflow-hidden flex items-center justify-center">
             <img
               src="/faminh-logo.jpg"
               alt="FAMINH Logo"
-              className="w-full h-full object-cover rounded-lg"
+              className="w-full h-full object-cover"
               onError={(e) => {
                 (e.target as HTMLElement).style.display = 'none';
               }}
             />
           </div>
-          <div>
+          <div className="leading-tight">
             <div className="flex items-center gap-2">
-              <span className="font-black text-xl tracking-wider text-red-600 dark:text-red-500">
-                FAMINH
-              </span>
-              <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-red-500/10 dark:bg-red-500/20 text-red-600 dark:text-red-300 border border-red-500/20 dark:border-red-500/30 uppercase tracking-wide">
-                JUDGE
+              <span className="font-display font-semibold text-lg tracking-tight text-slate-100">
+                FAMINH <span className="text-red-500">Judge</span>
               </span>
             </div>
-            <p className="text-[11px] text-slate-400 hidden sm:block">
+            <p className="text-[11px] text-slate-500 hidden sm:block">
               {activeClass ? (
                 <span className="text-red-400 font-semibold flex items-center gap-1">
                   <span>Lớp:</span>
@@ -128,7 +125,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab }) => 
         </div>
 
         {/* Navigation Tabs based on Role */}
-        <div className="hidden md:flex items-center gap-1 bg-slate-800/80 p-1 rounded-xl border border-slate-700/60">
+        <div className="hidden md:flex items-stretch gap-1 self-stretch">
           {/* HỌC SINH: Tab Lớp học của tôi */}
           {!isAdminAuthenticated && (
             <button
@@ -260,10 +257,10 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab }) => 
             <div className="flex items-center gap-2">
               <div
                 onClick={() => setIsChangeNameModalOpen(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-500/15 hover:bg-blue-500/25 text-blue-300 border border-blue-500/30 text-xs font-bold shadow-sm cursor-pointer transition-all"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-500/15 hover:bg-red-500/25 text-red-300 border border-red-500/30 text-xs font-bold shadow-sm cursor-pointer transition-all"
                 title="Nhấn để đổi họ và tên"
               >
-                <GraduationCap className="w-4 h-4 text-blue-400" />
+                <GraduationCap className="w-4 h-4 text-red-400" />
                 <span className="max-w-[130px] truncate" title={currentStudent.fullName}>
                   {currentStudent.fullName}
                 </span>
@@ -272,10 +269,10 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab }) => 
               {/* Nút Đổi tên học sinh */}
               <button
                 onClick={() => setIsChangeNameModalOpen(true)}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700/80 transition-all cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 transition-all cursor-pointer"
                 title="Đổi họ và tên của bạn"
               >
-                <UserCheck className="w-3.5 h-3.5 text-blue-400" />
+                <UserCheck className="w-3.5 h-3.5 text-red-400" />
                 <span className="hidden sm:inline">Đổi tên</span>
               </button>
             </div>
@@ -425,7 +422,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab }) => 
                 setAuthModalTab('student');
                 setIsAuthModalOpen(true);
               }}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-500 text-white shadow-md shadow-blue-600/20 transition-all cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-red-600 hover:bg-red-500 text-white shadow-lg shadow-red-600/25 transition-all cursor-pointer hover:scale-[1.02]"
             >
               <LogIn className="w-3.5 h-3.5" />
               <span>Đăng nhập</span>

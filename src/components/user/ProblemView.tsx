@@ -214,31 +214,30 @@ export const ProblemView: React.FC<ProblemViewProps> = ({ problem, onBackToList 
         <div className="flex items-center gap-2 text-xs">
           <button
             onClick={onBackToList}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white font-semibold transition-all border border-slate-700 cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white font-semibold transition-all border border-slate-800 cursor-pointer"
           >
             <ArrowLeft className="w-4 h-4 text-red-500" />
             <span>{activeClass ? `Lớp ${activeClass.className}` : 'Danh sách bài tập'}</span>
           </button>
           {activeClass && (
             <>
-              <span className="text-slate-500">/</span>
-              <span className="font-mono font-bold text-red-400 bg-red-500/10 px-2 py-0.5 rounded border border-red-500/20">
+              <span className="text-slate-600">/</span>
+              <span className="font-mono font-bold text-red-400 bg-red-500/10 px-2 py-0.5 rounded-lg border border-red-500/20">
                 {problem.code}
               </span>
             </>
           )}
         </div>
 
-
         <div className="flex items-center gap-2">
           <span className="text-xs text-slate-400">Độ khó:</span>
           <span
-            className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${
+            className={`px-3 py-1 rounded-full text-xs font-bold ${
               problem.difficulty === 'Dễ'
-                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
                 : problem.difficulty === 'Trung bình'
-                ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
-                : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                ? 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
+                : 'bg-rose-500/15 text-rose-400 border border-rose-500/30'
             }`}
           >
             {problem.difficulty}
@@ -249,12 +248,12 @@ export const ProblemView: React.FC<ProblemViewProps> = ({ problem, onBackToList 
       {/* Layout: Đề bài ở TRÊN, Phần nộp bài ở DƯỚI */}
       <div className="flex flex-col space-y-8">
         {/* SECTION 1 (TRÊN): KHU VỰC ĐỀ BÀI CHI TIẾT */}
-        <section className="bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-xl space-y-6">
+        <section className="bg-[#0d121d] border border-slate-800/90 rounded-3xl p-6 sm:p-8 shadow-2xl space-y-6">
           {/* Header Đề Bài */}
           <div className="border-b border-slate-800 pb-5">
             <div className="flex flex-wrap items-center justify-between gap-3 mb-2">
               <div className="flex items-center gap-2">
-                <span className="font-mono text-xs font-bold px-3 py-1 rounded-lg bg-blue-500/20 text-blue-400 border border-blue-500/30">
+                <span className="font-mono text-xs font-bold px-3 py-1 rounded-xl bg-red-500/15 text-red-400 border border-red-500/30">
                   {problem.code}
                 </span>
                 <span className="text-xs text-slate-400">
@@ -267,10 +266,10 @@ export const ProblemView: React.FC<ProblemViewProps> = ({ problem, onBackToList 
                 <span
                   className={`px-3 py-0.5 rounded-full text-xs font-bold ${
                     problem.difficulty === 'Dễ'
-                      ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                      ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
                       : problem.difficulty === 'Trung bình'
-                      ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
-                      : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                      ? 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
+                      : 'bg-rose-500/15 text-rose-400 border border-rose-500/30'
                   }`}
                 >
                   {problem.difficulty}
@@ -278,7 +277,7 @@ export const ProblemView: React.FC<ProblemViewProps> = ({ problem, onBackToList 
               </div>
             </div>
 
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+            <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
               {problem.title}
             </h1>
           </div>
@@ -474,13 +473,13 @@ export const ProblemView: React.FC<ProblemViewProps> = ({ problem, onBackToList 
 
         {/* SECTION 2 (DƯỚI): KHU VỰC NỘP BÀI & TRÌNH BIÊN DỊCH CODE */}
         <section className="space-y-6">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl">
+          <div className="bg-[#0d121d] border border-slate-800/90 rounded-3xl overflow-hidden shadow-2xl">
             {/* Editor Toolbar */}
             <div className={`p-4 border-b flex flex-wrap items-center justify-between gap-3 ${
-              theme === 'light' ? 'bg-slate-100 border-slate-200' : 'bg-slate-800/90 border-slate-700/80'
+              theme === 'light' ? 'bg-slate-100 border-slate-200' : 'bg-slate-950 border-slate-800'
             }`}>
               <div className="flex items-center gap-2">
-                <FileCode className="w-5 h-5 text-blue-500" />
+                <FileCode className="w-5 h-5 text-red-500" />
                 <span className={`text-xs font-bold uppercase tracking-wider ${
                   theme === 'light' ? 'text-slate-800' : 'text-white'
                 }`}>
@@ -497,10 +496,10 @@ export const ProblemView: React.FC<ProblemViewProps> = ({ problem, onBackToList 
                   <select
                     value={language}
                     onChange={(e) => handleLanguageChange(e.target.value as SupportedLanguage)}
-                    className={`text-xs rounded-xl px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500 font-semibold border ${
+                    className={`text-xs rounded-xl px-3 py-1.5 focus:outline-none focus:border-red-500 font-semibold border ${
                       theme === 'light'
                         ? 'bg-white border-slate-300 text-slate-800 shadow-sm'
-                        : 'bg-slate-900 border-slate-700 text-slate-200'
+                        : 'bg-slate-900 border-slate-800 text-slate-200'
                     }`}
                   >
                     <option value="cpp">C++ (G++ 10.2 / 17)</option>
@@ -513,10 +512,10 @@ export const ProblemView: React.FC<ProblemViewProps> = ({ problem, onBackToList 
                 {/* Reset button */}
                 <button
                   onClick={handleResetCode}
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-medium transition-colors ${
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-medium transition-colors cursor-pointer ${
                     theme === 'light'
                       ? 'bg-white hover:bg-slate-200 text-slate-700 border-slate-300 shadow-sm'
-                      : 'bg-slate-900 hover:bg-slate-700 text-slate-300 hover:text-white border-slate-700'
+                      : 'bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border-slate-800'
                   }`}
                   title="Khôi phục code mẫu mặc định"
                 >
@@ -551,16 +550,16 @@ export const ProblemView: React.FC<ProblemViewProps> = ({ problem, onBackToList 
 
             {/* Bottom Bar & Submit Action */}
             <div className={`p-4 sm:p-5 border-t flex flex-wrap items-center justify-between gap-4 ${
-              theme === 'light' ? 'bg-slate-100 border-slate-200' : 'bg-slate-800/80 border-slate-700/80'
+              theme === 'light' ? 'bg-slate-100 border-slate-200' : 'bg-slate-950 border-slate-800'
             }`}>
               <div className={`text-xs flex items-center gap-2 ${theme === 'light' ? 'text-slate-600' : 'text-slate-400'}`}>
-                <Sparkles className="w-4 h-4 text-indigo-500 shrink-0" />
+                <Sparkles className="w-4 h-4 text-red-500 shrink-0" />
                 <span>
                   Hệ thống tự động hỗ trợ lệnh đọc/ghi file kiểu Themis:{' '}
                   <code className={`px-1.5 py-0.5 rounded font-mono border ${
                     theme === 'light'
-                      ? 'text-blue-700 bg-white border-blue-200'
-                      : 'text-blue-300 bg-slate-900 border-slate-700'
+                      ? 'text-red-700 bg-white border-red-200'
+                      : 'text-red-400 bg-red-500/10 border-red-500/20'
                   }`}>
                     freopen(&quot;{problem.code}.INP&quot;, &quot;r&quot;, stdin);
                   </code>
@@ -570,10 +569,10 @@ export const ProblemView: React.FC<ProblemViewProps> = ({ problem, onBackToList 
               <button
                 onClick={handleSubmit}
                 disabled={isGrading}
-                className={`inline-flex items-center gap-2.5 px-8 py-3 rounded-2xl font-bold text-sm text-white shadow-xl transition-all ${
+                className={`inline-flex items-center gap-2.5 px-8 py-3 rounded-2xl font-bold text-sm text-white shadow-xl transition-all cursor-pointer ${
                   isGrading
-                    ? 'bg-blue-600/50 cursor-not-allowed'
-                    : 'bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 hover:shadow-red-600/25 active:scale-[0.98]'
+                    ? 'bg-red-600/50 cursor-not-allowed'
+                    : 'bg-red-600 hover:bg-red-500 hover:shadow-red-600/30 hover:scale-[1.02] active:scale-[0.98]'
                 }`}
               >
                 <Play className={`w-4 h-4 ${isGrading ? 'animate-spin' : 'fill-white'}`} />

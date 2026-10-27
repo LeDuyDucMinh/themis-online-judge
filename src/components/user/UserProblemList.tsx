@@ -123,7 +123,7 @@ export const UserProblemList: React.FC<UserProblemListProps> = ({ onSelectProble
       <div
         key={prob.id}
         onClick={() => onSelectProblem(prob)}
-        className="group cursor-pointer bg-slate-900 border border-slate-800 hover:border-blue-500/50 hover:bg-slate-800/60 rounded-2xl p-4 sm:p-5 transition-all shadow-md flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+        className="group cursor-pointer bg-[#0d121d] border border-slate-800/80 hover:border-red-500/40 hover:bg-slate-800/60 rounded-2xl p-4 sm:p-5 transition-all shadow-md flex flex-col sm:flex-row sm:items-center justify-between gap-4"
       >
         {/* Cột Trái: Thứ tự, Trạng thái, Mã bài, Tiêu đề, Tác giả */}
         <div className="flex items-start sm:items-center gap-4">
@@ -148,7 +148,7 @@ export const UserProblemList: React.FC<UserProblemListProps> = ({ onSelectProble
               </div>
             ) : (
               <div
-                className="w-10 h-10 rounded-xl bg-slate-800 border border-slate-700 text-slate-500 flex items-center justify-center"
+                className="w-10 h-10 rounded-xl bg-slate-950 border border-slate-800 text-slate-500 flex items-center justify-center"
                 title="Chưa nộp bài"
               >
                 <Clock className="w-4 h-4" />
@@ -158,10 +158,10 @@ export const UserProblemList: React.FC<UserProblemListProps> = ({ onSelectProble
 
           <div>
             <div className="flex flex-wrap items-center gap-2 mb-1.5">
-              <span className="font-mono text-xs font-bold text-blue-700 dark:text-blue-400 bg-blue-100 dark:bg-blue-500/15 px-2.5 py-0.5 rounded-lg border border-blue-200 dark:border-blue-500/30">
+              <span className="font-mono text-xs font-bold text-red-400 bg-red-500/10 px-2.5 py-0.5 rounded-lg border border-red-500/20">
                 {prob.code}
               </span>
-              <h4 className="font-bold text-sm sm:text-base text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-300 transition-colors">
+              <h4 className="font-bold text-sm sm:text-base text-slate-900 dark:text-white group-hover:text-red-400 transition-colors">
                 {prob.title}
               </h4>
             </div>
@@ -173,14 +173,14 @@ export const UserProblemList: React.FC<UserProblemListProps> = ({ onSelectProble
               </span>
               <span>•</span>
               <span className="flex items-center gap-1 font-mono">
-                <Clock className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" /> {prob.timeLimit}s
+                <Clock className="w-3.5 h-3.5 text-red-400" /> {prob.timeLimit}s
               </span>
               <span>•</span>
               <span className="flex items-center gap-1 font-mono">
-                <HardDrive className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" /> {prob.memoryLimit}MB
+                <HardDrive className="w-3.5 h-3.5 text-slate-400" /> {prob.memoryLimit}MB
               </span>
               <span>•</span>
-              <span className="flex items-center gap-1 font-mono text-amber-600 dark:text-amber-400">
+              <span className="flex items-center gap-1 font-mono text-amber-500">
                 <Award className="w-3.5 h-3.5" /> {prob.totalPoints} điểm
               </span>
             </div>
@@ -196,8 +196,8 @@ export const UserProblemList: React.FC<UserProblemListProps> = ({ onSelectProble
                 prob.difficulty === 'Dễ'
                   ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
                   : prob.difficulty === 'Trung bình'
-                  ? 'bg-blue-500/15 text-blue-400 border border-blue-500/30'
-                  : 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
+                  ? 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
+                  : 'bg-rose-500/15 text-rose-400 border border-rose-500/30'
               }`}
             >
               {prob.difficulty}
@@ -216,7 +216,7 @@ export const UserProblemList: React.FC<UserProblemListProps> = ({ onSelectProble
                   <span>{userScore} / {prob.totalPoints} điểm - Đang làm</span>
                 </span>
               ) : (
-                <span className="inline-flex items-center gap-1.5 text-xs font-medium font-mono text-slate-400 bg-slate-800/80 px-3 py-1 rounded-xl border border-slate-700/60">
+                <span className="inline-flex items-center gap-1.5 text-xs font-medium font-mono text-slate-400 bg-slate-950 px-3 py-1 rounded-xl border border-slate-800">
                   <span>Chưa làm</span>
                 </span>
               )}
@@ -224,7 +224,7 @@ export const UserProblemList: React.FC<UserProblemListProps> = ({ onSelectProble
           </div>
 
           {/* Nút Làm Bài */}
-          <button className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600/90 group-hover:bg-blue-600 text-white text-xs font-bold shadow-md shadow-blue-600/20 group-hover:scale-105 transition-all">
+          <button className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold shadow-md shadow-red-600/20 group-hover:scale-105 transition-all cursor-pointer">
             <span>Làm bài</span>
             <ChevronRight className="w-4 h-4" />
           </button>
@@ -272,50 +272,53 @@ export const UserProblemList: React.FC<UserProblemListProps> = ({ onSelectProble
               setSelectedDifficulty('ALL');
               setStatusFilter('ALL');
             }}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 hover:text-slate-900 dark:hover:text-white text-xs font-bold transition-all border border-slate-300 dark:border-slate-700 shadow-sm group"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white text-xs font-bold transition-all border border-slate-800 shadow-sm group cursor-pointer"
           >
-            <ArrowLeft className="w-4 h-4 text-blue-500 dark:text-blue-400 group-hover:-translate-x-0.5 transition-transform" />
+            <ArrowLeft className="w-4 h-4 text-red-500 group-hover:-translate-x-0.5 transition-transform" />
             <span>Quay lại tất cả chủ đề</span>
           </button>
 
           <div className="text-xs text-slate-400 font-medium">
             <span>Danh mục chủ đề</span>
             <span className="mx-2 text-slate-600">/</span>
-            <span className="text-blue-400 font-bold">{currentTopic.name}</span>
+            <span className="text-red-400 font-bold">{currentTopic.name}</span>
           </div>
         </div>
 
         {/* Header Banner của Chủ Đề */}
-        <div className="bg-gradient-to-r from-blue-950/40 via-slate-900 to-slate-900 border border-blue-500/30 rounded-3xl p-6 sm:p-8 shadow-2xl relative overflow-hidden">
+        <div className="bg-[#0d121d] border border-slate-800/90 rounded-3xl p-6 sm:p-8 shadow-2xl relative overflow-hidden">
+          {/* Subtle red ambient glow */}
+          <div className="absolute top-0 right-0 w-80 h-80 bg-red-600/10 rounded-full blur-3xl pointer-events-none -mr-10 -mt-10" />
+
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
             <div className="space-y-2 max-w-2xl">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-blue-500/20 text-blue-300 border border-blue-500/30">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold bg-red-500/15 text-red-400 border border-red-500/20">
                 <Layers className="w-3.5 h-3.5" />
                 Chủ đề luyện tập
               </div>
               <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
                 {currentTopic.name}
               </h1>
-              <p className="text-slate-300 text-xs sm:text-sm leading-relaxed">
+              <p className="text-slate-400 text-xs sm:text-sm leading-relaxed">
                 {currentTopic.description || 'Chưa có mô tả cho chủ đề này.'}
               </p>
             </div>
 
             {/* Tiến độ trong chủ đề này */}
-            <div className="bg-slate-900/90 border border-slate-700/80 p-5 rounded-2xl min-w-[260px] shadow-xl shrink-0">
+            <div className="bg-slate-950/80 border border-slate-800 p-5 rounded-2xl min-w-[260px] shadow-xl shrink-0">
               <div className="flex items-center justify-between text-xs text-slate-300 mb-2">
                 <span className="font-semibold flex items-center gap-1.5">
                   <CheckCircle2 className="w-4 h-4 text-emerald-400" /> Tiến độ hoàn thành
                 </span>
-                <span className="font-mono font-bold text-blue-400 text-sm">
+                <span className="font-mono font-bold text-red-400 text-sm">
                   {progressPercent}%
                 </span>
               </div>
 
               {/* Progress bar */}
-              <div className="w-full bg-slate-800 rounded-full h-2.5 overflow-hidden border border-slate-700/60 mb-2">
+              <div className="w-full bg-slate-900 rounded-full h-2.5 overflow-hidden border border-slate-800 mb-2">
                 <div
-                  className="bg-gradient-to-r from-blue-500 to-indigo-500 h-full transition-all duration-500 rounded-full"
+                  className="bg-gradient-to-r from-red-600 to-rose-500 h-full transition-all duration-500 rounded-full"
                   style={{ width: `${progressPercent}%` }}
                 />
               </div>
@@ -331,26 +334,26 @@ export const UserProblemList: React.FC<UserProblemListProps> = ({ onSelectProble
         </div>
 
         {/* Thanh Tìm kiếm & Lọc bài tập trong chủ đề */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-4 shadow-sm">
+        <div className="bg-[#0d121d] border border-slate-800/80 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-4 shadow-sm">
           <div className="flex-1 min-w-[240px] relative">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+            <Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder={`Tìm bài tập trong "${currentTopic.name}" theo tên, mã bài...`}
-              className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="w-full pl-10 pr-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-red-500 transition-colors"
             />
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
             {/* Lọc theo độ khó */}
             <div className="flex items-center gap-1.5 text-xs text-slate-400">
-              <Filter className="w-3.5 h-3.5 text-blue-400" />
+              <Filter className="w-3.5 h-3.5 text-red-400" />
               <select
                 value={selectedDifficulty}
                 onChange={(e) => setSelectedDifficulty(e.target.value)}
-                className="bg-slate-800 border border-slate-700 text-slate-200 text-xs rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500 font-medium"
+                className="bg-slate-950 border border-slate-800 text-slate-200 text-xs rounded-xl px-3 py-2 focus:outline-none focus:border-red-500 font-medium"
               >
                 <option value="ALL">Tất cả độ khó</option>
                 <option value="Dễ">Dễ</option>
@@ -364,7 +367,7 @@ export const UserProblemList: React.FC<UserProblemListProps> = ({ onSelectProble
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value as 'ALL' | 'SOLVED' | 'UNSOLVED')}
-              className="bg-slate-800 border border-slate-700 text-slate-200 text-xs rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500 font-medium"
+              className="bg-slate-950 border border-slate-800 text-slate-200 text-xs rounded-xl px-3 py-2 focus:outline-none focus:border-red-500 font-medium"
             >
               <option value="ALL">Tất cả trạng thái</option>
               <option value="SOLVED">Đã hoàn thành (Full AC)</option>
@@ -376,14 +379,14 @@ export const UserProblemList: React.FC<UserProblemListProps> = ({ onSelectProble
         {/* Danh sách bài tập của chủ đề - Bố trí gọn gàng, khoa học */}
         <div className="space-y-3">
           {filteredProblems.length === 0 ? (
-            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-12 text-center text-slate-400">
+            <div className="bg-[#0d121d] border border-slate-800 rounded-3xl p-12 text-center text-slate-400">
               <Search className="w-12 h-12 mx-auto text-slate-600 mb-3" />
               <h5 className="font-bold text-slate-200 text-base">
                 {topicProblems.length === 0
                   ? 'Chủ đề này chưa có bài tập nào'
                   : 'Không tìm thấy bài tập phù hợp bộ lọc'}
               </h5>
-              <p className="text-xs text-slate-400 mt-1 max-w-md mx-auto">
+              <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto leading-relaxed">
                 {topicProblems.length === 0
                   ? 'Giáo viên sẽ sớm bổ sung các bài tập mới vào chủ đề này. Hãy quay lại sau!'
                   : 'Hãy thử xóa từ khóa tìm kiếm hoặc đặt lại bộ lọc độ khó / trạng thái.'}
@@ -391,7 +394,7 @@ export const UserProblemList: React.FC<UserProblemListProps> = ({ onSelectProble
               {topicProblems.length === 0 && (
                 <button
                   onClick={() => setActiveTopicId(null)}
-                  className="mt-4 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold"
+                  className="mt-4 px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold shadow-md shadow-red-600/25 transition-all cursor-pointer"
                 >
                   Chọn chủ đề khác
                 </button>
@@ -469,14 +472,14 @@ export const UserProblemList: React.FC<UserProblemListProps> = ({ onSelectProble
           <div className="flex items-center justify-between mb-4">
             <div>
               <h3 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                <BookOpen className="w-5 h-5 text-blue-500 dark:text-blue-400" />
-                Chủ đề bài tập đã giao
+                <BookOpen className="w-5 h-5 text-red-500" />
+                <span>Chủ đề bài tập đã giao</span>
               </h3>
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                 Chọn một ô chủ đề bên dưới để xem toàn bộ danh sách bài tập và bắt đầu làm bài
               </p>
             </div>
-            <span className="text-xs font-mono text-slate-700 dark:text-slate-400 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-3 py-1.5 rounded-xl shadow-sm">
+            <span className="text-xs font-mono text-slate-700 dark:text-slate-400 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-3 py-1.5 rounded-xl shadow-sm">
               {visibleTopics.length} chủ đề • {classScopedProblems.length} bài tập
             </span>
           </div>
@@ -497,45 +500,48 @@ export const UserProblemList: React.FC<UserProblemListProps> = ({ onSelectProble
                 <div
                   key={topic.id}
                   onClick={() => setActiveTopicId(topic.id)}
-                  className="cursor-pointer p-6 rounded-3xl border border-slate-800 bg-slate-900/90 hover:bg-slate-800/90 hover:border-blue-500/60 transition-all duration-200 relative overflow-hidden group shadow-lg hover:shadow-2xl hover:shadow-blue-500/10 flex flex-col justify-between"
+                  className="cursor-pointer p-6 rounded-3xl border border-slate-800/80 bg-[#0d121d] hover:bg-slate-800/80 hover:border-red-500/50 transition-all duration-200 relative overflow-hidden group shadow-lg hover:shadow-2xl hover:shadow-red-500/10 flex flex-col justify-between"
                 >
-                  <div>
+                  {/* Subtle red ambient on hover */}
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-red-500/5 rounded-full blur-2xl -mr-10 -mt-10 pointer-events-none group-hover:bg-red-500/15 transition-colors" />
+
+                  <div className="relative z-10">
                     {/* Top: Icon và số lượng bài */}
                     <div className="flex items-start justify-between mb-4">
-                      <div className="w-12 h-12 rounded-2xl bg-blue-500/10 border border-blue-500/20 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold group-hover:scale-110 group-hover:bg-blue-600 group-hover:text-white transition-all shadow-sm">
+                      <div className="w-12 h-12 rounded-2xl bg-red-500/15 border border-red-500/25 text-red-400 flex items-center justify-center font-bold group-hover:scale-105 group-hover:bg-red-600 group-hover:text-white transition-all shadow-sm">
                         <Layers className="w-6 h-6" />
                       </div>
-                      <span className="text-xs font-mono font-semibold px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700/80">
+                      <span className="text-xs font-mono font-semibold px-2.5 py-1 rounded-lg bg-slate-950/80 text-slate-300 border border-slate-800">
                         {solvedInTopic}/{topicProblems.length} bài
                       </span>
                     </div>
 
                     {/* Tên chủ đề & Mô tả */}
-                    <h4 className="font-extrabold text-lg text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                    <h4 className="font-extrabold text-lg text-slate-900 dark:text-white group-hover:text-red-400 transition-colors">
                       {topic.name}
                     </h4>
-                    <p className="text-xs text-slate-600 dark:text-slate-400 mt-2 line-clamp-2 leading-relaxed">
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 line-clamp-2 leading-relaxed">
                       {topic.description || 'Tuyển tập các bài tập rèn luyện tư duy thuật toán theo chủ đề.'}
                     </p>
                   </div>
 
                   {/* Bottom: Thanh tiến độ hoàn thành */}
-                  <div className="mt-6 pt-4 border-t border-slate-200 dark:border-slate-800/80">
+                  <div className="mt-6 pt-4 border-t border-slate-200 dark:border-slate-800/80 relative z-10">
                     <div className="flex justify-between text-xs text-slate-600 dark:text-slate-400 mb-1.5 font-medium">
                       <span>Tiến độ hoàn thành</span>
-                      <span className="font-mono font-bold text-blue-600 dark:text-blue-400">
+                      <span className="font-mono font-bold text-red-400">
                         {progressPercent}%
                       </span>
                     </div>
-                    <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-2 overflow-hidden border border-slate-300 dark:border-slate-700/40">
+                    <div className="w-full bg-slate-950 rounded-full h-2 overflow-hidden border border-slate-800">
                       <div
-                        className="bg-gradient-to-r from-blue-500 to-indigo-500 h-full transition-all duration-300 rounded-full"
+                        className="bg-gradient-to-r from-red-600 to-rose-500 h-full transition-all duration-300 rounded-full"
                         style={{ width: `${progressPercent}%` }}
                       />
                     </div>
 
                     {/* Call to action */}
-                    <div className="mt-4 flex items-center justify-between text-xs font-bold text-blue-600 dark:text-blue-400 group-hover:text-blue-700 dark:group-hover:text-blue-300 transition-colors">
+                    <div className="mt-4 flex items-center justify-between text-xs font-bold text-red-500 group-hover:text-red-400 transition-colors">
                       <span>Vào làm bài chủ đề này</span>
                       <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                     </div>
@@ -553,14 +559,14 @@ export const UserProblemList: React.FC<UserProblemListProps> = ({ onSelectProble
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h3 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                <FileCode2 className="w-5 h-5 text-amber-500" />
+                <FileCode2 className="w-5 h-5 text-red-500" />
                 <span>Bài tập ngoài chủ đề</span>
               </h3>
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                 Các bài tập được giáo viên giao trực tiếp cho lớp không nằm trong chủ đề nào
               </p>
             </div>
-            <span className="text-xs font-mono font-semibold text-amber-600 dark:text-amber-400 bg-amber-500/10 border border-amber-500/20 px-3 py-1.5 rounded-xl shadow-sm">
+            <span className="text-xs font-mono font-semibold text-red-400 bg-red-500/10 border border-red-500/20 px-3 py-1.5 rounded-xl shadow-sm">
               {unassignedProblems.length} bài tập
             </span>
           </div>
@@ -574,12 +580,12 @@ export const UserProblemList: React.FC<UserProblemListProps> = ({ onSelectProble
 
       {/* Trạng thái trống: Khi lớp học chưa có bất kỳ bài tập nào */}
       {visibleTopics.length === 0 && unassignedProblems.length === 0 && (
-        <div className="bg-slate-900/60 border border-slate-800 rounded-3xl p-12 text-center shadow-lg">
-          <div className="w-16 h-16 rounded-2xl bg-slate-800 border border-slate-700 text-slate-400 flex items-center justify-center mx-auto mb-4">
-            <Layers className="w-8 h-8 text-blue-400 opacity-60" />
+        <div className="bg-[#0d121d] border border-slate-800 rounded-3xl p-12 text-center shadow-lg">
+          <div className="w-16 h-16 rounded-2xl bg-slate-950 border border-slate-800 text-slate-500 flex items-center justify-center mx-auto mb-4">
+            <Layers className="w-8 h-8 text-red-500/60" />
           </div>
           <h4 className="text-lg font-bold text-slate-200">Chưa có bài tập nào cho lớp học này</h4>
-          <p className="text-xs text-slate-400 mt-2 max-w-md mx-auto leading-relaxed">
+          <p className="text-xs text-slate-500 mt-2 max-w-md mx-auto leading-relaxed">
             Giáo viên chưa giao chủ đề hoặc bài tập nào vào lớp này. Khi giáo viên tạo hoặc gán bài tập vào lớp, các bài tập sẽ xuất hiện ở đây.
           </p>
         </div>

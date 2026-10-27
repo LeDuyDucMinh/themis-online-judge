@@ -373,7 +373,7 @@ export const AuthModal: React.FC = () => {
           role="dialog"
           aria-modal="true"
           aria-labelledby="auth-heading"
-          className="relative my-auto grid w-full max-w-4xl overflow-hidden rounded-xl border border-white/10 bg-[#13110e] text-stone-100 shadow-[0_24px_80px_-24px_rgba(0,0,0,0.9)] md:grid-cols-[1.05fr_1fr]"
+          className="auth-dark relative my-auto grid w-full max-w-4xl overflow-hidden rounded-xl border border-white/10 bg-[#13110e] text-stone-100 shadow-[0_24px_80px_-24px_rgba(0,0,0,0.9)] md:grid-cols-[1.05fr_1fr]"
         >
           {/* ===================== CỘT TRÁI: THƯƠNG HIỆU ===================== */}
           <aside className="relative hidden flex-col justify-between border-r border-white/10 bg-[#0d0b09] p-10 md:flex">

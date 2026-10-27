@@ -63,14 +63,14 @@ export const ThemisGradingTable: React.FC<ThemisGradingTableProps> = ({
     const displayTotal = Math.max(totalTestsToRun || 0, currentRunningIndex);
     const percent = displayTotal > 0 ? Math.round((currentRunningIndex / displayTotal) * 100) : 0;
     return (
-      <div className="bg-slate-900 border border-blue-500/30 rounded-2xl p-6 text-white shadow-xl animate-pulse">
+      <div className="bg-[#0d121d] border border-red-500/30 rounded-2xl p-6 text-white shadow-xl animate-pulse">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-blue-600/30 border border-blue-500/50 flex items-center justify-center">
-              <Cpu className="w-5 h-5 text-blue-400 animate-spin" />
+            <div className="w-9 h-9 rounded-xl bg-red-500/15 border border-red-500/30 flex items-center justify-center">
+              <Cpu className="w-5 h-5 text-red-400 animate-spin" />
             </div>
             <div>
-              <h4 className="font-bold text-base text-blue-300">
+              <h4 className="font-bold text-base text-red-400">
                 Đang chấm bài theo cơ chế Themis...
               </h4>
               <p className="text-xs text-slate-400">
@@ -78,15 +78,15 @@ export const ThemisGradingTable: React.FC<ThemisGradingTableProps> = ({
               </p>
             </div>
           </div>
-          <span className="font-mono text-sm font-semibold text-blue-400 bg-blue-500/10 px-3 py-1 rounded-full border border-blue-500/20">
+          <span className="font-mono text-sm font-semibold text-red-400 bg-red-500/10 px-3 py-1 rounded-full border border-red-500/20">
             {percent}% Hoàn tất
           </span>
         </div>
 
         {/* Progress Bar */}
-        <div className="w-full bg-slate-800 rounded-full h-3 overflow-hidden border border-slate-700/60">
+        <div className="w-full bg-slate-950 rounded-full h-3 overflow-hidden border border-slate-800">
           <div
-            className="bg-gradient-to-r from-blue-600 to-indigo-500 h-full transition-all duration-200"
+            className="bg-gradient-to-r from-red-600 to-rose-500 h-full transition-all duration-200"
             style={{ width: `${percent}%` }}
           />
         </div>
@@ -192,7 +192,7 @@ export const ThemisGradingTable: React.FC<ThemisGradingTableProps> = ({
   return (
     <div
       className={`rounded-2xl border overflow-hidden shadow-2xl transition-all duration-300 shrink-0 w-full min-h-fit ${
-        theme === 'light' ? 'bg-white border-slate-200' : 'bg-slate-900 border-slate-800'
+        theme === 'light' ? 'bg-white border-slate-200' : 'bg-[#0d121d] border-slate-800'
       }`}
     >
       {/* Themis Banner Header */}
@@ -270,7 +270,7 @@ export const ThemisGradingTable: React.FC<ThemisGradingTableProps> = ({
                 >
                   {typeof submission.problemTitle === 'object' ? JSON.stringify(submission.problemTitle) : String(submission.problemTitle || '')}
                 </b>{' '}
-                <span className="font-mono text-blue-700 dark:text-blue-400 font-bold bg-blue-100 dark:bg-blue-500/10 px-1.5 py-0.5 rounded border border-blue-300 dark:border-blue-500/20">
+                <span className="font-mono text-red-600 dark:text-red-400 font-bold bg-red-100 dark:bg-red-500/10 px-1.5 py-0.5 rounded border border-red-300 dark:border-red-500/20">
                   {typeof submission.problemCode === 'object' ? JSON.stringify(submission.problemCode) : String(submission.problemCode || '')}
                 </span>
               </span>
@@ -481,8 +481,8 @@ export const ThemisGradingTable: React.FC<ThemisGradingTableProps> = ({
                           <span
                             className={`p-0.5 rounded transition-transform duration-200 ${
                               isExpanded
-                                ? 'text-blue-500 rotate-180'
-                                : 'text-slate-400'
+                                ? 'text-red-400 rotate-180'
+                                : 'text-slate-500'
                             }`}
                           >
                             <ChevronDown className="w-3.5 h-3.5" />
@@ -535,15 +535,15 @@ export const ThemisGradingTable: React.FC<ThemisGradingTableProps> = ({
                           }}
                           className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
                             isExpanded
-                              ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400'
+                              ? 'bg-red-500/15 text-red-400'
                               : theme === 'light'
                               ? 'hover:bg-slate-200 text-slate-500 hover:text-slate-800'
-                              : 'hover:bg-slate-700/50 text-slate-400 hover:text-white'
+                              : 'hover:bg-slate-800 text-slate-400 hover:text-white'
                           }`}
                           title={isExpanded ? 'Thu gọn chi tiết' : 'Xem chi tiết kết quả test này'}
                         >
                           {isExpanded ? (
-                            <ChevronUp className="w-4 h-4 text-blue-500" />
+                            <ChevronUp className="w-4 h-4 text-red-400" />
                           ) : (
                             <ChevronDown className="w-4 h-4" />
                           )}

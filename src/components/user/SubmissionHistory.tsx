@@ -567,9 +567,9 @@ export const SubmissionHistory: React.FC = () => {
                         <Calendar className="w-3.5 h-3.5 text-slate-500 shrink-0" />
                         {new Date(sub.submittedAt).toLocaleTimeString()} ({new Date(sub.submittedAt).toLocaleDateString()})
                       </td>
-                      <td className="py-3 px-4 font-sans font-semibold text-blue-400">
+                      <td className="py-3 px-4 font-sans font-semibold text-slate-200">
                         <div className="flex items-center gap-1.5">
-                          <User className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                          <User className="w-3.5 h-3.5 text-red-400 shrink-0" />
                           <span>{getSubDisplayName(sub)}</span>
                         </div>
                       </td>
@@ -593,7 +593,7 @@ export const SubmissionHistory: React.FC = () => {
                             e.stopPropagation();
                             handleOpenDetail(sub);
                           }}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-slate-800 hover:bg-blue-600 text-slate-300 hover:text-white transition-colors"
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-red-600 text-slate-300 hover:text-white transition-colors cursor-pointer"
                         >
                           Chi tiết <ChevronRight className="w-3 h-3" />
                         </button>
@@ -882,8 +882,8 @@ export const SubmissionHistory: React.FC = () => {
                 <div className="flex flex-wrap items-center gap-2">
                   <span className={`font-mono text-xs font-bold px-2.5 py-0.5 rounded-lg border ${
                     theme === 'light'
-                      ? 'bg-blue-50 text-blue-700 border-blue-200'
-                      : 'bg-blue-500/15 text-blue-400 border-blue-500/30'
+                      ? 'bg-red-50 text-red-700 border-red-200'
+                      : 'bg-red-500/15 text-red-400 border-red-500/30'
                   }`}>
                     Mã bài: {displayCode}
                   </span>
@@ -954,7 +954,7 @@ export const SubmissionHistory: React.FC = () => {
                 <h4 className={`text-xs font-bold uppercase tracking-wider mb-2 flex items-center gap-2 ${
                   theme === 'light' ? 'text-slate-700' : 'text-slate-300'
                 }`}>
-                  <Code2 className="w-4 h-4 text-blue-500 dark:text-blue-400" /> Mã nguồn đã nộp ({(typeof selectedSub.language === 'string' ? selectedSub.language : String(selectedSub.language || '')).toUpperCase()}):
+                  <Code2 className="w-4 h-4 text-red-500 dark:text-red-400" /> Mã nguồn đã nộp ({(typeof selectedSub.language === 'string' ? selectedSub.language : String(selectedSub.language || '')).toUpperCase()}):
                 </h4>
                 <pre className="p-4 bg-slate-950 rounded-2xl text-emerald-400 font-mono text-xs overflow-x-auto max-h-64 border border-slate-800">
                   {typeof selectedSub.sourceCode === 'object' ? JSON.stringify(selectedSub.sourceCode, null, 2) : String(selectedSub.sourceCode || '')}
