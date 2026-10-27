@@ -1644,8 +1644,9 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     try {
       // 1. BẮT BUỘC AWAIT ĐỂ LƯU THÀNH CÔNG VÀO DATABASE THỰC TẾ TRƯỚC
       await apiService.saveProblem(updatedProblem);
-      if (hasRealContent(mergedTestCases)) {
-        await apiService.saveTestCases(id, mergedTestCases);
+      // Chỉ đồng bộ test case lên Cloud khi có thay đổi test case thực sự được truyền vào
+      if (updated.testCases && hasRealContent(updated.testCases)) {
+        await apiService.saveTestCases(id, updated.testCases);
       }
 
       const nextList = problems.map((p) => (p.id === id ? updatedProblem : p));

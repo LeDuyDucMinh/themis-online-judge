@@ -726,25 +726,33 @@ export const apiService = {
             updated_at: new Date().toISOString(),
           }));
 
-          const res = await fetch(targetUrl, {
-            method: 'POST',
-            headers: {
-              ...this.getAntiCacheHeaders(),
-              'Content-Type': 'application/json',
-              Prefer: 'resolution=merge-duplicates',
-            },
-            body: JSON.stringify(rows),
-          });
+          // Chia nhỏ theo từng batch (5 test cases / batch) để chống triệt để lỗi statement timeout (57014) trên Supabase
+          const BATCH_SIZE = 5;
+          for (let i = 0; i < rows.length; i += BATCH_SIZE) {
+            const batch = rows.slice(i, i + BATCH_SIZE);
+            const res = await fetch(targetUrl, {
+              method: 'POST',
+              headers: {
+                ...this.getAntiCacheHeaders(),
+                'Content-Type': 'application/json',
+                Prefer: 'resolution=merge-duplicates',
+              },
+              body: JSON.stringify(batch),
+            });
 
-          if (!res.ok) {
-            const errDetail = await res.text();
-            throw new Error(`Lỗi Supabase (${res.status}): ${errDetail.slice(0, 150)}`);
+            if (!res.ok) {
+              const errDetail = await res.text();
+              if (res.status === 500 && (errDetail.includes('57014') || errDetail.includes('statement timeout'))) {
+                throw new Error('Dữ liệu test quá lớn khiến Supabase quá tải thời gian chờ. Hệ thống đã lưu trữ an toàn trên thiết bị.');
+              }
+              throw new Error(`Lỗi Supabase (${res.status}): ${errDetail.slice(0, 150)}`);
+            }
           }
         }
       } catch (err: unknown) {
         console.error('[apiService] Lỗi lưu test cases lên Supabase Cloud:', err);
         throw new Error(
-          `Không thể lưu bộ Test case lên Database đám mây: ${(err as Error)?.message || 'Lỗi kết nối'}`
+          (err as Error)?.message || 'Không thể lưu bộ Test case lên Database đám mây'
         );
       }
     }

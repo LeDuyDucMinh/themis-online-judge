@@ -204,17 +204,8 @@ export const TestCaseManagerModal: React.FC<TestCaseManagerModalProps> = ({
       }));
       setTestCases(standardizedTests);
 
-      // TỰ ĐỘNG LƯU NGAY: Lưu vào IndexedDB và JudgeContext để khi người dùng ấn nút "X" Đóng thì test KHÔNG BỊ MẤT!
+      // Lưu vào IndexedDB cục bộ của trình duyệt để không bao giờ bị mất dữ liệu
       await idbService.saveTestCases(problem.id, standardizedTests);
-      await updateProblem(problem.id, {
-        testCases: standardizedTests,
-        totalPoints: Number(totalPoints) || 10,
-        timeLimit: Number(timeLimit) || 1.0,
-        memoryLimit: Number(memoryLimit) || 1024,
-      });
-      await apiService.saveTestCases(problem.id, standardizedTests).catch((err) => {
-        console.warn('[TestCaseManagerModal] Lỗi lưu ngầm lên Cloud:', err);
-      });
 
       showToast('Nạp Test Themis thành công', summary, 'success');
       if (warnings && warnings.length > 0) {
@@ -257,17 +248,8 @@ export const TestCaseManagerModal: React.FC<TestCaseManagerModalProps> = ({
       }));
       setTestCases(standardizedTests);
 
-      // TỰ ĐỘNG LƯU NGAY: Lưu vào IndexedDB và JudgeContext để khi người dùng ấn nút "X" Đóng thì test KHÔNG BỊ MẤT!
+      // Lưu vào IndexedDB cục bộ của trình duyệt để không bao giờ bị mất dữ liệu
       await idbService.saveTestCases(problem.id, standardizedTests);
-      await updateProblem(problem.id, {
-        testCases: standardizedTests,
-        totalPoints: Number(totalPoints) || 10,
-        timeLimit: Number(timeLimit) || 1.0,
-        memoryLimit: Number(memoryLimit) || 1024,
-      });
-      await apiService.saveTestCases(problem.id, standardizedTests).catch((err) => {
-        console.warn('[TestCaseManagerModal] Lỗi lưu ngầm lên Cloud:', err);
-      });
 
       showToast('Nạp Test Themis thành công', summary, 'success');
       if (warnings && warnings.length > 0) {
@@ -315,10 +297,7 @@ export const TestCaseManagerModal: React.FC<TestCaseManagerModalProps> = ({
         }));
       }
 
-      // 1. BẮT BUỘC AWAIT: Lưu trực tiếp vào Database thực tế (Supabase Cloud REST API / IndexedDB)
-      await apiService.saveTestCases(problem.id, finalizedTests);
-
-      // 2. Chỉ khi Database lưu thành công mới gọi cập nhật state bài tập trong React
+      // 1. Cập nhật bài tập và đồng bộ bộ test lên Database (Supabase Cloud REST API & IndexedDB)
       await updateProblem(problem.id, {
         timeLimit: Number(timeLimit) || 1.0,
         memoryLimit: Number(memoryLimit) || 1024,
