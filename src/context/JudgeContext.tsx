@@ -1541,6 +1541,15 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     if (!isAdminAuthenticated) {
       throw new Error('Chỉ quản trị viên mới có quyền tạo đề bài');
     }
+
+    const cleanCode = (probData.code || '').trim().toUpperCase().replace(/\s+/g, '_');
+    const duplicate = problems.find((p) => (p.code || '').trim().toUpperCase() === cleanCode);
+    if (duplicate) {
+      const err = new Error(`Mã bài tập "${cleanCode}" đã tồn tại trên hệ thống. Vui lòng chọn mã khác.`);
+      showToast('Trùng mã bài tập', err.message, 'warning');
+      throw err;
+    }
+
     let targetClassId = probData.classId;
     if (!targetClassId || targetClassId === 'class_default_faminh') {
       if (activeClassId) {
@@ -1561,6 +1570,7 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
     const newProblem: Problem = {
       ...probData,
+      code: cleanCode,
       classId: targetClassId,
       id: `prob_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
       createdAt: new Date().toISOString(),
@@ -1580,7 +1590,10 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       showToast('Đã thêm bài tập', `Đã tạo thành công bài [${newProblem.code}] ${newProblem.title}`, 'success');
       return newProblem;
     } catch (err: unknown) {
-      const msg = (err as Error)?.message || 'Lỗi khi lưu bài tập vào cơ sở dữ liệu';
+      let msg = (err as Error)?.message || 'Lỗi khi lưu bài tập vào cơ sở dữ liệu';
+      if (msg.includes('23505') || msg.includes('problems_code_key') || msg.includes('duplicate key')) {
+        msg = `Mã bài tập "${newProblem.code}" đã tồn tại trên hệ thống. Vui lòng chọn mã khác.`;
+      }
       showToast('Lỗi thêm bài tập', msg, 'error');
       throw err;
     }
@@ -1591,6 +1604,19 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
     const existing = problems.find((p) => p.id === id);
     if (!existing) return;
+
+    if (updated.code) {
+      const cleanCode = updated.code.trim().toUpperCase().replace(/\s+/g, '_');
+      const duplicate = problems.find(
+        (p) => p.id !== id && (p.code || '').trim().toUpperCase() === cleanCode
+      );
+      if (duplicate) {
+        const err = new Error(`Mã bài tập "${cleanCode}" đã bị trùng với bài tập khác.`);
+        showToast('Trùng mã bài tập', err.message, 'warning');
+        throw err;
+      }
+      updated.code = cleanCode;
+    }
 
     // BẢO VỆ TEST CASES: Không bao giờ để một cập nhật bài tập thông thường làm mất bộ test case đang có
     const hasRealContent = (tests?: TestCase[] | null) =>
@@ -1632,7 +1658,10 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       }
       showToast('Đã cập nhật', 'Cập nhật nội dung bài tập thành công', 'success');
     } catch (err: unknown) {
-      const msg = (err as Error)?.message || 'Lỗi khi cập nhật bài tập vào Database';
+      let msg = (err as Error)?.message || 'Lỗi khi cập nhật bài tập vào Database';
+      if (msg.includes('23505') || msg.includes('problems_code_key') || msg.includes('duplicate key')) {
+        msg = `Mã bài tập "${updatedProblem.code}" đã bị trùng với bài khác. Vui lòng chọn mã khác.`;
+      }
       showToast('Lỗi cập nhật bài tập', msg, 'error');
       throw err;
     }

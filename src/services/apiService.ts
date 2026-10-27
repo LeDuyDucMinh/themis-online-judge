@@ -1130,12 +1130,15 @@ export const apiService = {
 
         if (!res.ok) {
           const errDetail = await res.text();
+          if (res.status === 409 || errDetail.includes('problems_code_key') || errDetail.includes('23505')) {
+            throw new Error(`Mã bài tập "${problem.code}" đã tồn tại trên hệ thống. Vui lòng chọn mã khác.`);
+          }
           throw new Error(`Lỗi Supabase (${res.status}): ${errDetail.slice(0, 150)}`);
         }
       } catch (err: unknown) {
         console.error('[apiService] Lỗi lưu bài tập lên Supabase Cloud:', err);
         throw new Error(
-          `Không thể lưu bài tập vào Database đám mây: ${(err as Error)?.message || 'Lỗi kết nối'}`
+          (err as Error)?.message || 'Không thể lưu bài tập vào Database đám mây'
         );
       }
     }

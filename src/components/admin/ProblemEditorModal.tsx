@@ -26,6 +26,7 @@ import {
   Columns,
   PenLine,
   GraduationCap,
+  Loader2,
 } from 'lucide-react';
 
 interface ProblemEditorModalProps {
@@ -41,7 +42,8 @@ export const ProblemEditorModal: React.FC<ProblemEditorModalProps> = ({
   classId,
   onClose,
 }) => {
-  const { topics, classes, addProblem, updateProblem, showToast, theme } = useJudge();
+  const { problems, topics, classes, addProblem, updateProblem, showToast, theme } = useJudge();
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [selectedClassId, setSelectedClassId] = useState<string>(() => {
     if (problem) return problem.classId || 'NONE';
@@ -287,6 +289,8 @@ Cho dãy số nguyên $A = (a_1, a_2, \\dots, a_n)$. Hãy tìm...
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (isSubmitting) return;
+
     if (!code.trim()) {
       showToast('Thiếu thông tin', 'Vui lòng nhập Mã bài tập', 'warning');
       return;
@@ -295,54 +299,69 @@ Cho dãy số nguyên $A = (a_1, a_2, \\dots, a_n)$. Hãy tìm...
     const finalCode = code.trim().toUpperCase().replace(/\s+/g, '_');
     const finalTitle = title.trim() || finalCode;
 
-    // Lọc bỏ những cặp ví dụ hoàn toàn trống
-    const validSamples = samples.filter(
-      (s) => s.input.trim().length > 0 || s.output.trim().length > 0
+    // Kiểm tra trùng mã bài tập với các bài tập đã có
+    const duplicate = problems.find(
+      (p) => p.code.trim().toUpperCase() === finalCode && p.id !== problem?.id
     );
-
-    let targetClassId = selectedClassId || problem?.classId || classId || 'NONE';
-    if (targetClassId !== 'NONE' && (!targetClassId || targetClassId === 'class_default_faminh')) {
-      targetClassId = classes[0]?.id || 'NONE';
+    if (duplicate) {
+      showToast(
+        'Trùng mã bài tập',
+        `Mã bài tập "${finalCode}" đã tồn tại trên hệ thống. Vui lòng nhập mã bài khác hoặc chỉnh sửa bài tập đã có.`,
+        'warning'
+      );
+      return;
     }
 
-    const targetPoints = Number(totalPoints) || 10;
-    const rawTests = testCases.length > 0 ? testCases : (problem?.testCases || []);
-    const scaledTests = rawTests.map((tc, idx, arr) => {
-      const pts = +(targetPoints / arr.length).toFixed(2);
-      return {
-        ...tc,
-        points: idx === arr.length - 1 ? +(targetPoints - pts * (arr.length - 1)).toFixed(2) : pts,
-      };
-    });
-
-    const problemData = {
-      code: finalCode,
-      title: finalTitle,
-      classId: targetClassId,
-      author: author.trim() || 'Thầy Minh (FAMINH)',
-      topicId,
-      difficulty: difficulty.trim() || 'Trung bình',
-
-      timeLimit: Number(timeLimit) || 1.0,
-      memoryLimit: Number(memoryLimit) || 1024,
-      totalPoints: targetPoints,
-      description,
-      inputFormat: problem?.inputFormat || '',
-      outputFormat: problem?.outputFormat || '',
-      constraints: problem?.constraints || '',
-      samples: validSamples,
-      attachedFile,
-      testCases: scaledTests,
-      videoConfig: problem?.videoConfig || {
-        enabled: false,
-        type: 'youtube',
-        url: '',
-        unlockRule: 'always',
-      },
-      starterCode: problem?.starterCode,
-    };
+    setIsSubmitting(true);
 
     try {
+      // Lọc bỏ những cặp ví dụ hoàn toàn trống
+      const validSamples = samples.filter(
+        (s) => s.input.trim().length > 0 || s.output.trim().length > 0
+      );
+
+      let targetClassId = selectedClassId || problem?.classId || classId || 'NONE';
+      if (targetClassId !== 'NONE' && (!targetClassId || targetClassId === 'class_default_faminh')) {
+        targetClassId = classes[0]?.id || 'NONE';
+      }
+
+      const targetPoints = Number(totalPoints) || 10;
+      const rawTests = testCases.length > 0 ? testCases : (problem?.testCases || []);
+      const scaledTests = rawTests.map((tc, idx, arr) => {
+        const pts = +(targetPoints / arr.length).toFixed(2);
+        return {
+          ...tc,
+          points: idx === arr.length - 1 ? +(targetPoints - pts * (arr.length - 1)).toFixed(2) : pts,
+        };
+      });
+
+      const problemData = {
+        code: finalCode,
+        title: finalTitle,
+        classId: targetClassId,
+        author: author.trim() || 'Thầy Minh (FAMINH)',
+        topicId,
+        difficulty: difficulty.trim() || 'Trung bình',
+
+        timeLimit: Number(timeLimit) || 1.0,
+        memoryLimit: Number(memoryLimit) || 1024,
+        totalPoints: targetPoints,
+        description,
+        inputFormat: problem?.inputFormat || '',
+        outputFormat: problem?.outputFormat || '',
+        constraints: problem?.constraints || '',
+        samples: validSamples,
+        attachedFile,
+        testCases: scaledTests,
+        videoConfig: problem?.videoConfig || {
+          enabled: false,
+          type: 'youtube',
+          url: '',
+          unlockRule: 'always',
+        },
+        starterCode: problem?.starterCode,
+      };
+
       if (problem) {
         await updateProblem(problem.id, problemData);
       } else {
@@ -351,6 +370,10 @@ Cho dãy số nguyên $A = (a_1, a_2, \\dots, a_n)$. Hãy tìm...
       onClose();
     } catch (err: unknown) {
       console.error('[ProblemEditorModal] Lỗi lưu bài tập:', err);
+      const msg = (err as Error)?.message || 'Không thể lưu bài tập vào cơ sở dữ liệu';
+      showToast('Lỗi lưu bài tập', msg, 'error');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -1084,9 +1107,25 @@ Cho dãy số nguyên $A = (a_1, a_2, \\dots, a_n)$. Hãy tìm...
             <button
               form="problem-form"
               type="submit"
-              className="px-5 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-lg shadow-red-600/25 transition-all cursor-pointer"
+              onClick={handleSubmit}
+              disabled={isSubmitting}
+              className={`px-5 py-2 rounded-xl text-white text-xs font-bold flex items-center gap-1.5 shadow-lg transition-all cursor-pointer ${
+                isSubmitting
+                  ? 'bg-red-700 opacity-70 cursor-not-allowed'
+                  : 'bg-red-600 hover:bg-red-500 shadow-red-600/25 active:scale-95'
+              }`}
             >
-              <Check className="w-4 h-4" /> {problem ? 'Lưu thay đổi' : 'Tạo bài tập'}
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>{problem ? 'Đang lưu...' : 'Đang tạo bài tập...'}</span>
+                </>
+              ) : (
+                <>
+                  <Check className="w-4 h-4" />
+                  <span>{problem ? 'Lưu thay đổi' : 'Tạo bài tập'}</span>
+                </>
+              )}
             </button>
           </div>
         </div>
