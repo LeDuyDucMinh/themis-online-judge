@@ -83,6 +83,10 @@ export const AuthModal: React.FC = () => {
     setErrorMessage('');
     setIsGoogleLoading(true);
     try {
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('faminh_pending_google_oauth_login', 'true');
+        localStorage.setItem('faminh_pending_google_oauth_login', 'true');
+      }
       const redirectUrl = typeof window !== 'undefined' ? window.location.origin : undefined;
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',

@@ -806,6 +806,16 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         // Truy vấn vai trò (Role) trực tiếp từ Supabase Database
         const roleRes = await fetchUserRoleFromSupabase(u.id, u.email);
 
+        // Kiểm tra xem người dùng có phải vừa đăng nhập qua Google OAuth hay không
+        const isGoogleLogin = typeof window !== 'undefined' && (
+          sessionStorage.getItem('faminh_pending_google_oauth_login') === 'true' ||
+          localStorage.getItem('faminh_pending_google_oauth_login') === 'true'
+        );
+        if (isGoogleLogin && typeof window !== 'undefined') {
+          sessionStorage.removeItem('faminh_pending_google_oauth_login');
+          localStorage.removeItem('faminh_pending_google_oauth_login');
+        }
+
         if (roleRes.role === 'admin') {
           // Người dùng là QUẢN TRỊ VIÊN (Admin)
           setIsAdminAuthenticated(true);
@@ -814,13 +824,19 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
           setCurrentStudent(null);
           setIsAuthModalOpen(false);
 
-          // Auto Redirect thẳng vào giao diện Quản trị viên (Admin Dashboard)
+          // Auto Redirect thẳng vào giao diện Quản trị viên (nếu chưa ở trong trang admin)
           if (typeof window !== 'undefined') {
-            window.location.hash = '#admin/classes';
-            window.history.pushState({}, '', '/#admin/classes');
+            if (!window.location.hash.startsWith('#admin')) {
+              window.location.hash = '#admin/classes';
+              window.history.pushState({}, '', '/#admin/classes');
+            }
           }
 
-          showToast('Quản trị viên', `Chào mừng ${fullName}! Đã kích hoạt quyền Quản trị viên hệ thống.`, 'success');
+          // CHỈ HIỂN THỊ THÔNG BÁO CHÀO MỪNG DUY NHẤT KHI VỪA ĐĂNG NHẬP GOOGLE THÀNH CÔNG
+          // Tuyệt đối không lặp lại khi chuyển tab, reload hoặc mở lại trình duyệt
+          if (isGoogleLogin) {
+            showToast('Quản trị viên', `Chào mừng ${fullName}! Đã kích hoạt quyền Quản trị viên hệ thống.`, 'success');
+          }
         } else {
           // Người dùng là HỌC SINH (Student) hoặc các vai trò khác
           const studentUser: StudentUser = {
@@ -853,7 +869,11 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
             }
           }
 
-          showToast('Đăng nhập thành công', `Chào mừng ${fullName}! Chúc em học tập tốt.`, 'success');
+          // CHỈ HIỂN THỊ THÔNG BÁO CHÀO MỪNG DUY NHẤT KHI VỪA ĐĂNG NHẬP GOOGLE THÀNH CÔNG
+          // Tuyệt đối không lặp lại khi chuyển tab, reload hoặc mở lại trình duyệt
+          if (isGoogleLogin) {
+            showToast('Đăng nhập thành công', `Chào mừng ${fullName}! Chúc em học tập tốt.`, 'success');
+          }
         }
       } else if (event === 'SIGNED_OUT') {
         storageService.setAdminSessionActive(false);
@@ -862,6 +882,8 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         setCurrentStudent(null);
         setRole('USER');
         if (typeof window !== 'undefined') {
+          sessionStorage.removeItem('faminh_pending_google_oauth_login');
+          localStorage.removeItem('faminh_pending_google_oauth_login');
           window.location.hash = '#classes';
           window.history.pushState({}, '', '/#classes');
         }
