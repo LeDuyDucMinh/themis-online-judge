@@ -837,6 +837,12 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   // 1a. LẮNG NGHE THAY ĐỔI TRẠNG THÁI XÁC THỰC SUPABASE AUTH (OAuth Google & Email/Password)
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      // 1. Nếu là TOKEN_REFRESHED (xảy ra khi chuyển tab/app hoặc Supabase tự làm mới JWT token ngầm):
+      // Tuyệt đối không can thiệp, không query lại DB, không đổi vai trò và không đổi URL/hash của người dùng!
+      if (event === 'TOKEN_REFRESHED') {
+        return;
+      }
+
       if (session?.user) {
         const u = session.user;
         const fullName = resolveStudentFullName(
@@ -847,6 +853,7 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
         // Truy vấn vai trò (Role) trực tiếp từ Supabase Database
         const roleRes = await fetchUserRoleFromSupabase(u.id, u.email);
+        const isAdmin = roleRes.role === 'admin' || (roleRes.source === 'default' && storageService.isAdminSessionActive());
 
         // Kiểm tra xem người dùng có phải vừa đăng nhập qua Google OAuth hay không
         const isGoogleLogin = typeof window !== 'undefined' && (
@@ -858,7 +865,7 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
           localStorage.removeItem('faminh_pending_google_oauth_login');
         }
 
-        if (roleRes.role === 'admin') {
+        if (isAdmin) {
           // Người dùng là QUẢN TRỊ VIÊN (Admin)
           setIsAdminAuthenticated(true);
           setRole('ADMIN');
@@ -866,17 +873,15 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
           setCurrentStudent(null);
           setIsAuthModalOpen(false);
 
-          // Auto Redirect thẳng vào giao diện Quản trị viên (nếu chưa ở trong trang admin)
-          if (typeof window !== 'undefined') {
-            if (!window.location.hash.startsWith('#admin')) {
-              window.location.hash = '#admin/classes';
-              window.history.pushState({}, '', '/#admin/classes');
-            }
-          }
-
-          // CHỈ HIỂN THỊ THÔNG BÁO CHÀO MỪNG DUY NHẤT KHI VỪA ĐĂNG NHẬP GOOGLE THÀNH CÔNG
-          // Tuyệt đối không lặp lại khi chuyển tab, reload hoặc mở lại trình duyệt
+          // CHỈ TỰ ĐỘNG CHUYỂN HƯỚNG VÀ THÔNG BÁO KHI VỪA ĐĂNG NHẬP GOOGLE OAUTH THÀNH CÔNG
+          // Tuyệt đối không can thiệp vào hash/URL khi người dùng đổi tab, đổi app hay làm mới token chạy ngầm
           if (isGoogleLogin) {
+            if (typeof window !== 'undefined') {
+              const cleanHash = window.location.hash.replace(/^#\/?/, '');
+              if (!cleanHash.startsWith('admin') && cleanHash !== 'submissions') {
+                window.location.hash = '#admin/classes';
+              }
+            }
             showToast('Quản trị viên', `Chào mừng ${fullName}! Đã kích hoạt quyền Quản trị viên hệ thống.`, 'success');
           }
         } else {
@@ -899,21 +904,15 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
           // Tự động lưu học sinh lên Cloud để Giáo viên có thể nhìn thấy trong lớp
           apiService.saveStudents([studentUser]).catch(() => {});
 
-          // Auto Redirect về không gian luyện thi/nộp bài của Học sinh
-          if (typeof window !== 'undefined') {
-            if (
-              window.location.hash.startsWith('#admin') ||
-              window.location.pathname.startsWith('/admin') ||
-              window.location.pathname === '/login'
-            ) {
-              window.location.hash = '#classes';
-              window.history.pushState({}, '', '/#classes');
-            }
-          }
-
-          // CHỈ HIỂN THỊ THÔNG BÁO CHÀO MỪNG DUY NHẤT KHI VỪA ĐĂNG NHẬP GOOGLE THÀNH CÔNG
-          // Tuyệt đối không lặp lại khi chuyển tab, reload hoặc mở lại trình duyệt
+          // CHỈ TỰ ĐỘNG CHUYỂN HƯỚNG VÀ THÔNG BÁO KHI VỪA ĐĂNG NHẬP GOOGLE OAUTH THÀNH CÔNG
+          // Tuyệt đối không can thiệp vào hash/URL khi người dùng đổi tab, đổi app hay làm mới token chạy ngầm
           if (isGoogleLogin) {
+            if (typeof window !== 'undefined') {
+              const cleanHash = window.location.hash.replace(/^#\/?/, '');
+              if (cleanHash.startsWith('admin') || window.location.pathname.startsWith('/admin') || window.location.pathname === '/login') {
+                window.location.hash = '#classes';
+              }
+            }
             showToast('Đăng nhập thành công', `Chào mừng ${fullName}! Chúc em học tập tốt.`, 'success');
           }
         }
@@ -955,8 +954,9 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
             // Kiểm tra vai trò từ Supabase Database
             const roleRes = await fetchUserRoleFromSupabase(u.id, u.email);
+            const isAdmin = roleRes.role === 'admin' || (roleRes.source === 'default' && storageService.isAdminSessionActive());
 
-            if (roleRes.role === 'admin') {
+            if (isAdmin) {
               if (isMounted) {
                 setIsAdminAuthenticated(true);
                 setRole('ADMIN');
