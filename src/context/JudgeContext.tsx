@@ -591,22 +591,36 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
   const isHydratedRef = useRef(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const activeRefreshPromiseRef = useRef<Promise<void> | null>(null);
+  const lastRefreshTimestampRef = useRef<number>(0);
 
   /**
    * TẢI MỚI DỮ LIỆU TOÀN DIỆN TỪ SUPABASE CLOUD DATABASE (ANTI-CACHE REAL-TIME)
-   * Không dùng cache cứng, luôn kéo dữ liệu mới nhất khi vào Dashboard hoặc đổi tài khoản
+   * Có cơ chế chống trùng lặp (in-flight deduplication) và điều tiết (throttling) để tránh nghẽn mạng & giật lag
    */
-  const refreshAllData = async (): Promise<void> => {
-    setIsRefreshing(true);
-    try {
-      const [cloudClasses, cloudRelations, cloudStudents, cloudTopics, cloudProblems, cloudSubs] = await Promise.all([
-        apiService.fetchClassrooms(),
-        apiService.fetchClassStudents(),
-        apiService.fetchStudents(),
-        apiService.fetchTopics(),
-        apiService.fetchProblems(),
-        apiService.fetchSubmissions(),
-      ]);
+  const refreshAllData = async (force: boolean = false): Promise<void> => {
+    // 1. Nếu đang có một lượt fetch đang chạy dở, trả về luôn Promise đó để tái sử dụng, tránh bắn thêm 6 request song song
+    if (activeRefreshPromiseRef.current) {
+      return activeRefreshPromiseRef.current;
+    }
+
+    // 2. Tránh làm mới quá dày đặc (trong vòng 3.5 giây) trừ khi được chỉ định force
+    const now = Date.now();
+    if (!force && now - lastRefreshTimestampRef.current < 3500) {
+      return;
+    }
+
+    const executeRefresh = async () => {
+      setIsRefreshing(true);
+      try {
+        const [cloudClasses, cloudRelations, cloudStudents, cloudTopics, cloudProblems, cloudSubs] = await Promise.all([
+          apiService.fetchClassrooms(),
+          apiService.fetchClassStudents(),
+          apiService.fetchStudents(),
+          apiService.fetchTopics(),
+          apiService.fetchProblems(),
+          apiService.fetchSubmissions(),
+        ]);
 
       if (cloudClasses) {
         setClasses(cloudClasses);
@@ -733,7 +747,13 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     } finally {
       setIsRefreshing(false);
       isHydratedRef.current = true;
+      lastRefreshTimestampRef.current = Date.now();
+      activeRefreshPromiseRef.current = null;
     }
+  };
+
+    activeRefreshPromiseRef.current = executeRefresh();
+    return activeRefreshPromiseRef.current;
   };
 
   /**
@@ -992,11 +1012,16 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   // 1c. TỰ ĐỘNG GIA HẠN THỜI HẠN TOKEN / PHIÊN (SLIDING TOKEN REFRESH)
   // Khi người dùng click, focus hoặc hoạt động, gia hạn cookie/token thêm 30 ngày để không bị hết hạn
   useEffect(() => {
+    let lastActivityTime = 0;
     const handleActivity = () => {
+      const now = Date.now();
+      // Điều tiết (throttle): chỉ gia hạn nếu cách lần trước ít nhất 30 giây để không nghẽn luồng chính trên mỗi cú click chuột
+      if (now - lastActivityTime < 30000) return;
+      lastActivityTime = now;
       storageService.refreshSessionExpiry(currentStudent);
     };
     window.addEventListener('focus', handleActivity);
-    window.addEventListener('click', handleActivity);
+    window.addEventListener('click', handleActivity, { passive: true });
     const tokenRefreshTimer = setInterval(handleActivity, 60000); // 1 phút gia hạn 1 lần
     return () => {
       window.removeEventListener('focus', handleActivity);

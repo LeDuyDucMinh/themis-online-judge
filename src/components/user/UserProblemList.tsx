@@ -53,6 +53,12 @@ export const UserProblemList: React.FC<UserProblemListProps> = ({ onSelectProble
   const [selectedDifficulty, setSelectedDifficulty] = useState<string | 'ALL'>('ALL');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'SOLVED' | 'UNSOLVED'>('ALL');
 
+  // Bộ nhớ đệm tên tùy chỉnh của học sinh để không đọc localStorage lặp lại trong vòng lặp render
+  const currentStudentCustomName = React.useMemo(() => {
+    if (!currentStudent) return null;
+    return storageService.getStudentCustomName(currentStudent.id, currentStudent.email)?.trim().toLowerCase() || null;
+  }, [currentStudent]);
+
   // Lấy điểm số cao nhất của bài (tính riêng theo từng học sinh)
   const getProblemScore = (problemId: string) => {
     let subs = submissions.filter((s) => s.problemId === problemId);
@@ -61,7 +67,7 @@ export const UserProblemList: React.FC<UserProblemListProps> = ({ onSelectProble
       const sUser = (currentStudent.username || '').trim().toLowerCase();
       const sEmail = (currentStudent.email || '').trim().toLowerCase();
       const sName = (currentStudent.fullName || '').trim().toLowerCase();
-      const customName = storageService.getStudentCustomName(currentStudent.id, currentStudent.email)?.trim().toLowerCase();
+      const customName = currentStudentCustomName;
 
       subs = subs.filter((s) => {
         const subUser = (s.userId || '').trim().toLowerCase();
