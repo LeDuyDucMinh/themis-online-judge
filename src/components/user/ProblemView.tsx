@@ -5,6 +5,7 @@ import { MathRenderer } from '../common/MathRenderer';
 import { ThemisGradingTable } from './ThemisGradingTable';
 import { VideoSection } from './VideoSection';
 import Editor from '@monaco-editor/react';
+import DOMPurify from 'dompurify';
 import {
   LANGUAGE_CONFIG,
   type SupportedLanguage,
@@ -314,7 +315,7 @@ export const ProblemView: React.FC<ProblemViewProps> = ({ problem, onBackToList 
                 {problem.attachedFile.type === 'docx' && problem.attachedFile.rawHtml ? (
                   <div
                     className="prose prose-invert max-w-none text-slate-200 leading-relaxed font-sans [&_table]:border-collapse [&_table]:w-full [&_table]:my-4 [&_td]:border [&_td]:border-slate-700 [&_td]:p-3 [&_th]:border [&_th]:border-slate-700 [&_th]:p-3 [&_th]:bg-slate-800 [&_h1]:text-xl [&_h1]:font-bold [&_h1]:text-white [&_h2]:text-lg [&_h2]:font-bold [&_h2]:text-white [&_p]:my-2"
-                    dangerouslySetInnerHTML={{ __html: problem.attachedFile.rawHtml }}
+                    dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(problem.attachedFile.rawHtml) }}
                   />
                 ) : problem.attachedFile.type === 'pdf' && problem.attachedFile.dataUrl ? (
                   <iframe

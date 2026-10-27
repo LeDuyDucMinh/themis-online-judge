@@ -28,13 +28,20 @@ export default defineConfig(({ mode }) => {
       },
     },
     define: {
-      'process.env': JSON.stringify(merged),
       'import.meta.env.VITE_SUPABASE_URL': JSON.stringify(supabaseUrl),
       'import.meta.env.VITE_SUPABASE_ANON_KEY': JSON.stringify(supabaseKey),
       'import.meta.env.VITE_JUDGE0_API_URL': JSON.stringify(judge0Url),
       'import.meta.env.VITE_JUDGE0_API_TOKEN': JSON.stringify(judge0Token),
       'import.meta.env.SUPABASE_URL': JSON.stringify(supabaseUrl),
       'import.meta.env.SUPABASE_ANON_KEY': JSON.stringify(supabaseKey),
+      'process.env.VITE_SUPABASE_URL': JSON.stringify(supabaseUrl),
+      'process.env.VITE_SUPABASE_ANON_KEY': JSON.stringify(supabaseKey),
+      'process.env.VITE_JUDGE0_API_URL': JSON.stringify(judge0Url),
+      'process.env.VITE_JUDGE0_API_TOKEN': JSON.stringify(judge0Token),
+      'process.env.SUPABASE_URL': JSON.stringify(supabaseUrl),
+      'process.env.SUPABASE_ANON_KEY': JSON.stringify(supabaseKey),
+      'process.env.JUDGE0_API_URL': JSON.stringify(judge0Url),
+      'process.env.JUDGE0_API_TOKEN': JSON.stringify(judge0Token),
     },
   };
 });

@@ -91,7 +91,8 @@ export const apiService = {
   async fetchClassrooms(): Promise<Classroom[]> {
     if (isSupabaseConfigured()) {
       try {
-        const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/classrooms?order=created_at.asc`;
+        // Bảo mật: Lọc ngay từ phía máy chủ Supabase, tuyệt đối không trả các bản ghi __system_ về mạng của người dùng
+        const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/classrooms?id=not.like.__system_%25&order=created_at.asc`;
         const res = await fetch(targetUrl, {
           headers: this.getAntiCacheHeaders(),
           cache: 'no-store',
