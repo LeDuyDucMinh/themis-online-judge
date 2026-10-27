@@ -15,7 +15,7 @@ import {
   storageService,
   resolveStudentFullName,
 } from '../src/services/storageService.ts';
-import type { Problem } from '../src/types/judge.ts';
+import type { Problem, Submission, StudentUser } from '../src/types/judge.ts';
 
 // Setup mock localStorage and sessionStorage for Node.js environment
 const createMockStorage = () => {
