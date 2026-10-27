@@ -546,7 +546,9 @@ export async function testJudge0Connection(url?: string): Promise<{ success: boo
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 7000);
-    const headers: Record<string, string> = {};
+    const headers: Record<string, string> = {
+      'X-Themis-Client': 'themis-web-oj',
+    };
     const token = getJudge0Token();
     if (token) {
       headers['X-Auth-Token'] = token;
@@ -599,6 +601,7 @@ export async function executeWithJudge0(
   try {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
+      'X-Themis-Client': 'themis-web-oj',
     };
     const token = getJudge0Token();
     if (token) {
