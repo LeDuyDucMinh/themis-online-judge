@@ -12,6 +12,10 @@
       "destination": "/api/judge0"
     },
     {
+      "source": "/api/grade",
+      "destination": "/api/grade"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }

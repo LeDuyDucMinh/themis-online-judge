@@ -1659,53 +1659,93 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     const hasRealContent = (tests?: TestCase[] | null) =>
       Boolean(tests && tests.length > 0 && tests.some((t) => (t.input && t.input.trim().length > 0) || (t.expectedOutput && t.expectedOutput.trim().length > 0)));
 
-    if (!hasRealContent(problem.testCases)) {
-      // 1. Thử lấy từ IndexedDB
-      let savedTests = await idbService.getTestCases(problem.id);
-      // 2. Nếu IndexedDB không có hoặc chỉ chứa test rỗng, bắt buộc nạp ngay từ Cloud
-      if (!hasRealContent(savedTests)) {
-        savedTests = await apiService.fetchTestCases(problem.id);
+    let submission: Submission | null = null;
+    const targetUserId = isAdminAuthenticated ? 'admin_faminh' : (currentStudent?.id || currentStudent?.username || 'student_01');
+    const targetUserName = isAdminAuthenticated ? 'Giáo viên FAMINH' : (currentStudent?.fullName || 'Học sinh');
+    const targetClassId = activeClassId || (problem.classId !== 'class_default_faminh' ? problem.classId : undefined);
+
+    // ƯU TIÊN #1: CHẤM BẢO MẬT PHÍA SERVER (SERVER-SIDE GRADING QUA /api/grade)
+    // Giữ bí mật 100% Test Case ẩn: học sinh không thể mở Network hay Console để xem trộm input/output test
+    if (typeof window !== 'undefined' && window.location.protocol.startsWith('http')) {
+      try {
+        const gradeRes = await fetch('/api/grade', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Themis-Client': 'themis-web-oj',
+            ...apiService.getAntiCacheHeaders(),
+          },
+          body: JSON.stringify({
+            problemId: problem.id,
+            code,
+            language,
+            userId: targetUserId,
+            userName: targetUserName,
+            classId: targetClassId,
+          }),
+        });
+
+        if (gradeRes.ok) {
+          const serverSub = await gradeRes.json();
+          if (serverSub && serverSub.id) {
+            submission = serverSub as Submission;
+          }
+        }
+      } catch (serverErr) {
+        console.warn('[Server-side Grading Fallback]:', serverErr);
       }
-      if (hasRealContent(savedTests)) {
-        problem = { ...problem, testCases: savedTests! };
-        setProblems((prev) =>
-          prev.map((p) => (p.id === problemId ? { ...p, testCases: savedTests! } : p))
+    }
+
+    // NẾU SERVER-SIDE GRADING CHƯA KHẢ DỤNG (HOẶC LOCAL/OFFLINE), TỰ ĐỘNG DỰ PHÒNG VỀ CLIENT-SIDE GRADING
+    if (!submission) {
+      if (!hasRealContent(problem.testCases)) {
+        // 1. Thử lấy từ IndexedDB
+        let savedTests = await idbService.getTestCases(problem.id);
+        // 2. Nếu IndexedDB không có hoặc chỉ chứa test rỗng, bắt buộc nạp ngay từ Cloud
+        if (!hasRealContent(savedTests)) {
+          savedTests = await apiService.fetchTestCases(problem.id);
+        }
+        if (hasRealContent(savedTests)) {
+          problem = { ...problem, testCases: savedTests! };
+          setProblems((prev) =>
+            prev.map((p) => (p.id === problemId ? { ...p, testCases: savedTests! } : p))
+          );
+        }
+      }
+
+      // Bảo vệ tuyệt đối: Nếu bài tập chưa có test case có dữ liệu thật, không bao giờ chấm lụi thành đúng hết
+      if (!hasRealContent(problem.testCases)) {
+        throw new Error(
+          'Bài tập này chưa có dữ liệu Test Case thực tế (Input/Output) để chấm điểm. Vui lòng thông báo Giáo viên nạp bộ test case trước khi nộp bài!'
         );
       }
-    }
 
-    // Bảo vệ tuyệt đối: Nếu bài tập chưa có test case có dữ liệu thật, không bao giờ chấm lụi thành đúng hết
-    if (!hasRealContent(problem.testCases)) {
-      throw new Error(
-        'Bài tập này chưa có dữ liệu Test Case thực tế (Input/Output) để chấm điểm. Vui lòng thông báo Giáo viên nạp bộ test case trước khi nộp bài!'
+      submission = await gradeSubmission(
+        problem,
+        code,
+        language,
+        targetUserId,
+        targetUserName,
+        onProgress
       );
+      submission.classId = targetClassId;
+
+      // Lưu bài nộp vào Database khi chấm tại client
+      try {
+        await apiService.saveSubmission(submission);
+      } catch (err: unknown) {
+        const msg = (err as Error)?.message || 'Lỗi lưu bài nộp vào Database';
+        console.error('[submitCode] Lỗi lưu Database:', err);
+        showToast('Lỗi lưu Database', `Không thể lưu kết quả nộp bài: ${msg}`, 'error');
+        throw new Error(`Lỗi lưu Database: ${msg}`);
+      }
     }
 
-    const submission = await gradeSubmission(
-      problem,
-      code,
-      language,
-      isAdminAuthenticated ? 'admin_faminh' : (currentStudent?.id || currentStudent?.username || 'student_01'),
-      isAdminAuthenticated ? 'Giáo viên FAMINH' : (currentStudent?.fullName || 'Học sinh'),
-      onProgress
-    );
+    // Lưu vào bộ nhớ cục bộ để xem lại lịch sử
+    await storageService.saveSubmission(submission);
 
-    // Gắn classId cho bài nộp để dễ dàng lọc bảng điểm theo lớp
-    submission.classId = activeClassId || (problem.classId !== 'class_default_faminh' ? problem.classId : undefined);
-
-    // 1. BẮT BUỘC AWAIT ĐỂ LƯU THÀNH CÔNG SUBMISSION VÀO DATABASE THỰC TẾ TRƯỚC
-    try {
-      await apiService.saveSubmission(submission);
-      await storageService.saveSubmission(submission);
-    } catch (err: unknown) {
-      const msg = (err as Error)?.message || 'Lỗi lưu bài nộp vào Database';
-      console.error('[submitCode] Lỗi lưu Database:', err);
-      showToast('Lỗi lưu Database', `Không thể lưu kết quả nộp bài: ${msg}`, 'error');
-      throw new Error(`Lỗi lưu Database: ${msg}`);
-    }
-
-    // 2. CHỈ SAU KHI LƯU DB THÀNH CÔNG THÌ MỚI CẬP NHẬT STATE SUBMISSIONS VÀO REACT
-    setSubmissions((prev) => [submission, ...prev]);
+    // CẬP NHẬT STATE SUBMISSIONS VÀO REACT
+    setSubmissions((prev) => [submission!, ...prev]);
 
 
     if (submission.passedCount === submission.totalTests && submission.totalTests > 0) {
