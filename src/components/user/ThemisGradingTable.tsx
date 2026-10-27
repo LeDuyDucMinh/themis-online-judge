@@ -63,28 +63,42 @@ export const ThemisGradingTable: React.FC<ThemisGradingTableProps> = ({
     const displayTotal = Math.max(totalTestsToRun || 0, currentRunningIndex);
     const percent = displayTotal > 0 ? Math.round((currentRunningIndex / displayTotal) * 100) : 0;
     return (
-      <div className="bg-[#0d121d] border border-red-500/30 rounded-2xl p-6 text-white shadow-xl animate-pulse">
+      <div className={`rounded-2xl p-6 shadow-xl animate-pulse border ${
+        theme === 'light'
+          ? 'bg-white border-red-300 text-slate-900 shadow-slate-200/50'
+          : 'bg-[#0d121d] border-red-500/30 text-white'
+      }`}>
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-red-500/15 border border-red-500/30 flex items-center justify-center">
-              <Cpu className="w-5 h-5 text-red-400 animate-spin" />
+            <div className={`w-9 h-9 rounded-xl flex items-center justify-center border ${
+              theme === 'light'
+                ? 'bg-red-50 border-red-200 text-red-600'
+                : 'bg-red-500/15 border-red-500/30 text-red-400'
+            }`}>
+              <Cpu className={`w-5 h-5 animate-spin ${theme === 'light' ? 'text-red-600' : 'text-red-400'}`} />
             </div>
             <div>
-              <h4 className="font-bold text-base text-red-400">
+              <h4 className={`font-bold text-base ${theme === 'light' ? 'text-red-600' : 'text-red-400'}`}>
                 Đang chấm bài theo cơ chế Themis...
               </h4>
-              <p className="text-xs text-slate-400">
+              <p className={`text-xs ${theme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>
                 Đang thực thi Test #{currentRunningIndex} / {displayTotal}
               </p>
             </div>
           </div>
-          <span className="font-mono text-sm font-semibold text-red-400 bg-red-500/10 px-3 py-1 rounded-full border border-red-500/20">
+          <span className={`font-mono text-sm font-semibold px-3 py-1 rounded-full border ${
+            theme === 'light'
+              ? 'text-red-600 bg-red-50 border-red-200'
+              : 'text-red-400 bg-red-500/10 border-red-500/20'
+          }`}>
             {percent}% Hoàn tất
           </span>
         </div>
 
         {/* Progress Bar */}
-        <div className="w-full bg-slate-950 rounded-full h-3 overflow-hidden border border-slate-800">
+        <div className={`w-full rounded-full h-3 overflow-hidden border ${
+          theme === 'light' ? 'bg-slate-100 border-slate-200' : 'bg-slate-950 border-slate-800'
+        }`}>
           <div
             className="bg-gradient-to-r from-red-600 to-rose-500 h-full transition-all duration-200"
             style={{ width: `${percent}%` }}
@@ -96,10 +110,16 @@ export const ThemisGradingTable: React.FC<ThemisGradingTableProps> = ({
 
   if (!submission) {
     return (
-      <div className="bg-slate-900/50 border border-dashed border-slate-800 rounded-2xl p-8 text-center text-slate-400">
-        <Layers className="w-10 h-10 mx-auto text-slate-600 mb-2" />
-        <h5 className="font-semibold text-sm text-slate-300">Chưa có kết quả chấm bài</h5>
-        <p className="text-xs text-slate-500 mt-1">
+      <div className={`rounded-2xl p-8 text-center border border-dashed ${
+        theme === 'light'
+          ? 'bg-white border-slate-200 text-slate-500'
+          : 'bg-slate-900/50 border-slate-800 text-slate-400'
+      }`}>
+        <Layers className={`w-10 h-10 mx-auto mb-2 ${theme === 'light' ? 'text-slate-400' : 'text-slate-600'}`} />
+        <h5 className={`font-semibold text-sm ${theme === 'light' ? 'text-slate-900' : 'text-slate-300'}`}>
+          Chưa có kết quả chấm bài
+        </h5>
+        <p className={`text-xs mt-1 ${theme === 'light' ? 'text-slate-500' : 'text-slate-500'}`}>
           Soạn thảo hoặc dán code của bạn ở khung bên phải và nhấn nút <b>"Nộp bài (Chấm điểm)"</b>.
         </p>
       </div>

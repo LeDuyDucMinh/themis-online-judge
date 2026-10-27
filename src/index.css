@@ -157,6 +157,43 @@ html.light .border-slate-700\/40 {
   border-color: #e2e8f0 !important;
 }
 
+/* Card và Containers tùy biến nền tối trong chế độ sáng */
+html.light .bg-\[\#0d121d\],
+html.light [class*="bg-[#0d121d]"],
+html.light .bg-\[\#0a0d14\],
+html.light [class*="bg-[#0a0d14]"],
+html.light .bg-\[\#07090e\],
+html.light [class*="bg-[#07090e]"],
+html[data-theme="light"] .bg-\[\#0d121d\],
+html[data-theme="light"] [class*="bg-[#0d121d]"],
+html[data-theme="light"] .bg-\[\#0a0d14\],
+html[data-theme="light"] [class*="bg-[#0a0d14]"],
+html[data-theme="light"] .bg-\[\#07090e\],
+html[data-theme="light"] [class*="bg-[#07090e]"] {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+}
+
+html.light [class*="bg-[#0d121d]"] h1,
+html.light [class*="bg-[#0d121d]"] h2,
+html.light [class*="bg-[#0d121d]"] h3,
+html.light [class*="bg-[#0d121d]"] h4,
+html.light [class*="bg-[#0d121d]"] h5,
+html.light [class*="bg-[#0d121d]"] h6,
+html[data-theme="light"] [class*="bg-[#0d121d]"] h1,
+html[data-theme="light"] [class*="bg-[#0d121d]"] h2,
+html[data-theme="light"] [class*="bg-[#0d121d]"] h3,
+html[data-theme="light"] [class*="bg-[#0d121d]"] h4,
+html[data-theme="light"] [class*="bg-[#0d121d]"] h5,
+html[data-theme="light"] [class*="bg-[#0d121d]"] h6 {
+  color: #0f172a !important;
+}
+
+html.light [class*="bg-[#0d121d]"] p,
+html[data-theme="light"] [class*="bg-[#0d121d]"] p {
+  color: #475569 !important;
+}
+
 /* ====================================================
    FIX ẢNH 1: HERO BANNER TRANG CHỦ ĐỀ
    ==================================================== */

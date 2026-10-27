@@ -214,15 +214,23 @@ export const ProblemView: React.FC<ProblemViewProps> = ({ problem, onBackToList 
         <div className="flex items-center gap-2 text-xs">
           <button
             onClick={onBackToList}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white font-semibold transition-all border border-slate-800 cursor-pointer"
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-semibold transition-all border cursor-pointer ${
+              theme === 'light'
+                ? 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200 shadow-sm'
+                : 'bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border-slate-800'
+            }`}
           >
             <ArrowLeft className="w-4 h-4 text-red-500" />
             <span>{activeClass ? `Lớp ${activeClass.className}` : 'Danh sách bài tập'}</span>
           </button>
           {activeClass && (
             <>
-              <span className="text-slate-600">/</span>
-              <span className="font-mono font-bold text-red-400 bg-red-500/10 px-2 py-0.5 rounded-lg border border-red-500/20">
+              <span className={theme === 'light' ? 'text-slate-400' : 'text-slate-600'}>/</span>
+              <span className={`font-mono font-bold px-2 py-0.5 rounded-lg border ${
+                theme === 'light'
+                  ? 'text-red-600 bg-red-50 border-red-200'
+                  : 'text-red-400 bg-red-500/10 border-red-500/20'
+              }`}>
                 {problem.code}
               </span>
             </>
@@ -230,13 +238,19 @@ export const ProblemView: React.FC<ProblemViewProps> = ({ problem, onBackToList 
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="text-xs text-slate-400">Độ khó:</span>
+          <span className={`text-xs ${theme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>Độ khó:</span>
           <span
             className={`px-3 py-1 rounded-full text-xs font-bold ${
               problem.difficulty === 'Dễ'
-                ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                ? theme === 'light'
+                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                  : 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
                 : problem.difficulty === 'Trung bình'
-                ? 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
+                ? theme === 'light'
+                  ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                  : 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
+                : theme === 'light'
+                ? 'bg-rose-50 text-rose-700 border border-rose-200'
                 : 'bg-rose-500/15 text-rose-400 border border-rose-500/30'
             }`}
           >
@@ -248,27 +262,41 @@ export const ProblemView: React.FC<ProblemViewProps> = ({ problem, onBackToList 
       {/* Layout: Đề bài ở TRÊN, Phần nộp bài ở DƯỚI */}
       <div className="flex flex-col space-y-8">
         {/* SECTION 1 (TRÊN): KHU VỰC ĐỀ BÀI CHI TIẾT */}
-        <section className="bg-[#0d121d] border border-slate-800/90 rounded-3xl p-6 sm:p-8 shadow-2xl space-y-6">
+        <section className={`rounded-3xl p-6 sm:p-8 shadow-2xl space-y-6 border ${
+          theme === 'light'
+            ? 'bg-white border-slate-200 shadow-slate-200/50'
+            : 'bg-[#0d121d] border-slate-800/90'
+        }`}>
           {/* Header Đề Bài */}
-          <div className="border-b border-slate-800 pb-5">
+          <div className={`border-b pb-5 ${theme === 'light' ? 'border-slate-100' : 'border-slate-800'}`}>
             <div className="flex flex-wrap items-center justify-between gap-3 mb-2">
               <div className="flex items-center gap-2">
-                <span className="font-mono text-xs font-bold px-3 py-1 rounded-xl bg-red-500/15 text-red-400 border border-red-500/30">
+                <span className={`font-mono text-xs font-bold px-3 py-1 rounded-xl border ${
+                  theme === 'light'
+                    ? 'bg-red-50 text-red-600 border-red-200'
+                    : 'bg-red-500/15 text-red-400 border-red-500/30'
+                }`}>
                   {problem.code}
                 </span>
-                <span className="text-xs text-slate-400">
-                  Tác giả / Nguồn đề: <b className="text-slate-200">{problem.author || 'FAMINH Judge'}</b>
+                <span className={`text-xs ${theme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>
+                  Tác giả / Nguồn đề: <b className={theme === 'light' ? 'text-slate-800' : 'text-slate-200'}>{problem.author || 'FAMINH Judge'}</b>
                 </span>
               </div>
 
               <div className="flex items-center gap-2">
-                <span className="text-xs text-slate-400">Độ khó:</span>
+                <span className={`text-xs ${theme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>Độ khó:</span>
                 <span
                   className={`px-3 py-0.5 rounded-full text-xs font-bold ${
                     problem.difficulty === 'Dễ'
-                      ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                      ? theme === 'light'
+                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                        : 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
                       : problem.difficulty === 'Trung bình'
-                      ? 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
+                      ? theme === 'light'
+                        ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                        : 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
+                      : theme === 'light'
+                      ? 'bg-rose-50 text-rose-700 border border-rose-200'
                       : 'bg-rose-500/15 text-rose-400 border border-rose-500/30'
                   }`}
                 >
@@ -277,27 +305,39 @@ export const ProblemView: React.FC<ProblemViewProps> = ({ problem, onBackToList 
               </div>
             </div>
 
-            <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+            <h1 className={`text-2xl sm:text-3xl font-black tracking-tight ${
+              theme === 'light' ? 'text-slate-900' : 'text-white'
+            }`}>
               {problem.title}
             </h1>
           </div>
 
           {/* Attached Document File View or Description */}
           {problem.attachedFile ? (
-            <div className="border-t border-slate-800 pt-5 space-y-4">
-              <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-slate-800/80 rounded-2xl border border-slate-700/60">
+            <div className={`border-t pt-5 space-y-4 ${theme === 'light' ? 'border-slate-100' : 'border-slate-800'}`}>
+              <div className={`flex flex-wrap items-center justify-between gap-3 p-3 rounded-2xl border ${
+                theme === 'light'
+                  ? 'bg-slate-50 border-slate-200'
+                  : 'bg-slate-800/80 border-slate-700/60'
+              }`}>
                 <div className="flex items-center gap-2">
                   <span className="px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 bg-red-600 text-white shadow-md shadow-red-600/30">
                     <FileText className="w-4 h-4" /> Đề bài gốc ({problem.attachedFile.type.toUpperCase()})
                   </span>
-                  <span className="text-xs text-slate-300 font-medium hidden sm:inline">
+                  <span className={`text-xs font-medium hidden sm:inline ${
+                    theme === 'light' ? 'text-slate-700' : 'text-slate-300'
+                  }`}>
                     {problem.attachedFile.name}
                   </span>
                 </div>
 
                 <button
                   onClick={handleDownloadAttached}
-                  className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-700 text-red-400 hover:text-red-300 text-xs font-semibold border border-slate-700 transition-colors shadow-sm cursor-pointer"
+                  className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-colors shadow-sm cursor-pointer border ${
+                    theme === 'light'
+                      ? 'bg-white hover:bg-slate-100 text-red-600 border-slate-200'
+                      : 'bg-slate-900 hover:bg-slate-700 text-red-400 hover:text-red-300 border-slate-700'
+                  }`}
                   title="Tải file đề bài gốc về máy tính"
                 >
                   <Download className="w-4 h-4" />
@@ -305,22 +345,34 @@ export const ProblemView: React.FC<ProblemViewProps> = ({ problem, onBackToList 
                 </button>
               </div>
 
-              <div className="bg-slate-950 border border-slate-800 rounded-2xl p-6 overflow-x-auto space-y-4">
-                <div className="flex items-center gap-2 pb-3 border-b border-slate-800 text-xs text-slate-400">
-                  <Paperclip className="w-4 h-4 text-red-400" />
+              <div className={`border rounded-2xl p-6 overflow-x-auto space-y-4 ${
+                theme === 'light'
+                  ? 'bg-slate-50/70 border-slate-200'
+                  : 'bg-slate-950 border-slate-800'
+              }`}>
+                <div className={`flex items-center gap-2 pb-3 border-b text-xs ${
+                  theme === 'light' ? 'border-slate-200 text-slate-600' : 'border-slate-800 text-slate-400'
+                }`}>
+                  <Paperclip className="w-4 h-4 text-red-500" />
                   <span>Tài liệu đề thi: <b>{problem.attachedFile.name}</b> (Hiển thị nguyên bản)</span>
                 </div>
 
                 {problem.attachedFile.type === 'docx' && problem.attachedFile.rawHtml ? (
                   <div
-                    className="prose prose-invert max-w-none text-slate-200 leading-relaxed font-sans [&_table]:border-collapse [&_table]:w-full [&_table]:my-4 [&_td]:border [&_td]:border-slate-700 [&_td]:p-3 [&_th]:border [&_th]:border-slate-700 [&_th]:p-3 [&_th]:bg-slate-800 [&_h1]:text-xl [&_h1]:font-bold [&_h1]:text-white [&_h2]:text-lg [&_h2]:font-bold [&_h2]:text-white [&_p]:my-2"
+                    className={`${
+                      theme === 'light'
+                        ? 'prose max-w-none text-slate-800 leading-relaxed font-sans [&_table]:border-collapse [&_table]:w-full [&_table]:my-4 [&_td]:border [&_td]:border-slate-300 [&_td]:p-3 [&_th]:border [&_th]:border-slate-300 [&_th]:p-3 [&_th]:bg-slate-100 [&_h1]:text-xl [&_h1]:font-bold [&_h1]:text-slate-900 [&_h2]:text-lg [&_h2]:font-bold [&_h2]:text-slate-900 [&_p]:my-2'
+                        : 'prose prose-invert max-w-none text-slate-200 leading-relaxed font-sans [&_table]:border-collapse [&_table]:w-full [&_table]:my-4 [&_td]:border [&_td]:border-slate-700 [&_td]:p-3 [&_th]:border [&_th]:border-slate-700 [&_th]:p-3 [&_th]:bg-slate-800 [&_h1]:text-xl [&_h1]:font-bold [&_h1]:text-white [&_h2]:text-lg [&_h2]:font-bold [&_h2]:text-white [&_p]:my-2'
+                    }`}
                     dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(problem.attachedFile.rawHtml) }}
                   />
                 ) : problem.attachedFile.type === 'pdf' && problem.attachedFile.dataUrl ? (
                   <iframe
                     src={problem.attachedFile.dataUrl}
                     title={problem.attachedFile.name}
-                    className="w-full h-[650px] rounded-xl border border-slate-800 bg-black"
+                    className={`w-full h-[650px] rounded-xl border ${
+                      theme === 'light' ? 'border-slate-300 bg-white' : 'border-slate-800 bg-black'
+                    }`}
                   />
                 ) : (
                   <MathRenderer content={problem.description} />
@@ -329,17 +381,19 @@ export const ProblemView: React.FC<ProblemViewProps> = ({ problem, onBackToList 
             </div>
           ) : (
             /* Description with LaTeX */
-            <div className="border-t border-slate-800 pt-5 text-sm leading-relaxed text-slate-200">
+            <div className={`border-t pt-5 text-sm leading-relaxed ${
+              theme === 'light' ? 'border-slate-100 text-slate-800' : 'border-slate-800 text-slate-200'
+            }`}>
               <MathRenderer content={problem.description} />
             </div>
           )}
 
           {/* Bảng Ví dụ (Sample Input / Sample Output) */}
           {problem.samples && problem.samples.length > 0 && (
-            <div className="border-t border-slate-800 pt-6 space-y-4">
+            <div className={`border-t pt-6 space-y-4 ${theme === 'light' ? 'border-slate-100' : 'border-slate-800'}`}>
               <div className="flex items-center gap-2">
                 <span className="w-1.5 h-4 bg-red-600 rounded-full inline-block"></span>
-                <h3 className="text-base font-bold text-white tracking-wide">
+                <h3 className={`text-base font-bold tracking-wide ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>
                   Ví dụ (Sample Test)
                 </h3>
               </div>
@@ -473,7 +527,11 @@ export const ProblemView: React.FC<ProblemViewProps> = ({ problem, onBackToList 
 
         {/* SECTION 2 (DƯỚI): KHU VỰC NỘP BÀI & TRÌNH BIÊN DỊCH CODE */}
         <section className="space-y-6">
-          <div className="bg-[#0d121d] border border-slate-800/90 rounded-3xl overflow-hidden shadow-2xl">
+          <div className={`rounded-3xl overflow-hidden shadow-2xl border ${
+            theme === 'light'
+              ? 'bg-white border-slate-200 shadow-slate-200/50'
+              : 'bg-[#0d121d] border-slate-800/90'
+          }`}>
             {/* Editor Toolbar */}
             <div className={`p-4 border-b flex flex-wrap items-center justify-between gap-3 ${
               theme === 'light' ? 'bg-slate-100 border-slate-200' : 'bg-slate-950 border-slate-800'

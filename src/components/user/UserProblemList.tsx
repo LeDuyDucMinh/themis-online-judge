@@ -35,6 +35,7 @@ export const UserProblemList: React.FC<UserProblemListProps> = ({ onSelectProble
     activeClassId,
     activeClass,
     setActiveClassId,
+    theme,
   } = useJudge();
 
   // State điều hướng: activeTopicId === null là trang chủ đề, !== null là trang danh sách bài của chủ đề đó
@@ -123,32 +124,50 @@ export const UserProblemList: React.FC<UserProblemListProps> = ({ onSelectProble
       <div
         key={prob.id}
         onClick={() => onSelectProblem(prob)}
-        className="group cursor-pointer bg-[#0d121d] border border-slate-800/80 hover:border-red-500/40 hover:bg-slate-800/60 rounded-2xl p-4 sm:p-5 transition-all shadow-md flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+        className={`group cursor-pointer rounded-2xl p-4 sm:p-5 transition-all shadow-md flex flex-col sm:flex-row sm:items-center justify-between gap-4 border ${
+          theme === 'light'
+            ? 'bg-white border-slate-200 hover:border-red-400 hover:shadow-lg'
+            : 'bg-[#0d121d] border-slate-800/80 hover:border-red-500/40 hover:bg-slate-800/60'
+        }`}
       >
         {/* Cột Trái: Thứ tự, Trạng thái, Mã bài, Tiêu đề, Tác giả */}
         <div className="flex items-start sm:items-center gap-4">
           {/* STT và Icon trạng thái */}
           <div className="flex items-center gap-2.5 shrink-0">
-            <span className="font-mono text-xs font-bold text-slate-500 w-5 text-center">
+            <span className={`font-mono text-xs font-bold w-5 text-center ${
+              theme === 'light' ? 'text-slate-400' : 'text-slate-500'
+            }`}>
               #{index + 1}
             </span>
             {status === 'SOLVED' ? (
               <div
-                className="w-10 h-10 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 flex items-center justify-center shadow-sm"
+                className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-sm border ${
+                  theme === 'light'
+                    ? 'bg-emerald-50 border-emerald-200 text-emerald-600'
+                    : 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400'
+                }`}
                 title="Đã giải đúng 100% (Full AC)"
               >
                 <CheckCircle2 className="w-5 h-5" />
               </div>
             ) : status === 'PARTIAL' ? (
               <div
-                className="w-10 h-10 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-400 flex items-center justify-center font-bold text-xs shadow-sm"
+                className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-xs shadow-sm border ${
+                  theme === 'light'
+                    ? 'bg-amber-50 border-amber-200 text-amber-700'
+                    : 'bg-amber-500/15 border-amber-500/30 text-amber-400'
+                }`}
                 title={`Đang làm dở: ${userScore}/${prob.totalPoints}đ`}
               >
                 {userScore}đ
               </div>
             ) : (
               <div
-                className="w-10 h-10 rounded-xl bg-slate-950 border border-slate-800 text-slate-500 flex items-center justify-center"
+                className={`w-10 h-10 rounded-xl flex items-center justify-center border ${
+                  theme === 'light'
+                    ? 'bg-slate-100 border-slate-200 text-slate-400'
+                    : 'bg-slate-950 border-slate-800 text-slate-500'
+                }`}
                 title="Chưa nộp bài"
               >
                 <Clock className="w-4 h-4" />
@@ -158,26 +177,36 @@ export const UserProblemList: React.FC<UserProblemListProps> = ({ onSelectProble
 
           <div>
             <div className="flex flex-wrap items-center gap-2 mb-1.5">
-              <span className="font-mono text-xs font-bold text-red-400 bg-red-500/10 px-2.5 py-0.5 rounded-lg border border-red-500/20">
+              <span className={`font-mono text-xs font-bold px-2.5 py-0.5 rounded-lg border ${
+                theme === 'light'
+                  ? 'text-red-600 bg-red-50 border-red-200'
+                  : 'text-red-400 bg-red-500/10 border-red-500/20'
+              }`}>
                 {prob.code}
               </span>
-              <h4 className="font-bold text-sm sm:text-base text-slate-900 dark:text-white group-hover:text-red-400 transition-colors">
+              <h4 className={`font-bold text-sm sm:text-base group-hover:text-red-500 transition-colors ${
+                theme === 'light' ? 'text-slate-900' : 'text-white'
+              }`}>
                 {prob.title}
               </h4>
             </div>
 
-            <div className="flex flex-wrap items-center gap-3 text-xs text-slate-600 dark:text-slate-400">
+            <div className={`flex flex-wrap items-center gap-3 text-xs ${
+              theme === 'light' ? 'text-slate-600' : 'text-slate-400'
+            }`}>
               <span className="flex items-center gap-1">
-                <User className="w-3.5 h-3.5 text-slate-500" />
-                <span>{prob.author || 'FAMINH Judge'}</span>
+                <User className={`w-3.5 h-3.5 ${theme === 'light' ? 'text-slate-400' : 'text-slate-500'}`} />
+                <span className={theme === 'light' ? 'text-slate-700 font-medium' : 'text-slate-300'}>
+                  {prob.author || 'FAMINH Judge'}
+                </span>
               </span>
               <span>•</span>
               <span className="flex items-center gap-1 font-mono">
-                <Clock className="w-3.5 h-3.5 text-red-400" /> {prob.timeLimit}s
+                <Clock className={`w-3.5 h-3.5 ${theme === 'light' ? 'text-red-600' : 'text-red-400'}`} /> {prob.timeLimit}s
               </span>
               <span>•</span>
               <span className="flex items-center gap-1 font-mono">
-                <HardDrive className="w-3.5 h-3.5 text-slate-400" /> {prob.memoryLimit}MB
+                <HardDrive className={`w-3.5 h-3.5 ${theme === 'light' ? 'text-slate-400' : 'text-slate-400'}`} /> {prob.memoryLimit}MB
               </span>
               <span>•</span>
               <span className="flex items-center gap-1 font-mono text-amber-500">
@@ -188,15 +217,23 @@ export const UserProblemList: React.FC<UserProblemListProps> = ({ onSelectProble
         </div>
 
         {/* Cột Phải: Độ khó, Kết quả điểm số, Nút làm bài */}
-        <div className="flex items-center justify-between sm:justify-end gap-4 shrink-0 border-t sm:border-t-0 pt-3 sm:pt-0 border-slate-800">
+        <div className={`flex items-center justify-between sm:justify-end gap-4 shrink-0 border-t sm:border-t-0 pt-3 sm:pt-0 ${
+          theme === 'light' ? 'border-slate-100' : 'border-slate-800'
+        }`}>
           <div className="flex items-center gap-3">
             {/* Badge Độ khó */}
             <span
               className={`px-3 py-1 rounded-full text-xs font-bold ${
                 prob.difficulty === 'Dễ'
-                  ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                  ? theme === 'light'
+                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                    : 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
                   : prob.difficulty === 'Trung bình'
-                  ? 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
+                  ? theme === 'light'
+                    ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                    : 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
+                  : theme === 'light'
+                  ? 'bg-rose-50 text-rose-700 border border-rose-200'
                   : 'bg-rose-500/15 text-rose-400 border border-rose-500/30'
               }`}
             >
@@ -206,17 +243,29 @@ export const UserProblemList: React.FC<UserProblemListProps> = ({ onSelectProble
             {/* Điểm học sinh đạt được */}
             <div className="text-right">
               {status === 'SOLVED' ? (
-                <span className="inline-flex items-center gap-1.5 text-xs font-bold font-mono text-emerald-400 bg-emerald-500/15 px-3 py-1 rounded-xl border border-emerald-500/30 shadow-sm">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                <span className={`inline-flex items-center gap-1.5 text-xs font-bold font-mono px-3 py-1 rounded-xl border shadow-sm ${
+                  theme === 'light'
+                    ? 'text-emerald-700 bg-emerald-50 border-emerald-200'
+                    : 'text-emerald-400 bg-emerald-500/15 border-emerald-500/30'
+                }`}>
+                  <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
                   <span>{prob.totalPoints} / {prob.totalPoints} điểm - Đã hoàn thành</span>
                 </span>
               ) : status === 'PARTIAL' ? (
-                <span className="inline-flex items-center gap-1.5 text-xs font-bold font-mono text-amber-400 bg-amber-500/15 px-3 py-1 rounded-xl border border-amber-500/30 shadow-sm">
-                  <Clock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                <span className={`inline-flex items-center gap-1.5 text-xs font-bold font-mono px-3 py-1 rounded-xl border shadow-sm ${
+                  theme === 'light'
+                    ? 'text-amber-700 bg-amber-50 border-amber-200'
+                    : 'text-amber-400 bg-amber-500/15 border-amber-500/30'
+                }`}>
+                  <Clock className="w-3.5 h-3.5 shrink-0" />
                   <span>{userScore} / {prob.totalPoints} điểm - Đang làm</span>
                 </span>
               ) : (
-                <span className="inline-flex items-center gap-1.5 text-xs font-medium font-mono text-slate-400 bg-slate-950 px-3 py-1 rounded-xl border border-slate-800">
+                <span className={`inline-flex items-center gap-1.5 text-xs font-medium font-mono px-3 py-1 rounded-xl border ${
+                  theme === 'light'
+                    ? 'text-slate-600 bg-slate-100 border-slate-200'
+                    : 'text-slate-400 bg-slate-950 border-slate-800'
+                }`}>
                   <span>Chưa làm</span>
                 </span>
               )}
@@ -272,60 +321,88 @@ export const UserProblemList: React.FC<UserProblemListProps> = ({ onSelectProble
               setSelectedDifficulty('ALL');
               setStatusFilter('ALL');
             }}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white text-xs font-bold transition-all border border-slate-800 shadow-sm group cursor-pointer"
+            className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all border shadow-sm group cursor-pointer ${
+              theme === 'light'
+                ? 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200'
+                : 'bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border-slate-800'
+            }`}
           >
             <ArrowLeft className="w-4 h-4 text-red-500 group-hover:-translate-x-0.5 transition-transform" />
             <span>Quay lại tất cả chủ đề</span>
           </button>
 
-          <div className="text-xs text-slate-400 font-medium">
+          <div className={`text-xs font-medium ${theme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>
             <span>Danh mục chủ đề</span>
-            <span className="mx-2 text-slate-600">/</span>
-            <span className="text-red-400 font-bold">{currentTopic.name}</span>
+            <span className={`mx-2 ${theme === 'light' ? 'text-slate-400' : 'text-slate-600'}`}>/</span>
+            <span className={theme === 'light' ? 'text-red-600 font-bold' : 'text-red-400 font-bold'}>{currentTopic.name}</span>
           </div>
         </div>
 
         {/* Header Banner của Chủ Đề */}
-        <div className="bg-[#0d121d] border border-slate-800/90 rounded-3xl p-6 sm:p-8 shadow-2xl relative overflow-hidden">
+        <div className={`rounded-3xl p-6 sm:p-8 shadow-2xl relative overflow-hidden border ${
+          theme === 'light'
+            ? 'bg-gradient-to-r from-red-50/70 via-white to-slate-50 border-red-200/80 shadow-slate-200/50'
+            : 'bg-[#0d121d] border-slate-800/90 shadow-2xl'
+        }`}>
           {/* Subtle red ambient glow */}
-          <div className="absolute top-0 right-0 w-80 h-80 bg-red-600/10 rounded-full blur-3xl pointer-events-none -mr-10 -mt-10" />
+          <div className={`absolute top-0 right-0 w-80 h-80 rounded-full blur-3xl pointer-events-none -mr-10 -mt-10 ${
+            theme === 'light' ? 'bg-red-400/10' : 'bg-red-600/10'
+          }`} />
 
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
             <div className="space-y-2 max-w-2xl">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold bg-red-500/15 text-red-400 border border-red-500/20">
+              <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold border ${
+                theme === 'light'
+                  ? 'bg-red-100 text-red-700 border-red-200'
+                  : 'bg-red-500/15 text-red-400 border-red-500/20'
+              }`}>
                 <Layers className="w-3.5 h-3.5" />
                 Chủ đề luyện tập
               </div>
-              <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+              <h1 className={`text-2xl sm:text-3xl font-black tracking-tight ${
+                theme === 'light' ? 'text-slate-900' : 'text-white'
+              }`}>
                 {currentTopic.name}
               </h1>
-              <p className="text-slate-400 text-xs sm:text-sm leading-relaxed">
+              <p className={`text-xs sm:text-sm leading-relaxed ${
+                theme === 'light' ? 'text-slate-600' : 'text-slate-400'
+              }`}>
                 {currentTopic.description || 'Chưa có mô tả cho chủ đề này.'}
               </p>
             </div>
 
             {/* Tiến độ trong chủ đề này */}
-            <div className="bg-slate-950/80 border border-slate-800 p-5 rounded-2xl min-w-[260px] shadow-xl shrink-0">
-              <div className="flex items-center justify-between text-xs text-slate-300 mb-2">
+            <div className={`p-5 rounded-2xl min-w-[260px] shadow-xl shrink-0 border ${
+              theme === 'light'
+                ? 'bg-white border-slate-200 shadow-md'
+                : 'bg-slate-950/80 border border-slate-800'
+            }`}>
+              <div className={`flex items-center justify-between text-xs mb-2 ${
+                theme === 'light' ? 'text-slate-700' : 'text-slate-300'
+              }`}>
                 <span className="font-semibold flex items-center gap-1.5">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400" /> Tiến độ hoàn thành
+                  <CheckCircle2 className={`w-4 h-4 ${theme === 'light' ? 'text-emerald-600' : 'text-emerald-400'}`} /> Tiến độ hoàn thành
                 </span>
-                <span className="font-mono font-bold text-red-400 text-sm">
+                <span className={`font-mono font-bold text-sm ${theme === 'light' ? 'text-red-600' : 'text-red-400'}`}>
                   {progressPercent}%
                 </span>
               </div>
 
               {/* Progress bar */}
-              <div className="w-full bg-slate-900 rounded-full h-2.5 overflow-hidden border border-slate-800 mb-2">
+              <div className={`w-full rounded-full h-2.5 overflow-hidden border mb-2 ${
+                theme === 'light' ? 'bg-slate-100 border-slate-200' : 'bg-slate-900 border-slate-800'
+              }`}>
                 <div
                   className="bg-gradient-to-r from-red-600 to-rose-500 h-full transition-all duration-500 rounded-full"
                   style={{ width: `${progressPercent}%` }}
                 />
               </div>
 
-              <div className="flex items-center justify-between text-[11px] text-slate-400">
+              <div className={`flex items-center justify-between text-[11px] ${
+                theme === 'light' ? 'text-slate-500' : 'text-slate-400'
+              }`}>
                 <span>Số bài đã nộp đúng:</span>
-                <span className="font-mono font-bold text-emerald-400">
+                <span className={`font-mono font-bold ${theme === 'light' ? 'text-emerald-700' : 'text-emerald-400'}`}>
                   {solvedInTopic} / {totalInTopic} bài
                 </span>
               </div>
@@ -334,26 +411,42 @@ export const UserProblemList: React.FC<UserProblemListProps> = ({ onSelectProble
         </div>
 
         {/* Thanh Tìm kiếm & Lọc bài tập trong chủ đề */}
-        <div className="bg-[#0d121d] border border-slate-800/80 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-4 shadow-sm">
+        <div className={`rounded-2xl p-4 flex flex-wrap items-center justify-between gap-4 shadow-sm border ${
+          theme === 'light'
+            ? 'bg-white border-slate-200'
+            : 'bg-[#0d121d] border-slate-800/80'
+        }`}>
           <div className="flex-1 min-w-[240px] relative">
-            <Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
+            <Search className={`w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 ${
+              theme === 'light' ? 'text-slate-400' : 'text-slate-500'
+            }`} />
             <input
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder={`Tìm bài tập trong "${currentTopic.name}" theo tên, mã bài...`}
-              className="w-full pl-10 pr-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-red-500 transition-colors"
+              className={`w-full pl-10 pr-4 py-2.5 rounded-xl text-xs transition-colors border focus:outline-none focus:border-red-500 ${
+                theme === 'light'
+                  ? 'bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400'
+                  : 'bg-slate-950 border-slate-800 text-white placeholder-slate-500'
+              }`}
             />
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
             {/* Lọc theo độ khó */}
-            <div className="flex items-center gap-1.5 text-xs text-slate-400">
-              <Filter className="w-3.5 h-3.5 text-red-400" />
+            <div className={`flex items-center gap-1.5 text-xs ${
+              theme === 'light' ? 'text-slate-600' : 'text-slate-400'
+            }`}>
+              <Filter className={`w-3.5 h-3.5 ${theme === 'light' ? 'text-red-500' : 'text-red-400'}`} />
               <select
                 value={selectedDifficulty}
                 onChange={(e) => setSelectedDifficulty(e.target.value)}
-                className="bg-slate-950 border border-slate-800 text-slate-200 text-xs rounded-xl px-3 py-2 focus:outline-none focus:border-red-500 font-medium"
+                className={`text-xs rounded-xl px-3 py-2 focus:outline-none focus:border-red-500 font-medium border ${
+                  theme === 'light'
+                    ? 'bg-slate-50 border-slate-200 text-slate-800'
+                    : 'bg-slate-950 border-slate-800 text-slate-200'
+                }`}
               >
                 <option value="ALL">Tất cả độ khó</option>
                 <option value="Dễ">Dễ</option>
@@ -367,7 +460,11 @@ export const UserProblemList: React.FC<UserProblemListProps> = ({ onSelectProble
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value as 'ALL' | 'SOLVED' | 'UNSOLVED')}
-              className="bg-slate-950 border border-slate-800 text-slate-200 text-xs rounded-xl px-3 py-2 focus:outline-none focus:border-red-500 font-medium"
+              className={`text-xs rounded-xl px-3 py-2 focus:outline-none focus:border-red-500 font-medium border ${
+                theme === 'light'
+                  ? 'bg-slate-50 border-slate-200 text-slate-800'
+                  : 'bg-slate-950 border-slate-800 text-slate-200'
+              }`}
             >
               <option value="ALL">Tất cả trạng thái</option>
               <option value="SOLVED">Đã hoàn thành (Full AC)</option>
@@ -379,9 +476,13 @@ export const UserProblemList: React.FC<UserProblemListProps> = ({ onSelectProble
         {/* Danh sách bài tập của chủ đề - Bố trí gọn gàng, khoa học */}
         <div className="space-y-3">
           {filteredProblems.length === 0 ? (
-            <div className="bg-[#0d121d] border border-slate-800 rounded-3xl p-12 text-center text-slate-400">
-              <Search className="w-12 h-12 mx-auto text-slate-600 mb-3" />
-              <h5 className="font-bold text-slate-200 text-base">
+            <div className={`rounded-3xl p-12 text-center border ${
+              theme === 'light'
+                ? 'bg-white border-slate-200 text-slate-500'
+                : 'bg-[#0d121d] border-slate-800 text-slate-400'
+            }`}>
+              <Search className={`w-12 h-12 mx-auto mb-3 ${theme === 'light' ? 'text-slate-400' : 'text-slate-600'}`} />
+              <h5 className={`font-bold text-base ${theme === 'light' ? 'text-slate-900' : 'text-slate-200'}`}>
                 {topicProblems.length === 0
                   ? 'Chủ đề này chưa có bài tập nào'
                   : 'Không tìm thấy bài tập phù hợp bộ lọc'}
@@ -471,15 +572,23 @@ export const UserProblemList: React.FC<UserProblemListProps> = ({ onSelectProble
         <div>
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h3 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              <h3 className={`text-xl font-bold flex items-center gap-2 ${
+                theme === 'light' ? 'text-slate-900' : 'text-white'
+              }`}>
                 <BookOpen className="w-5 h-5 text-red-500" />
                 <span>Chủ đề bài tập đã giao</span>
               </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+              <p className={`text-xs mt-0.5 ${
+                theme === 'light' ? 'text-slate-500' : 'text-slate-400'
+              }`}>
                 Chọn một ô chủ đề bên dưới để xem toàn bộ danh sách bài tập và bắt đầu làm bài
               </p>
             </div>
-            <span className="text-xs font-mono text-slate-700 dark:text-slate-400 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-3 py-1.5 rounded-xl shadow-sm">
+            <span className={`text-xs font-mono px-3 py-1.5 rounded-xl border shadow-sm ${
+              theme === 'light'
+                ? 'text-slate-700 bg-white border-slate-200'
+                : 'text-slate-400 bg-slate-950 border-slate-800'
+            }`}>
               {visibleTopics.length} chủ đề • {classScopedProblems.length} bài tập
             </span>
           </div>
@@ -500,40 +609,62 @@ export const UserProblemList: React.FC<UserProblemListProps> = ({ onSelectProble
                 <div
                   key={topic.id}
                   onClick={() => setActiveTopicId(topic.id)}
-                  className="cursor-pointer p-6 rounded-3xl border border-slate-800/80 bg-[#0d121d] hover:bg-slate-800/80 hover:border-red-500/50 transition-all duration-200 relative overflow-hidden group shadow-lg hover:shadow-2xl hover:shadow-red-500/10 flex flex-col justify-between"
+                  className={`cursor-pointer p-6 rounded-3xl transition-all duration-200 relative overflow-hidden group border flex flex-col justify-between ${
+                    theme === 'light'
+                      ? 'bg-white border-slate-200 hover:border-red-400 hover:shadow-xl shadow-md'
+                      : 'bg-[#0d121d] border-slate-800/80 hover:bg-slate-800/80 hover:border-red-500/50 shadow-lg hover:shadow-2xl hover:shadow-red-500/10'
+                  }`}
                 >
                   {/* Subtle red ambient on hover */}
-                  <div className="absolute top-0 right-0 w-32 h-32 bg-red-500/5 rounded-full blur-2xl -mr-10 -mt-10 pointer-events-none group-hover:bg-red-500/15 transition-colors" />
+                  <div className={`absolute top-0 right-0 w-32 h-32 rounded-full blur-2xl -mr-10 -mt-10 pointer-events-none transition-colors ${
+                    theme === 'light'
+                      ? 'bg-red-500/5 group-hover:bg-red-500/10'
+                      : 'bg-red-500/5 group-hover:bg-red-500/15'
+                  }`} />
 
                   <div className="relative z-10">
                     {/* Top: Icon và số lượng bài */}
                     <div className="flex items-start justify-between mb-4">
-                      <div className="w-12 h-12 rounded-2xl bg-red-500/15 border border-red-500/25 text-red-400 flex items-center justify-center font-bold group-hover:scale-105 group-hover:bg-red-600 group-hover:text-white transition-all shadow-sm">
+                      <div className="w-12 h-12 rounded-2xl bg-red-500/15 border border-red-500/25 text-red-500 dark:text-red-400 flex items-center justify-center font-bold group-hover:scale-105 group-hover:bg-red-600 group-hover:text-white transition-all shadow-sm">
                         <Layers className="w-6 h-6" />
                       </div>
-                      <span className="text-xs font-mono font-semibold px-2.5 py-1 rounded-lg bg-slate-950/80 text-slate-300 border border-slate-800">
+                      <span className={`text-xs font-mono font-semibold px-2.5 py-1 rounded-lg border ${
+                        theme === 'light'
+                          ? 'bg-slate-100 text-slate-700 border-slate-200'
+                          : 'bg-slate-950/80 text-slate-300 border-slate-800'
+                      }`}>
                         {solvedInTopic}/{topicProblems.length} bài
                       </span>
                     </div>
 
                     {/* Tên chủ đề & Mô tả */}
-                    <h4 className="font-extrabold text-lg text-slate-900 dark:text-white group-hover:text-red-400 transition-colors">
+                    <h4 className={`font-extrabold text-lg group-hover:text-red-500 transition-colors ${
+                      theme === 'light' ? 'text-slate-900' : 'text-white'
+                    }`}>
                       {topic.name}
                     </h4>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 line-clamp-2 leading-relaxed">
+                    <p className={`text-xs mt-2 line-clamp-2 leading-relaxed ${
+                      theme === 'light' ? 'text-slate-500' : 'text-slate-400'
+                    }`}>
                       {topic.description || 'Tuyển tập các bài tập rèn luyện tư duy thuật toán theo chủ đề.'}
                     </p>
                   </div>
 
                   {/* Bottom: Thanh tiến độ hoàn thành */}
-                  <div className="mt-6 pt-4 border-t border-slate-200 dark:border-slate-800/80 relative z-10">
-                    <div className="flex justify-between text-xs text-slate-600 dark:text-slate-400 mb-1.5 font-medium">
+                  <div className={`mt-6 pt-4 border-t relative z-10 ${
+                    theme === 'light' ? 'border-slate-100' : 'border-slate-800/80'
+                  }`}>
+                    <div className={`flex justify-between text-xs mb-1.5 font-medium ${
+                      theme === 'light' ? 'text-slate-600' : 'text-slate-400'
+                    }`}>
                       <span>Tiến độ hoàn thành</span>
-                      <span className="font-mono font-bold text-red-400">
+                      <span className={`font-mono font-bold ${theme === 'light' ? 'text-red-600' : 'text-red-400'}`}>
                         {progressPercent}%
                       </span>
                     </div>
-                    <div className="w-full bg-slate-950 rounded-full h-2 overflow-hidden border border-slate-800">
+                    <div className={`w-full rounded-full h-2 overflow-hidden border ${
+                      theme === 'light' ? 'bg-slate-100 border-slate-200' : 'bg-slate-950 border-slate-800'
+                    }`}>
                       <div
                         className="bg-gradient-to-r from-red-600 to-rose-500 h-full transition-all duration-300 rounded-full"
                         style={{ width: `${progressPercent}%` }}
@@ -541,7 +672,7 @@ export const UserProblemList: React.FC<UserProblemListProps> = ({ onSelectProble
                     </div>
 
                     {/* Call to action */}
-                    <div className="mt-4 flex items-center justify-between text-xs font-bold text-red-500 group-hover:text-red-400 transition-colors">
+                    <div className="mt-4 flex items-center justify-between text-xs font-bold text-red-500 group-hover:text-red-600 transition-colors">
                       <span>Vào làm bài chủ đề này</span>
                       <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                     </div>
@@ -555,18 +686,26 @@ export const UserProblemList: React.FC<UserProblemListProps> = ({ onSelectProble
 
       {/* Danh Sách Bài Tập Không Thuộc Chủ Đề Nào (Giao trực tiếp cho lớp) */}
       {unassignedProblems.length > 0 && (
-        <div className={`space-y-4 ${visibleTopics.length > 0 ? 'pt-6 border-t border-slate-200 dark:border-slate-800' : ''}`}>
+        <div className={`space-y-4 ${visibleTopics.length > 0 ? (theme === 'light' ? 'pt-6 border-t border-slate-200' : 'pt-6 border-t border-slate-800') : ''}`}>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h3 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              <h3 className={`text-xl font-bold flex items-center gap-2 ${
+                theme === 'light' ? 'text-slate-900' : 'text-white'
+              }`}>
                 <FileCode2 className="w-5 h-5 text-red-500" />
                 <span>Bài tập ngoài chủ đề</span>
               </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+              <p className={`text-xs mt-0.5 ${
+                theme === 'light' ? 'text-slate-500' : 'text-slate-400'
+              }`}>
                 Các bài tập được giáo viên giao trực tiếp cho lớp không nằm trong chủ đề nào
               </p>
             </div>
-            <span className="text-xs font-mono font-semibold text-red-400 bg-red-500/10 border border-red-500/20 px-3 py-1.5 rounded-xl shadow-sm">
+            <span className={`text-xs font-mono font-semibold px-3 py-1.5 rounded-xl border shadow-sm ${
+              theme === 'light'
+                ? 'text-red-600 bg-red-50 border-red-200'
+                : 'text-red-400 bg-red-500/10 border-red-500/20'
+            }`}>
               {unassignedProblems.length} bài tập
             </span>
           </div>
@@ -580,12 +719,24 @@ export const UserProblemList: React.FC<UserProblemListProps> = ({ onSelectProble
 
       {/* Trạng thái trống: Khi lớp học chưa có bất kỳ bài tập nào */}
       {visibleTopics.length === 0 && unassignedProblems.length === 0 && (
-        <div className="bg-[#0d121d] border border-slate-800 rounded-3xl p-12 text-center shadow-lg">
-          <div className="w-16 h-16 rounded-2xl bg-slate-950 border border-slate-800 text-slate-500 flex items-center justify-center mx-auto mb-4">
-            <Layers className="w-8 h-8 text-red-500/60" />
+        <div className={`rounded-3xl p-12 text-center shadow-lg border ${
+          theme === 'light'
+            ? 'bg-white border-slate-200'
+            : 'bg-[#0d121d] border-slate-800'
+        }`}>
+          <div className={`w-16 h-16 rounded-2xl border flex items-center justify-center mx-auto mb-4 ${
+            theme === 'light'
+              ? 'bg-red-50 border-red-200 text-red-500'
+              : 'bg-slate-950 border-slate-800 text-slate-500'
+          }`}>
+            <Layers className="w-8 h-8 text-red-500/80" />
           </div>
-          <h4 className="text-lg font-bold text-slate-200">Chưa có bài tập nào cho lớp học này</h4>
-          <p className="text-xs text-slate-500 mt-2 max-w-md mx-auto leading-relaxed">
+          <h4 className={`text-lg font-bold ${
+            theme === 'light' ? 'text-slate-900' : 'text-slate-200'
+          }`}>Chưa có bài tập nào cho lớp học này</h4>
+          <p className={`text-xs mt-2 max-w-md mx-auto leading-relaxed ${
+            theme === 'light' ? 'text-slate-500' : 'text-slate-500'
+          }`}>
             Giáo viên chưa giao chủ đề hoặc bài tập nào vào lớp này. Khi giáo viên tạo hoặc gán bài tập vào lớp, các bài tập sẽ xuất hiện ở đây.
           </p>
         </div>

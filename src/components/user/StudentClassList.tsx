@@ -282,7 +282,11 @@ export const StudentClassList: React.FC = () => {
                       </div>
                     </div>
 
-                    <span className="font-mono text-[11px] font-bold px-2.5 py-1 rounded-lg bg-slate-950/80 text-slate-300 border border-slate-800">
+                    <span className={`font-mono text-[11px] font-bold px-2.5 py-1 rounded-lg border ${
+                      theme === 'light'
+                        ? 'bg-slate-100 text-slate-700 border-slate-200'
+                        : 'bg-slate-950/80 text-slate-300 border-slate-800'
+                    }`}>
                       Mã: {cls.joinCode}
                     </span>
                   </div>
@@ -299,7 +303,11 @@ export const StudentClassList: React.FC = () => {
                         {solvedInClass} / {totalProblems} ({percent}%)
                       </span>
                     </div>
-                    <div className="w-full h-2 bg-slate-950 border border-slate-800/80 rounded-full overflow-hidden">
+                    <div className={`w-full h-2 rounded-full overflow-hidden border ${
+                      theme === 'light'
+                        ? 'bg-slate-100 border-slate-200'
+                        : 'bg-slate-950 border-slate-800/80'
+                    }`}>
                       <div
                         className="h-full bg-gradient-to-r from-red-600 to-rose-500 rounded-full transition-all duration-500"
                         style={{ width: `${percent}%` }}
