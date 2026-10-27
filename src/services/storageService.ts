@@ -670,18 +670,42 @@ export const storageService = {
     return result;
   },
 
-  getClassesForStudent(studentId: string): Classroom[] {
-    const relations = this.getClassStudents().filter(
-      (cs) => cs.studentId === studentId && (!cs.status || cs.status === 'approved')
-    );
+  getClassesForStudent(studentId: string, studentUsername?: string, studentEmail?: string): Classroom[] {
+    const sId = (studentId || '').trim().toLowerCase();
+    const sUser = (studentUsername || '').trim().toLowerCase();
+    const sEmail = (studentEmail || '').trim().toLowerCase();
+
+    const relations = this.getClassStudents().filter((cs) => {
+      if (cs.status && cs.status !== 'approved') return false;
+      const cId = (cs.studentId || '').trim().toLowerCase();
+      const cUser = (cs.studentUsername || '').trim().toLowerCase();
+      const cEmail = (cs.studentEmail || '').trim().toLowerCase();
+
+      const matchId = Boolean(sId && (cId === sId || cUser === sId || cEmail === sId));
+      const matchUser = Boolean(sUser && (cId === sUser || cUser === sUser || cEmail === sUser));
+      const matchEmail = Boolean(sEmail && (cId === sEmail || cUser === sEmail || cEmail === sEmail));
+      return matchId || matchUser || matchEmail;
+    });
     const classIds = new Set(relations.map((cs) => cs.classId));
     return this.getClasses().filter((c) => classIds.has(c.id));
   },
 
-  getPendingClassesForStudent(studentId: string): Classroom[] {
-    const relations = this.getClassStudents().filter(
-      (cs) => cs.studentId === studentId && cs.status === 'pending'
-    );
+  getPendingClassesForStudent(studentId: string, studentUsername?: string, studentEmail?: string): Classroom[] {
+    const sId = (studentId || '').trim().toLowerCase();
+    const sUser = (studentUsername || '').trim().toLowerCase();
+    const sEmail = (studentEmail || '').trim().toLowerCase();
+
+    const relations = this.getClassStudents().filter((cs) => {
+      if (cs.status !== 'pending') return false;
+      const cId = (cs.studentId || '').trim().toLowerCase();
+      const cUser = (cs.studentUsername || '').trim().toLowerCase();
+      const cEmail = (cs.studentEmail || '').trim().toLowerCase();
+
+      const matchId = Boolean(sId && (cId === sId || cUser === sId || cEmail === sId));
+      const matchUser = Boolean(sUser && (cId === sUser || cUser === sUser || cEmail === sUser));
+      const matchEmail = Boolean(sEmail && (cId === sEmail || cUser === sEmail || cEmail === sEmail));
+      return matchId || matchUser || matchEmail;
+    });
     const classIds = new Set(relations.map((cs) => cs.classId));
     return this.getClasses().filter((c) => classIds.has(c.id));
   },
@@ -769,10 +793,22 @@ export const storageService = {
     }
   },
 
-  removeStudentFromClass(classId: string, studentId: string): void {
-    const relations = this.getClassStudents().filter(
-      (cs) => !(cs.classId === classId && cs.studentId === studentId)
-    );
+  removeStudentFromClass(classId: string, studentId: string, studentUsername?: string, studentEmail?: string): void {
+    const sId = (studentId || '').trim().toLowerCase();
+    const sUser = (studentUsername || '').trim().toLowerCase();
+    const sEmail = (studentEmail || '').trim().toLowerCase();
+
+    const relations = this.getClassStudents().filter((cs) => {
+      if (cs.classId !== classId) return true;
+      const cId = (cs.studentId || '').trim().toLowerCase();
+      const cUser = (cs.studentUsername || '').trim().toLowerCase();
+      const cEmail = (cs.studentEmail || '').trim().toLowerCase();
+
+      const matchId = Boolean(sId && (cId === sId || cUser === sId || cEmail === sId));
+      const matchUser = Boolean(sUser && (cId === sUser || cUser === sUser || cEmail === sUser));
+      const matchEmail = Boolean(sEmail && (cId === sEmail || cUser === sEmail || cEmail === sEmail));
+      return !(matchId || matchUser || matchEmail);
+    });
     this.saveClassStudents(relations);
   },
 

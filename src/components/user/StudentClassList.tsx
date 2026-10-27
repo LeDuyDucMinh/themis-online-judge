@@ -11,6 +11,7 @@ import {
   Sparkles,
   KeyRound,
   FileCode2,
+  LogOut,
 } from 'lucide-react';
 
 
@@ -27,6 +28,8 @@ export const StudentClassList: React.FC = () => {
     theme,
     refreshAllData,
     showToast,
+    leaveClass,
+    openConfirmModal,
   } = useJudge();
 
   // Luôn nạp dữ liệu lớp học và tự động cập nhật khi giáo viên phê duyệt yêu cầu vào lớp
@@ -41,6 +44,18 @@ export const StudentClassList: React.FC = () => {
   const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
   const [joinCodeInput, setJoinCodeInput] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleLeaveClass = (e: React.MouseEvent, cls: Classroom) => {
+    e.stopPropagation();
+    openConfirmModal({
+      title: 'Rời khỏi lớp học',
+      message: `Em có chắc chắn muốn rời khỏi lớp "${cls.className}"? Em sẽ cần nhập lại mã mời nếu muốn tham gia lại lớp này sau.`,
+      confirmLabel: 'Xác nhận rời lớp',
+      onConfirm: () => {
+        leaveClass(cls.id);
+      },
+    });
+  };
 
   // Tính tổng số bài đã đạt Full AC trên các chủ đề/lớp học đã được giao cho học sinh
   const totalSolvedCount = useMemo(() => {
@@ -282,13 +297,23 @@ export const StudentClassList: React.FC = () => {
                       </div>
                     </div>
 
-                    <span className={`font-mono text-[11px] font-bold px-2.5 py-1 rounded-lg border ${
-                      theme === 'light'
-                        ? 'bg-slate-100 text-slate-700 border-slate-200'
-                        : 'bg-slate-950/80 text-slate-300 border-slate-800'
-                    }`}>
-                      Mã: {cls.joinCode}
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <span className={`font-mono text-[11px] font-bold px-2.5 py-1 rounded-lg border ${
+                        theme === 'light'
+                          ? 'bg-slate-100 text-slate-700 border-slate-200'
+                          : 'bg-slate-950/80 text-slate-300 border-slate-800'
+                      }`}>
+                        Mã: {cls.joinCode}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={(e) => handleLeaveClass(e, cls)}
+                        className="p-1 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-500/10 transition-colors cursor-pointer"
+                        title="Rời khỏi lớp học này"
+                      >
+                        <LogOut className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
 
                   <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 min-h-[32px] leading-relaxed">

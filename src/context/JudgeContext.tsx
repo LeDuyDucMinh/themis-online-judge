@@ -98,7 +98,8 @@ interface JudgeContextType {
   approveStudentJoin: (classId: string, studentId: string) => Promise<void>;
   rejectStudentJoin: (classId: string, studentId: string) => Promise<void>;
   enrollStudentToClass: (classId: string, studentId: string) => Promise<void>;
-  removeStudentFromClass: (classId: string, studentId: string) => Promise<void>;
+  removeStudentFromClass: (classId: string, studentId: string, studentUsername?: string, studentEmail?: string) => Promise<void>;
+  leaveClass: (classId: string) => Promise<void>;
 
   // Data
   topics: Topic[];
@@ -243,12 +244,12 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
   const studentClasses = useMemo(() => {
     if (!currentStudent) return [];
-    return storageService.getClassesForStudent(currentStudent.id);
+    return storageService.getClassesForStudent(currentStudent.id, currentStudent.username, currentStudent.email);
   }, [currentStudent, classStudents, classes]);
 
   const pendingClasses = useMemo(() => {
     if (!currentStudent) return [];
-    return storageService.getPendingClassesForStudent(currentStudent.id);
+    return storageService.getPendingClassesForStudent(currentStudent.id, currentStudent.username, currentStudent.email);
   }, [currentStudent, classStudents, classes]);
 
   const createClass = async (className: string, description: string): Promise<Classroom> => {
@@ -566,8 +567,13 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     showToast('Thành công', 'Đã thêm học sinh vào lớp', 'success');
   };
 
-  const removeStudentFromClass = async (classId: string, studentId: string): Promise<void> => {
-    storageService.removeStudentFromClass(classId, studentId);
+  const removeStudentFromClass = async (
+    classId: string,
+    studentId: string,
+    studentUsername?: string,
+    studentEmail?: string
+  ): Promise<void> => {
+    storageService.removeStudentFromClass(classId, studentId, studentUsername, studentEmail);
     const updatedRelations = storageService.getClassStudents();
     setClassStudents(updatedRelations);
     try {
@@ -576,6 +582,22 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       console.warn('Lỗi ghi hủy liên kết lớp lên Cloud:', e);
     }
     showToast('Đã đưa ra khỏi lớp', 'Đã xóa học sinh khỏi danh sách lớp này', 'info');
+  };
+
+  const leaveClass = async (classId: string): Promise<void> => {
+    if (!currentStudent) return;
+    storageService.removeStudentFromClass(classId, currentStudent.id, currentStudent.username, currentStudent.email);
+    const updatedRelations = storageService.getClassStudents();
+    setClassStudents(updatedRelations);
+    try {
+      await apiService.saveClassStudents(updatedRelations);
+    } catch (e) {
+      console.warn('Lỗi ghi học sinh rời lớp lên Cloud:', e);
+    }
+    if (activeClassId === classId) {
+      setActiveClassId(null);
+    }
+    showToast('Đã rời khỏi lớp', 'Em đã rời khỏi lớp học thành công.', 'info');
   };
 
   const [topics, setTopics] = useState<Topic[]>(() => storageService.getTopics());
@@ -2038,6 +2060,7 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         rejectStudentJoin,
         enrollStudentToClass,
         removeStudentFromClass,
+        leaveClass,
         topics,
         problems,
         submissions,

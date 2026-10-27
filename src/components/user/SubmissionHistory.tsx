@@ -29,6 +29,7 @@ export const SubmissionHistory: React.FC = () => {
     problems,
     topics,
     classes,
+    studentClasses,
     theme,
     isAdminAuthenticated,
     currentStudent,
@@ -63,6 +64,16 @@ export const SubmissionHistory: React.FC = () => {
     setSelectedClassIdState(id);
     storageService.setSubmissionsClassFilter(id);
   };
+
+  // Danh sách lớp hiển thị trên bộ lọc: Giáo viên thấy toàn bộ lớp, Học sinh chỉ thấy lớp mình đang tham gia
+  const availableClasses = isAdminAuthenticated ? classes : studentClasses;
+
+  // Tự động đưa bộ lọc về 'ALL' nếu lớp đang chọn không còn nằm trong danh sách lớp được phép xem (ví dụ khi đã ra khỏi lớp đó)
+  useEffect(() => {
+    if (selectedClassId !== 'ALL' && !availableClasses.some((c) => c.id === selectedClassId)) {
+      setSelectedClassId('ALL');
+    }
+  }, [availableClasses, selectedClassId]);
 
   // Chỉ đồng bộ khi giáo viên chủ động bấm chuyển sang lớp khác trên thanh điều hướng Navbar
   const prevActiveClassIdRef = React.useRef(activeClassId);
@@ -481,8 +492,8 @@ export const SubmissionHistory: React.FC = () => {
               onChange={(e) => setSelectedClassId(e.target.value)}
               className="bg-slate-800 border border-slate-700 text-slate-200 text-xs rounded-xl px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-red-500 font-medium"
             >
-              <option value="ALL">Tất cả lớp học ({classes.length})</option>
-              {classes.map((c) => (
+              <option value="ALL">Tất cả lớp học ({availableClasses.length})</option>
+              {availableClasses.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.className}
                 </option>

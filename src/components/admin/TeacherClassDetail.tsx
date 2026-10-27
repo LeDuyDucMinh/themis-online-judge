@@ -94,13 +94,13 @@ export const TeacherClassDetail: React.FC<TeacherClassDetailProps> = ({ classId 
     setTimeout(() => setCopiedCode(false), 2500);
   };
 
-  const handleRemoveStudent = (studentId: string, studentName: string) => {
+  const handleRemoveStudent = (studentId: string, studentName: string, studentUsername?: string, studentEmail?: string) => {
     openConfirmModal({
       title: 'Xóa học sinh khỏi lớp',
       message: `Bạn có chắc muốn đưa học sinh "${studentName}" ra khỏi lớp "${currentClass.className}"? Tài khoản của học sinh vẫn được giữ nguyên trong hệ thống.`,
       confirmLabel: 'Xác nhận xóa',
       onConfirm: () => {
-        removeStudentFromClass(classId, studentId);
+        removeStudentFromClass(classId, studentId, studentUsername, studentEmail);
       },
     });
   };
@@ -451,7 +451,7 @@ export const TeacherClassDetail: React.FC<TeacherClassDetailProps> = ({ classId 
                       </td>
                       <td className="py-3 px-4 text-right">
                         <button
-                          onClick={() => handleRemoveStudent(stu.id, stu.fullName)}
+                          onClick={() => handleRemoveStudent(stu.id, stu.fullName, stu.username, stu.email)}
                           className="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-500/10 transition-colors cursor-pointer"
                           title="Xóa học sinh khỏi lớp"
                         >
