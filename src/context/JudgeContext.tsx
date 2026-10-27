@@ -4,7 +4,7 @@ import { storageService, resolveStudentFullName } from '../services/storageServi
 import { apiService } from '../services/apiService';
 import { idbService } from '../services/db';
 import { gradeSubmission, type GradingProgressCallback, type SupportedLanguage } from '../services/judgeEngine';
-import { supabase } from '../services/supabaseClient';
+import { supabase, fetchUserRoleFromSupabase } from '../services/supabaseClient';
 import confetti from 'canvas-confetti';
 
 interface ToastMessage {
@@ -26,6 +26,7 @@ interface JudgeContextType {
   role: UserRole;
   setRole: (role: UserRole) => void;
   isAdminAuthenticated: boolean;
+  setIsAdminAuthenticated: (auth: boolean) => void;
   currentStudent: StudentUser | null;
   setCurrentStudent: (student: StudentUser | null) => void;
   students: StudentUser[];
@@ -793,7 +794,7 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
   // 1a. LẮNG NGHE THAY ĐỔI TRẠNG THÁI XÁC THỰC SUPABASE AUTH (OAuth Google & Email/Password)
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (session?.user) {
         const u = session.user;
         const fullName = resolveStudentFullName(
@@ -801,28 +802,68 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
           u.email,
           u.user_metadata?.custom_full_name || u.user_metadata?.full_name || u.user_metadata?.name
         );
-        const studentUser: StudentUser = {
-          id: u.id,
-          fullName,
-          username: u.email || u.id,
-          email: u.email,
-          password: '',
-          createdAt: u.created_at || new Date().toISOString(),
-        };
-        setCurrentStudent(studentUser);
-        storageService.setStudentSession(studentUser);
-        setIsAdminAuthenticated(false);
-        setRole('USER');
-        setIsAuthModalOpen(false);
-        // Tự động lưu học sinh lên Cloud để Giáo viên có thể nhìn thấy trong lớp
-        apiService.saveStudents([studentUser]).catch(() => {});
-        if (typeof window !== 'undefined' && window.location.pathname === '/login') {
-          window.history.pushState({}, '', '/');
+
+        // Truy vấn vai trò (Role) trực tiếp từ Supabase Database
+        const roleRes = await fetchUserRoleFromSupabase(u.id, u.email);
+
+        if (roleRes.role === 'admin') {
+          // Người dùng là QUẢN TRỊ VIÊN (Admin)
+          setIsAdminAuthenticated(true);
+          setRole('ADMIN');
+          storageService.setAdminSessionActive(true);
+          setCurrentStudent(null);
+          setIsAuthModalOpen(false);
+
+          // Auto Redirect thẳng vào giao diện Quản trị viên (Admin Dashboard)
+          if (typeof window !== 'undefined') {
+            window.location.hash = '#admin/classes';
+            window.history.pushState({}, '', '/#admin/classes');
+          }
+
+          showToast('Quản trị viên', `Chào mừng ${fullName}! Đã kích hoạt quyền Quản trị viên hệ thống.`, 'success');
+        } else {
+          // Người dùng là HỌC SINH (Student) hoặc các vai trò khác
+          const studentUser: StudentUser = {
+            id: u.id,
+            fullName,
+            username: u.email || u.id,
+            email: u.email,
+            password: '',
+            createdAt: u.created_at || new Date().toISOString(),
+          };
+          setCurrentStudent(studentUser);
+          storageService.setStudentSession(studentUser);
+          setIsAdminAuthenticated(false);
+          setRole('USER');
+          storageService.setAdminSessionActive(false);
+          setIsAuthModalOpen(false);
+
+          // Tự động lưu học sinh lên Cloud để Giáo viên có thể nhìn thấy trong lớp
+          apiService.saveStudents([studentUser]).catch(() => {});
+
+          // Auto Redirect về không gian luyện thi/nộp bài của Học sinh
+          if (typeof window !== 'undefined') {
+            if (
+              window.location.hash.startsWith('#admin') ||
+              window.location.pathname.startsWith('/admin') ||
+              window.location.pathname === '/login'
+            ) {
+              window.location.hash = '#classes';
+              window.history.pushState({}, '', '/#classes');
+            }
+          }
+
+          showToast('Đăng nhập thành công', `Chào mừng ${fullName}! Chúc em học tập tốt.`, 'success');
         }
       } else if (event === 'SIGNED_OUT') {
-        if (!storageService.isAdminSessionActive()) {
-          storageService.setStudentSession(null);
-          setCurrentStudent(null);
+        storageService.setAdminSessionActive(false);
+        storageService.setStudentSession(null);
+        setIsAdminAuthenticated(false);
+        setCurrentStudent(null);
+        setRole('USER');
+        if (typeof window !== 'undefined') {
+          window.location.hash = '#classes';
+          window.history.pushState({}, '', '/#classes');
         }
       }
     });
@@ -838,7 +879,6 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     (async () => {
       try {
         // 1. Khôi phục phiên Supabase Auth (Email / Google OAuth)
-        let student = storageService.getStudentSession();
         try {
           const { data: { session } } = await supabase.auth.getSession();
           if (session?.user) {
@@ -848,41 +888,58 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
               u.email,
               u.user_metadata?.custom_full_name || u.user_metadata?.full_name || u.user_metadata?.name
             );
-            student = {
-              id: u.id,
-              fullName,
-              username: u.email || u.id,
-              email: u.email,
-              password: '',
-              createdAt: u.created_at || new Date().toISOString(),
-            };
-            storageService.setStudentSession(student);
-            apiService.saveStudents([student]).catch(() => {});
+
+            // Kiểm tra vai trò từ Supabase Database
+            const roleRes = await fetchUserRoleFromSupabase(u.id, u.email);
+
+            if (roleRes.role === 'admin') {
+              if (isMounted) {
+                setIsAdminAuthenticated(true);
+                setRole('ADMIN');
+                storageService.setAdminSessionActive(true);
+                setCurrentStudent(null);
+                setIsAuthModalOpen(false);
+              }
+            } else {
+              const student = {
+                id: u.id,
+                fullName,
+                username: u.email || u.id,
+                email: u.email,
+                password: '',
+                createdAt: u.created_at || new Date().toISOString(),
+              };
+              if (isMounted) {
+                storageService.setStudentSession(student);
+                setCurrentStudent(student);
+                setIsAdminAuthenticated(false);
+                setRole('USER');
+                storageService.setAdminSessionActive(false);
+                setIsAuthModalOpen(false);
+              }
+              apiService.saveStudents([student]).catch(() => {});
+            }
+          } else {
+            // Không có session Supabase Auth hợp lệ
+            const localStudent = storageService.getStudentSession();
+            if (localStudent) {
+              if (isMounted) {
+                setCurrentStudent(localStudent);
+                setIsAdminAuthenticated(false);
+                setRole('USER');
+                setIsAuthModalOpen(false);
+              }
+            } else {
+              if (isMounted) {
+                setIsAdminAuthenticated(false);
+                setRole('USER');
+                storageService.setAdminSessionActive(false);
+                setIsAuthModalOpen(true);
+              }
+            }
           }
         } catch (e) {
           console.warn('[JudgeContext] Lỗi đọc session Supabase Auth:', e);
-        }
-
-        const admin = storageService.isAdminSessionActive();
-
-        if (admin) {
-          if (isMounted) {
-            setIsAdminAuthenticated(true);
-            setRole('ADMIN');
-            setIsAuthModalOpen(false);
-          }
-        } else if (student) {
-          if (isMounted) {
-            setCurrentStudent(student);
-            setIsAdminAuthenticated(false);
-            setRole('USER');
-            setIsAuthModalOpen(false);
-          }
-        } else {
-          // Chỉ hiển thị modal đăng nhập khi xác định chắc chắn không có phiên sau khi load
-          if (isMounted) {
-            setIsAuthModalOpen(true);
-          }
         }
 
         if (isMounted) {
@@ -1324,6 +1381,7 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
   // Quản trị viên Đăng xuất - Chỉ giải phóng quyền Admin, tuyệt đối không xóa dữ liệu lớp, bài tập hay học sinh
   const logoutAdmin = () => {
+    supabase.auth.signOut().catch(() => {});
     storageService.setAdminSessionActive(false);
     sessionStorage.removeItem('faminh_admin_verified_pass');
     try { localStorage.removeItem('faminh_admin_verified_pass'); } catch {}
@@ -1331,11 +1389,15 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     setIsAdminAuthenticated(false);
     setRole('USER');
     setActiveClassId(null);
+    if (typeof window !== 'undefined') {
+      window.location.hash = '#classes';
+      window.history.replaceState(null, '', '/#classes');
+    }
     setIsAuthModalOpen(true);
-    setAuthModalTab('admin');
+    setAuthModalTab('student');
     showToast(
       'Đã đăng xuất Admin',
-      'Đã khóa quyền quản trị an toàn.',
+      'Đã đăng xuất phiên làm việc của Quản trị viên an toàn.',
       'info'
     );
   };
@@ -1762,6 +1824,7 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         role,
         setRole,
         isAdminAuthenticated,
+        setIsAdminAuthenticated,
         currentStudent,
         setCurrentStudent,
         students,

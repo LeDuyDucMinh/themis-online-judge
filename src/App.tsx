@@ -31,6 +31,7 @@ function MainApp() {
     setIsServerConfigModalOpen,
     problems,
     refreshAllData,
+    showToast,
   } = useJudge();
 
   const [currentTab, setCurrentTab] = useState<'classes' | 'problems' | 'admin_classes' | 'admin_topics' | 'submissions'>(() => {
@@ -91,6 +92,42 @@ function MainApp() {
     if (!selectedProblem) return null;
     return problems.find((p) => p.id === selectedProblem.id) || selectedProblem;
   }, [selectedProblem, problems]);
+
+  // =========================================================================
+  // TƯỜNG LỬA BẢO MẬT (ROUTE GUARD / MIDDLEWARE CHO KHU VỰC QUẢN TRỊ ADMIN)
+  // Bất kỳ phiên đăng nhập nào không có role === 'admin' mà cố tình truy cập qua URL
+  // vào khu vực quản trị (#admin, /admin, #admin/classes, #admin/topics)
+  // đều phải bị chặn lập tức và redirect về trang chủ (/)
+  // =========================================================================
+  useEffect(() => {
+    if (isAuthLoading) return;
+
+    const currentHash = typeof window !== 'undefined' ? window.location.hash.replace(/^#\/?/, '') : '';
+    const currentPath = typeof window !== 'undefined' ? window.location.pathname.replace(/^\//, '') : '';
+    const isTargetingAdmin =
+      currentHash.startsWith('admin') ||
+      currentPath.startsWith('admin') ||
+      currentTab === 'admin_classes' ||
+      currentTab === 'admin_topics';
+
+    if (isTargetingAdmin && !isAdminAuthenticated) {
+      console.warn('[Route Guard] Chặn truy cập trái phép vào khu vực Admin. Chuyển hướng về trang chủ.');
+      setCurrentTab('classes');
+      storageService.setCurrentTab('classes');
+      setActiveClassId(null);
+      setSelectedProblem(null);
+
+      if (typeof window !== 'undefined') {
+        window.history.replaceState(null, '', '/#classes');
+      }
+
+      showToast(
+        'Từ chối truy cập',
+        'Khu vực Quản trị viên chỉ dành cho tài khoản Admin đã được cấp quyền. Đã chuyển về trang chủ.',
+        'error'
+      );
+    }
+  }, [isAdminAuthenticated, isAuthLoading, currentTab]);
 
   // Điều hướng phân vùng & Đặt màn hình mặc định theo vai trò:
   // - Khi Giáo viên (ADMIN) đăng nhập: Mặc định mở tab "Quản lý Lớp học" (admin_classes)
@@ -161,13 +198,25 @@ function MainApp() {
       if (hash.startsWith('submissions')) {
         setCurrentTab('submissions');
         storageService.setCurrentTab('submissions');
-      } else if (hash.startsWith('admin/topics')) {
-        if (isAdminAuthenticated) {
+      } else if (hash.startsWith('admin')) {
+        // KIỂM TRA BẢO VỆ ROUTE GUARD
+        if (!isAdminAuthenticated) {
+          console.warn('[Route Guard] Ngăn chặn hash truy cập admin không hợp lệ:', hash);
+          window.history.replaceState(null, '', '/#classes');
+          setCurrentTab('classes');
+          storageService.setCurrentTab('classes');
+          showToast(
+            'Từ chối truy cập',
+            'Tài khoản không có quyền Quản trị viên (role: admin). Đã chuyển về trang chủ.',
+            'error'
+          );
+          return;
+        }
+
+        if (hash.startsWith('admin/topics')) {
           setCurrentTab('admin_topics');
           storageService.setCurrentTab('admin_topics');
-        }
-      } else if (hash.startsWith('admin/classes')) {
-        if (isAdminAuthenticated) {
+        } else if (hash.startsWith('admin/classes') || hash === 'admin') {
           setCurrentTab('admin_classes');
           storageService.setCurrentTab('admin_classes');
           const classMatch = hash.match(/^admin\/classes\/([^/?#]+)/);

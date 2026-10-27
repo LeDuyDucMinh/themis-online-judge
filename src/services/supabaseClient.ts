@@ -92,3 +92,74 @@ export function translateAuthError(rawError?: string | null): string {
   // Fallback giữ lại thông điệp gốc nếu không khớp mẫu
   return rawError;
 }
+
+export type AppUserRole = 'admin' | 'student';
+
+export interface UserRoleResult {
+  role: AppUserRole;
+  rawRole?: string;
+  source: 'profiles' | 'users' | 'metadata' | 'default';
+}
+
+/**
+ * Lấy vai trò (role) của người dùng từ cơ sở dữ liệu Supabase sau khi đăng nhập thành công
+ * 1. Truy vấn bảng `profiles` theo `id = user.id` (Cột `role`)
+ * 2. Dự phòng: Truy vấn bảng `users` theo `id = user.id` (Cột `role`)
+ * 3. Dự phòng: Kiểm tra `app_metadata` hoặc `user_metadata` của Supabase Auth
+ */
+export async function fetchUserRoleFromSupabase(
+  userId: string,
+  _userEmail?: string
+): Promise<UserRoleResult> {
+  if (!userId) {
+    return { role: 'student', source: 'default' };
+  }
+
+  try {
+    // 1. Kiểm tra bảng 'profiles' (Chuẩn Supabase)
+    const { data: profileData, error: profileErr } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', userId)
+      .maybeSingle();
+
+    if (!profileErr && profileData && profileData.role) {
+      const cleanRole = String(profileData.role).trim().toLowerCase();
+      if (cleanRole === 'admin' || cleanRole === 'teacher' || cleanRole === 'giao_vien') {
+        return { role: 'admin', rawRole: profileData.role, source: 'profiles' };
+      }
+      return { role: 'student', rawRole: profileData.role, source: 'profiles' };
+    }
+
+    // 2. Dự phòng: Kiểm tra bảng 'users' (Nếu người dùng đặt tên bảng là users)
+    const { data: userData, error: userErr } = await supabase
+      .from('users')
+      .select('role')
+      .eq('id', userId)
+      .maybeSingle();
+
+    if (!userErr && userData && userData.role) {
+      const cleanRole = String(userData.role).trim().toLowerCase();
+      if (cleanRole === 'admin' || cleanRole === 'teacher' || cleanRole === 'giao_vien') {
+        return { role: 'admin', rawRole: userData.role, source: 'users' };
+      }
+      return { role: 'student', rawRole: userData.role, source: 'users' };
+    }
+
+    // 3. Dự phòng: Kiểm tra user metadata trong Supabase Auth
+    const { data: authData } = await supabase.auth.getUser();
+    const currentUser = authData?.user;
+    if (currentUser && currentUser.id === userId) {
+      const metaRole = String(
+        currentUser.app_metadata?.role || currentUser.user_metadata?.role || ''
+      ).trim().toLowerCase();
+      if (metaRole === 'admin' || metaRole === 'teacher') {
+        return { role: 'admin', rawRole: metaRole, source: 'metadata' };
+      }
+    }
+  } catch (err) {
+    console.warn('[supabaseClient] Lỗi khi truy vấn vai trò (role) từ Supabase:', err);
+  }
+
+  return { role: 'student', source: 'default' };
+}
