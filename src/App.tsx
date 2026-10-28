@@ -9,13 +9,14 @@ import { StudentClassList } from './components/user/StudentClassList';
 import { TopicManager } from './components/admin/TopicManager';
 import { TeacherClassList } from './components/admin/TeacherClassList';
 import { TeacherClassDetail } from './components/admin/TeacherClassDetail';
+import { AdminLayout } from './components/admin/AdminLayout';
 import { AuthModal } from './components/auth/AuthModal';
 import { ChangePasswordModal } from './components/admin/ChangePasswordModal';
 import { ChangeNameModal } from './components/user/ChangeNameModal';
 import { ServerConfigModal } from './components/admin/ServerConfigModal';
 import { ConfirmModal } from './components/common/ConfirmModal';
 import type { Problem } from './types/judge';
-import { ShieldCheck, Heart } from 'lucide-react';
+import { Heart } from 'lucide-react';
 
 import { storageService } from './services/storageService';
 
@@ -284,7 +285,7 @@ function MainApp() {
   };
 
   return (
-    <div className={`min-h-screen flex flex-col font-sans selection:bg-red-600 selection:text-white transition-colors duration-150 ${theme === 'light' ? 'bg-slate-50 text-slate-900' : 'bg-slate-950 text-slate-100'}`}>
+    <>
       {/* Toast Notification Container */}
       <ToastContainer />
 
@@ -298,109 +299,114 @@ function MainApp() {
       />
       <ConfirmModal />
 
-      {/* Top Navigation */}
-      <Navbar
-        currentTab={currentTab}
-        setCurrentTab={(tab) => {
-          if (isAuthLoading) return;
-          if ((tab === 'admin_classes' || tab === 'admin_topics') && !isAdminAuthenticated) {
-            setIsAuthModalOpen(true);
-            return;
-          }
-          if ((tab === 'classes' || tab === 'problems') && isAdminAuthenticated) {
-            return;
-          }
-          setCurrentTab(tab);
-          storageService.setCurrentTab(tab);
-          if (tab !== 'classes' && tab !== 'admin_classes') {
-            setSelectedProblem(null);
-            storageService.setSelectedProblemId(null);
-          }
-        }}
-      />
-
-      {/* Main Content Area */}
-      <main className="flex-1">
-        {/* Phân vùng HỌC SINH (USER):
-            1. Khi chưa chọn lớp: Hiển thị "Các lớp học đang tham gia" (StudentClassList)
-            2. Khi đã chọn lớp: Hiển thị danh sách đề bài hoặc màn hình làm bài của lớp đó */}
-        {!isAdminAuthenticated && currentTab === 'classes' && (
-          activeClassId ? (
-            activeSelectedProblem ? (
-              <ProblemView
-                problem={activeSelectedProblem}
-                onBackToList={handleBackToList}
-              />
+      {/* GIAO DIỆN GIÁO VIÊN (ADMIN): REX ADMIN LAYOUT (THANH ĐIỀU HƯỚNG DỌC ĐỎ + HEADER TRẮNG) */}
+      {isAdminAuthenticated ? (
+        <AdminLayout
+          currentTab={currentTab}
+          setCurrentTab={setCurrentTab}
+        >
+          {/* Phân vùng GIÁO VIÊN:
+              1. Khi chưa chọn lớp: Hiển thị "Danh sách Lớp học do tôi quản lý" dạng Grid (TeacherClassList)
+              2. Khi đã chọn lớp: Chuyển sang màn hình Chi tiết Lớp học (TeacherClassDetail) */}
+          {currentTab === 'admin_classes' && (
+            activeClassId ? (
+              <TeacherClassDetail classId={activeClassId} />
             ) : (
-              <UserProblemList
-                onSelectProblem={handleSelectProblem}
-                onBackToClasses={() => {
-                  setActiveClassId(null);
-                  setSelectedProblem(null);
-                  storageService.setSelectedProblemId(null);
-                  storageService.setActiveTopicId(null);
-                }}
-              />
+              <TeacherClassList />
             )
-          ) : (
-            <StudentClassList />
-          )
-        )}
+          )}
 
-        {/* Phân vùng GIÁO VIÊN (ADMIN):
-            1. Khi chưa chọn lớp: Hiển thị "Danh sách Lớp học do tôi quản lý" dạng Grid (TeacherClassList)
-            2. Khi đã chọn lớp: Chuyển sang màn hình Chi tiết Lớp học gồm 2 tab "Bài tập" & "Học sinh" (TeacherClassDetail) */}
-        {isAdminAuthenticated && currentTab === 'admin_classes' && (
-          activeClassId ? (
-            <TeacherClassDetail classId={activeClassId} />
-          ) : (
-            <TeacherClassList />
-          )
-        )}
+          {/* Phân vùng GIÁO VIÊN: Quản lý Chủ đề chung */}
+          {currentTab === 'admin_topics' && (
+            <TopicManager />
+          )}
 
-        {/* Phân vùng GIÁO VIÊN (ADMIN): Quản lý Chủ đề chung */}
-        {isAdminAuthenticated && currentTab === 'admin_topics' && (
-          <TopicManager />
-        )}
+          {/* Phân vùng GIÁO VIÊN: Lịch sử nộp bài toàn hệ thống */}
+          {currentTab === 'submissions' && (
+            <SubmissionHistory />
+          )}
+        </AdminLayout>
+      ) : (
+        /* GIAO DIỆN HỌC SINH (USER): GIỮ NGUYÊN GIAO DIỆN TOP NAVBAR & CHỨC NĂNG CŨ */
+        <div className={`min-h-screen flex flex-col font-sans selection:bg-red-600 selection:text-white transition-colors duration-150 ${theme === 'light' ? 'bg-slate-50 text-slate-900' : 'bg-slate-950 text-slate-100'}`}>
+          {/* Top Navigation cho học sinh */}
+          <Navbar
+            currentTab={currentTab}
+            setCurrentTab={(tab) => {
+              if (isAuthLoading) return;
+              if ((tab === 'admin_classes' || tab === 'admin_topics') && !isAdminAuthenticated) {
+                setIsAuthModalOpen(true);
+                return;
+              }
+              if ((tab === 'classes' || tab === 'problems') && isAdminAuthenticated) {
+                return;
+              }
+              setCurrentTab(tab);
+              storageService.setCurrentTab(tab);
+              if (tab !== 'classes' && tab !== 'admin_classes') {
+                setSelectedProblem(null);
+                storageService.setSelectedProblemId(null);
+              }
+            }}
+          />
 
-        {/* Tab Lịch sử nộp bài (dành cho cả giáo viên theo dõi và học sinh xem lại) */}
-        {currentTab === 'submissions' && (
-          <SubmissionHistory />
-        )}
-      </main>
-
-
-      {/* Footer FAMINH */}
-      <footer className="border-t border-slate-900 bg-slate-950 py-6 text-center text-xs text-slate-500">
-        <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <div className="w-5 h-5 rounded-md overflow-hidden bg-slate-800 p-0.5 border border-red-500/30 shrink-0">
-              <img src="/faminh-logo.jpg" alt="FAMINH" className="w-full h-full object-cover rounded-sm" />
-            </div>
-            <span className="font-bold text-slate-300">FAMINH Online Judge</span>
-            <span>— Nền tảng luyện thi & Chấm bài tự động chuẩn Themis</span>
-          </div>
-
-          <div className="flex items-center gap-2 text-slate-400">
-            {isAdminAuthenticated ? (
-              <span className={`inline-flex items-center gap-1 font-bold px-2.5 py-0.5 rounded-lg border text-xs shadow-sm ${
-                theme === 'light'
-                  ? 'bg-rose-50 text-rose-700 border-rose-200'
-                  : 'bg-red-950/40 text-red-300 border-red-800/50'
-              }`}>
-                <ShieldCheck className="w-3.5 h-3.5" /> Quản trị viên
-              </span>
-            ) : (
-              <span className="text-slate-400">Học sinh (User)</span>
+          {/* Main Content Area cho học sinh */}
+          <main className="flex-1">
+            {/* Phân vùng HỌC SINH (USER):
+                1. Khi chưa chọn lớp: Hiển thị "Các lớp học đang tham gia" (StudentClassList)
+                2. Khi đã chọn lớp: Hiển thị danh sách đề bài hoặc màn hình làm bài của lớp đó */}
+            {currentTab === 'classes' && (
+              activeClassId ? (
+                activeSelectedProblem ? (
+                  <ProblemView
+                    problem={activeSelectedProblem}
+                    onBackToList={handleBackToList}
+                  />
+                ) : (
+                  <UserProblemList
+                    onSelectProblem={handleSelectProblem}
+                    onBackToClasses={() => {
+                      setActiveClassId(null);
+                      setSelectedProblem(null);
+                      storageService.setSelectedProblemId(null);
+                      storageService.setActiveTopicId(null);
+                    }}
+                  />
+                )
+              ) : (
+                <StudentClassList />
+              )
             )}
-            <span className="text-slate-600">•</span>
-            <span className="flex items-center gap-1">
-              Bản quyền thuộc <span className="font-semibold text-slate-300">FAMINH</span> <Heart className="w-3 h-3 text-red-500 fill-red-500" />
-            </span>
-          </div>
+
+            {/* Tab Lịch sử nộp bài */}
+            {currentTab === 'submissions' && (
+              <SubmissionHistory />
+            )}
+          </main>
+
+          {/* Footer FAMINH */}
+          <footer className="border-t border-slate-900 bg-slate-950 py-6 text-center text-xs text-slate-500">
+            <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <div className="w-5 h-5 rounded-md overflow-hidden bg-slate-800 p-0.5 border border-red-500/30 shrink-0">
+                  <img src="/faminh-logo.jpg" alt="FAMINH" className="w-full h-full object-cover rounded-sm" />
+                </div>
+                <span className="font-bold text-slate-300">FAMINH Online Judge</span>
+                <span>— Nền tảng luyện thi & Chấm bài tự động chuẩn Themis</span>
+              </div>
+
+              <div className="flex items-center gap-2 text-slate-400">
+                <span className="text-slate-400">Học sinh (User)</span>
+                <span className="text-slate-600">•</span>
+                <span className="flex items-center gap-1">
+                  Bản quyền thuộc <span className="font-semibold text-slate-300">FAMINH</span> <Heart className="w-3 h-3 text-red-500 fill-red-500" />
+                </span>
+              </div>
+            </div>
+          </footer>
         </div>
-      </footer>
-    </div>
+      )}
+    </>
   );
 }
 
