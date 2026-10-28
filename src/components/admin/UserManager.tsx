@@ -75,17 +75,34 @@ export const UserManager: React.FC = () => {
       .map((c) => c.className);
   };
 
+  // Chỉ lấy các tài khoản hợp lệ tạo bằng Gmail/Email (loại bỏ hoàn toàn các tài khoản cơ chế cũ không có email)
+  const validEmailStudents = useMemo(() => {
+    return students.filter((s) => {
+      return Boolean(
+        (s.email && s.email.includes('@')) ||
+        (s.username && s.username.includes('@'))
+      );
+    });
+  }, [students]);
+
   // Lọc danh sách theo từ khoá tìm kiếm
   const filteredStudents = useMemo(() => {
     const q = searchTerm.trim().toLowerCase();
-    if (!q) return students;
-    return students.filter((s) => {
+    if (!q) return validEmailStudents;
+    return validEmailStudents.filter((s) => {
       const name = getDisplayName(s).toLowerCase();
       const email = getDisplayEmail(s).toLowerCase();
       const username = (s.username || '').toLowerCase();
       return name.includes(q) || email.includes(q) || username.includes(q);
     });
-  }, [students, searchTerm]);
+  }, [validEmailStudents, searchTerm]);
+
+  // Tự động dọn dẹp các tài khoản rác cơ chế cũ khỏi Cloud nếu còn sót lại
+  React.useEffect(() => {
+    if (students.length > 0 && students.length !== validEmailStudents.length) {
+      storageService.saveStudents(validEmailStudents);
+    }
+  }, [students.length, validEmailStudents.length, validEmailStudents]);
 
   // Xử lý Xóa vĩnh viễn tài khoản người dùng khỏi toàn bộ hệ thống
   const handleDeleteUserCompletely = (student: StudentUser) => {
@@ -167,7 +184,7 @@ export const UserManager: React.FC = () => {
         <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400">
           <span>Tổng số:</span>
           <span className="px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-bold">
-            {students.length} tài khoản
+            {validEmailStudents.length} tài khoản
           </span>
           {searchTerm && (
             <span className="text-slate-400">

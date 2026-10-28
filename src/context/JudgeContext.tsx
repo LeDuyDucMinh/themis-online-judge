@@ -673,11 +673,12 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
             studentMap.set(key, s);
           }
         });
-        const mergedStudents = Array.from(studentMap.values()).filter((s) => s.username && s.username !== 'leduyducminh@gmail.com');
-        if (mergedStudents.length > 0) {
-          setStudents(mergedStudents);
-          storageService.saveStudents(mergedStudents);
-        }
+        const mergedStudents = Array.from(studentMap.values()).filter((s) => {
+          if (!s.username || s.username === 'leduyducminh@gmail.com') return false;
+          return Boolean((s.email && s.email.includes('@')) || (s.username && s.username.includes('@')));
+        });
+        setStudents(mergedStudents);
+        storageService.saveStudents(mergedStudents);
 
         // Luôn bảo vệ và cập nhật họ tên tùy chỉnh của học sinh từ Cloud nếu có
         const activeSession = storageService.getStudentSession();
@@ -1355,10 +1356,17 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       return { success: false, message: msg };
     }
 
+    if (!cleanUsername.includes('@')) {
+      const msg = 'Tài khoản bắt buộc phải đăng ký bằng địa chỉ Email/Gmail hợp lệ (chứa ký tự @)!';
+      showToast('Email không hợp lệ', msg, 'error');
+      return { success: false, message: msg };
+    }
+
     const newStudent: StudentUser = {
       id: `student_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
       fullName: fullName.trim(),
       username: cleanUsername,
+      email: cleanUsername,
       password: password.trim(),
       createdAt: new Date().toISOString(),
     };

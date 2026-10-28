@@ -1018,7 +1018,26 @@ export const storageService = {
     try {
       const parsed: StudentUser[] = JSON.parse(raw);
       if (!Array.isArray(parsed)) return [];
-      return parsed.map((s) => {
+
+      // Loại bỏ toàn bộ tài khoản cơ chế cũ không có email (chỉ giữ tài khoản email/gmail hoặc mock test nội bộ)
+      const filtered = parsed.filter((s) => {
+        if (!s) return false;
+        const isTest = (s.id && s.id.startsWith('test_')) || (s.username && (s.username.startsWith('test_') || s.username.startsWith('stu_')));
+        const hasEmail = Boolean(
+          (s.email && s.email.includes('@')) ||
+          (s.username && s.username.includes('@'))
+        );
+        return isTest || hasEmail;
+      });
+
+      // Nếu có tài khoản rác từ cơ chế cũ, tự động dọn dẹp localStorage đồng bộ
+      if (filtered.length !== parsed.length) {
+        try {
+          localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(filtered));
+        } catch {}
+      }
+
+      return filtered.map((s) => {
         if (s.email === 'leduyducminh@gmail.com' || s.username === 'leduyducminh@gmail.com') {
           return {
             ...s,

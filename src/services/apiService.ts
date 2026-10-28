@@ -328,7 +328,14 @@ export const apiService = {
         }
         if (!Array.isArray(parsed)) return null;
         return parsed
-          .filter((s: any) => s && s.username)
+          .filter((s: any) => {
+            if (!s || !s.username) return false;
+            // Bỏ cơ chế cũ: Tài khoản bắt buộc tạo bằng Gmail/Email (phải chứa ký tự '@')
+            return Boolean(
+              (s.email && s.email.includes('@')) ||
+              (s.username && s.username.includes('@'))
+            );
+          })
           .map((s: any) => ({
             id: s.id || `student_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
             fullName: s.fullName || s.username || 'Học sinh',
@@ -356,10 +363,14 @@ export const apiService = {
     const localList = storageService.getStudents();
     const studentMap = new Map<string, StudentUser>();
     cloudStudents.forEach((s) => {
+      const hasEmail = Boolean((s.email && s.email.includes('@')) || (s.username && s.username.includes('@')));
+      if (!hasEmail) return;
       const k = (s.id || s.username || '').trim().toLowerCase();
       if (k && s.username !== 'leduyducminh@gmail.com') studentMap.set(k, s);
     });
     localList.forEach((s) => {
+      const hasEmail = Boolean((s.email && s.email.includes('@')) || (s.username && s.username.includes('@')));
+      if (!hasEmail) return;
       const k = (s.id || s.username || '').trim().toLowerCase();
       if (k && !studentMap.has(k) && s.username !== 'leduyducminh@gmail.com') {
         studentMap.set(k, s);
@@ -428,7 +439,9 @@ export const apiService = {
         });
       }
     });
-    const finalList = Array.from(merged.values());
+    const finalList = Array.from(merged.values()).filter((s) => {
+      return Boolean((s.email && s.email.includes('@')) || (s.username && s.username.includes('@')));
+    });
 
     storageService.saveStudents(finalList);
     if (!isSupabaseConfigured()) return finalList;
