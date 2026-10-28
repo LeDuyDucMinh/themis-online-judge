@@ -109,6 +109,16 @@ html.light h6 {
   color: #0f172a;
 }
 
+/* Đảm bảo tiêu đề trong aside thanh đỏ quản trị luôn là màu trắng */
+html.light aside h1,
+html.light aside h2,
+html.light aside h3,
+html[data-theme="light"] aside h1,
+html[data-theme="light"] aside h2,
+html[data-theme="light"] aside h3 {
+  color: #ffffff !important;
+}
+
 /* Card chính, Bảng, Hộp nội dung (bg-slate-900 -> Nền trắng với bóng nhẹ) */
 html.light .bg-slate-900,
 html.light .bg-slate-900\/95,

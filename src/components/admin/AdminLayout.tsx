@@ -169,11 +169,11 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                 />
               </div>
               <div className="leading-tight">
-                <h1 className="font-black text-base tracking-tight text-white flex items-center gap-1.5">
-                  <span>FAMINH</span>
-                  <span className="text-white/90">Admin</span>
+                <h1 className="font-black text-base tracking-tight !text-white text-white flex items-center gap-1.5">
+                  <span className="!text-white text-white">FAMINH</span>
+                  <span className="!text-white/90 text-white/90">Admin</span>
                 </h1>
-                <p className="text-[11px] font-semibold text-white/70 tracking-wide mt-0.5">
+                <p className="text-[11px] font-semibold !text-white/70 text-white/70 tracking-wide mt-0.5">
                   Control Center
                 </p>
               </div>
