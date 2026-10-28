@@ -19,6 +19,7 @@ import {
   BookOpen,
   ListTree,
   Mail,
+  UserMinus,
 } from 'lucide-react';
 
 interface TeacherClassDetailProps {
@@ -34,6 +35,7 @@ export const TeacherClassDetail: React.FC<TeacherClassDetailProps> = ({ classId 
     approveStudentJoin,
     rejectStudentJoin,
     removeStudentFromClass,
+    deleteStudent,
     problems,
     topics,
     showToast,
@@ -96,11 +98,22 @@ export const TeacherClassDetail: React.FC<TeacherClassDetailProps> = ({ classId 
 
   const handleRemoveStudent = (studentId: string, studentName: string, studentUsername?: string, studentEmail?: string) => {
     openConfirmModal({
-      title: 'Xóa học sinh khỏi lớp',
-      message: `Bạn có chắc muốn đưa học sinh "${studentName}" ra khỏi lớp "${currentClass.className}"? Tài khoản của học sinh vẫn được giữ nguyên trong hệ thống.`,
-      confirmLabel: 'Xác nhận xóa',
+      title: 'Đưa học sinh ra khỏi lớp',
+      message: `Bạn có chắc muốn đưa học sinh "${studentName}" ra khỏi lớp "${currentClass.className}"? Tài khoản và bài nộp của học sinh vẫn được giữ nguyên trong hệ thống.`,
+      confirmLabel: 'Đưa ra khỏi lớp',
       onConfirm: () => {
         removeStudentFromClass(classId, studentId, studentUsername, studentEmail);
+      },
+    });
+  };
+
+  const handleDeleteStudentCompletely = (studentId: string, studentName: string) => {
+    openConfirmModal({
+      title: 'Xóa vĩnh viễn học sinh khỏi hệ thống',
+      message: `Bạn có chắc muốn xóa VĨNH VIỄN học sinh "${studentName}" khỏi toàn bộ hệ thống? Thao tác này sẽ đưa học sinh ra khỏi mọi lớp học và XÓA SẠCH toàn bộ lịch sử bài nộp của học sinh này trên bảng điểm!`,
+      confirmLabel: 'Xóa vĩnh viễn',
+      onConfirm: async () => {
+        await deleteStudent(studentId);
       },
     });
   };
@@ -450,13 +463,22 @@ export const TeacherClassDetail: React.FC<TeacherClassDetailProps> = ({ classId 
                         </span>
                       </td>
                       <td className="py-3 px-4 text-right">
-                        <button
-                          onClick={() => handleRemoveStudent(stu.id, stu.fullName, stu.username, stu.email)}
-                          className="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-500/10 transition-colors cursor-pointer"
-                          title="Xóa học sinh khỏi lớp"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        <div className="flex items-center justify-end gap-1">
+                          <button
+                            onClick={() => handleRemoveStudent(stu.id, stu.fullName, stu.username, stu.email)}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-amber-500 hover:bg-amber-500/10 transition-colors cursor-pointer"
+                            title="Đưa học sinh ra khỏi lớp này (giữ bài làm và tài khoản)"
+                          >
+                            <UserMinus className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteStudentCompletely(stu.id, stu.fullName)}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-500/10 transition-colors cursor-pointer"
+                            title="Xóa vĩnh viễn học sinh & xóa sạch toàn bộ bài nộp khỏi bảng điểm"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))

@@ -945,6 +945,20 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         try {
           const { data: { session } } = await supabase.auth.getSession();
           if (session?.user) {
+            // Xác thực xem user có thực sự còn tồn tại trên Supabase Auth hay đã bị xóa từ Dashboard
+            const { data: userData, error: userErr } = await supabase.auth.getUser();
+            if (userErr || !userData?.user) {
+              console.warn('[JudgeContext] Tài khoản đã bị xóa khỏi Supabase Auth. Thu hồi phiên ngay.');
+              storageService.setStudentSession(null);
+              setCurrentStudent(null);
+              setIsAdminAuthenticated(false);
+              setRole('USER');
+              if (isMounted) {
+                setIsAuthModalOpen(true);
+              }
+              return;
+            }
+
             const u = session.user;
             const fullName = resolveStudentFullName(
               u.id,
@@ -987,11 +1001,26 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
             // Không có session Supabase Auth hợp lệ
             const localStudent = storageService.getStudentSession();
             if (localStudent) {
-              if (isMounted) {
-                setCurrentStudent(localStudent);
+              // NẾU LÀ TÀI KHOẢN OAUTH/EMAIL ĐƯỢC XÁC THỰC QUA SUPABASE AUTH:
+              // Khi Supabase Auth không có session hợp lệ (đã bị xóa trên Dashboard hoặc đăng xuất),
+              // Tuyệt đối không khôi phục phiên tự động để tránh tài khoản zombie vẫn tiếp tục hoạt động!
+              const isOAuthOrSupabase = Boolean(localStudent.email || localStudent.username?.includes('@'));
+              if (isOAuthOrSupabase && apiService.isConfigured()) {
+                console.warn('[JudgeContext] Tài khoản OAuth/Email không còn phiên Supabase hợp lệ. Hủy phiên cục bộ.');
+                storageService.setStudentSession(null);
+                setCurrentStudent(null);
                 setIsAdminAuthenticated(false);
                 setRole('USER');
-                setIsAuthModalOpen(false);
+                if (isMounted) {
+                  setIsAuthModalOpen(true);
+                }
+              } else {
+                if (isMounted) {
+                  setCurrentStudent(localStudent);
+                  setIsAdminAuthenticated(false);
+                  setRole('USER');
+                  setIsAuthModalOpen(false);
+                }
               }
             } else {
               if (isMounted) {
@@ -1067,6 +1096,19 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       if (now - lastFocusTime < 25000) return; // Không spam refresh quá dồn dập khi click chuột qua lại giữa các cửa sổ
       lastFocusTime = now;
       refreshAllData().catch(() => {});
+
+      // Kiểm tra xem tài khoản học sinh có bị xóa trên Supabase Auth Dashboard không
+      if (currentStudent && (currentStudent.email || currentStudent.username?.includes('@')) && apiService.isConfigured()) {
+        supabase.auth.getUser().then(({ data, error }) => {
+          if (error || !data?.user) {
+            console.warn('[JudgeContext] Phiên học sinh đã bị xóa trên Supabase Auth. Thu hồi phiên ngay lập tức.');
+            storageService.setStudentSession(null);
+            setCurrentStudent(null);
+            setIsAuthModalOpen(true);
+            showToast('Phiên làm việc kết thúc', 'Tài khoản của bạn đã bị xóa hoặc phiên làm việc đã hết hạn.', 'error');
+          }
+        }).catch(() => {});
+      }
     };
     window.addEventListener('focus', handleWindowFocus);
     const periodicSync = setInterval(() => {
@@ -1354,11 +1396,15 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     const studentToDelete = students.find((s) => s.id === id) || storageService.getStudents().find((s) => s.id === id);
     const stuUsername = studentToDelete?.username;
     const stuFullName = studentToDelete?.fullName;
+    const stuEmail = studentToDelete?.email;
 
     // 1. Xóa khỏi danh sách học sinh
-    storageService.deleteStudent(id);
+    storageService.deleteStudent(id, stuUsername, stuEmail);
     try {
-      const updatedList = await apiService.saveStudents(storageService.getStudents(), [id]);
+      const removeIds = [id];
+      if (stuUsername) removeIds.push(stuUsername);
+      if (stuEmail && stuEmail !== stuUsername) removeIds.push(stuEmail);
+      const updatedList = await apiService.saveStudents(storageService.getStudents(), removeIds);
       setStudents(updatedList);
     } catch (e) {
       console.warn('[JudgeContext] Xóa học sinh: chưa đồng bộ được Cloud:', e);
@@ -1367,25 +1413,27 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     }
 
     // 2. Xóa khỏi mọi lớp học
-    storageService.removeStudentFromAllClasses(id, stuUsername);
+    storageService.removeStudentFromAllClasses(id, stuUsername, stuEmail);
     const remainingClassStudents = storageService.getClassStudents();
     setClassStudents(remainingClassStudents);
     await apiService.saveClassStudents(remainingClassStudents);
 
     // 3. XÓA TOÀN BỘ LỊCH SỬ NỘP BÀI CỦA HỌC SINH NÀY (LocalStorage, IndexedDB, Supabase Cloud, React State)
-    storageService.deleteSubmissionsForStudent(id, stuUsername, stuFullName);
-    await apiService.deleteSubmissionsForStudent(id, stuUsername, stuFullName);
+    storageService.deleteSubmissionsForStudent(id, stuUsername, stuFullName, stuEmail);
+    await apiService.deleteSubmissionsForStudent(id, stuUsername, stuFullName, stuEmail);
     setSubmissions((prev) =>
       prev.filter((sub) => {
-        const matchId = sub.userId && sub.userId === id;
-        const matchUser = stuUsername && sub.userId && sub.userId.toLowerCase() === stuUsername.toLowerCase();
-        const matchName = stuFullName && sub.userName && sub.userName.toLowerCase() === stuFullName.toLowerCase();
-        return !(matchId || matchUser || matchName);
+        const subUid = (sub.userId || '').trim().toLowerCase();
+        const subName = (sub.userName || '').trim().toLowerCase();
+        const matchId = id && subUid === id.toLowerCase();
+        const matchUser = stuUsername && subUid === stuUsername.toLowerCase();
+        const matchEmail = stuEmail && subUid === stuEmail.toLowerCase();
+        const matchName = stuFullName && subName === stuFullName.toLowerCase();
+        return !(matchId || matchUser || matchEmail || matchName);
       })
     );
 
-    // 4. Dù cho học sinh có bị xóa acc hay không, tuyệt đối không văng nick, giữ nguyên tài khoản đang đăng nhập
-    showToast('Đã xóa', `Đã xóa tài khoản học sinh "${stuFullName || stuUsername || ''}" khỏi danh sách quản lý.`, 'info');
+    showToast('Đã xóa', `Đã xóa học sinh "${stuFullName || stuUsername || ''}" và toàn bộ lịch sử bài nộp khỏi hệ thống.`, 'info');
   };
 
   // Giáo viên (Admin) Đăng nhập - BẮT BUỘC ĐỐI CHIẾU TRỰC TIẾP VỚI DATABASE

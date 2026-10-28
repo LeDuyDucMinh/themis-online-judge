@@ -1007,8 +1007,19 @@ export const storageService = {
     this.saveStudents([student, ...list]);
   },
 
-  deleteStudent(id: string): void {
-    const list = this.getStudents().filter((s) => s.id !== id);
+  deleteStudent(id: string, username?: string, email?: string): void {
+    const cleanId = (id || '').trim().toLowerCase();
+    const cleanUser = (username || '').trim().toLowerCase();
+    const cleanEmail = (email || '').trim().toLowerCase();
+    const list = this.getStudents().filter((s) => {
+      const sId = (s.id || '').trim().toLowerCase();
+      const sUser = (s.username || '').trim().toLowerCase();
+      const sEmail = (s.email || '').trim().toLowerCase();
+      if (cleanId && sId === cleanId) return false;
+      if (cleanUser && (sUser === cleanUser || sId === cleanUser)) return false;
+      if (cleanEmail && (sEmail === cleanEmail || sUser === cleanEmail)) return false;
+      return true;
+    });
     this.saveStudents(list);
   },
 
@@ -1047,26 +1058,36 @@ export const storageService = {
     this.saveStudents(list);
   },
 
-  deleteSubmissionsForStudent(studentId: string, username?: string, fullName?: string): void {
+  deleteSubmissionsForStudent(studentId: string, username?: string, fullName?: string, email?: string): void {
     const cleanId = studentId ? studentId.trim().toLowerCase() : '';
     const cleanUser = username ? username.trim().toLowerCase() : '';
     const cleanName = fullName ? fullName.trim().toLowerCase() : '';
+    const cleanEmail = email ? email.trim().toLowerCase() : '';
 
     const subs = this.getSubmissions().filter((s) => {
-      const matchId = cleanId && s.userId && s.userId.trim().toLowerCase() === cleanId;
-      const matchUser = cleanUser && s.userId && s.userId.trim().toLowerCase() === cleanUser;
-      const matchName = cleanName && s.userName && s.userName.trim().toLowerCase() === cleanName;
-      return !(matchId || matchUser || matchName);
+      const sUserId = s.userId ? s.userId.trim().toLowerCase() : '';
+      const sUserName = s.userName ? s.userName.trim().toLowerCase() : '';
+      const matchId = cleanId && sUserId === cleanId;
+      const matchUser = cleanUser && sUserId === cleanUser;
+      const matchEmail = cleanEmail && sUserId === cleanEmail;
+      const matchName = cleanName && sUserName === cleanName;
+      return !(matchId || matchUser || matchEmail || matchName);
     });
     localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, JSON.stringify(subs));
   },
 
-  removeStudentFromAllClasses(studentId: string, username?: string): void {
-    const cleanId = studentId ? studentId.trim() : '';
+  removeStudentFromAllClasses(studentId: string, username?: string, email?: string): void {
+    const cleanId = studentId ? studentId.trim().toLowerCase() : '';
     const cleanUser = username ? username.trim().toLowerCase() : '';
-    const list = this.getClassStudents().filter(
-      (cs) => cs.studentId !== cleanId && (!cleanUser || cs.studentId !== cleanUser)
-    );
+    const cleanEmail = email ? email.trim().toLowerCase() : '';
+    const list = this.getClassStudents().filter((cs) => {
+      const csId = (cs.studentId || '').trim().toLowerCase();
+      const csUser = (cs.studentUsername || '').trim().toLowerCase();
+      if (cleanId && csId === cleanId) return false;
+      if (cleanUser && (csId === cleanUser || csUser === cleanUser)) return false;
+      if (cleanEmail && (csId === cleanEmail || csUser === cleanEmail)) return false;
+      return true;
+    });
     this.saveClassStudents(list);
   },
 

@@ -458,7 +458,7 @@ export const apiService = {
   /**
    * Xóa toàn bộ lịch sử bài làm của học sinh (IndexedDB và Supabase Cloud)
    */
-  async deleteSubmissionsForStudent(studentId: string, username?: string, fullName?: string): Promise<void> {
+  async deleteSubmissionsForStudent(studentId: string, username?: string, fullName?: string, email?: string): Promise<void> {
     // 1. Xóa trong IndexedDB máy hiện tại
     await idbService.deleteSubmissionsForStudent(studentId, username, fullName);
 
@@ -477,6 +477,14 @@ export const apiService = {
         if (username && username !== studentId) {
           deleteCalls.push(
             fetch(`${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/submissions?user_id=eq.${encodeURIComponent(username)}`, {
+              method: 'DELETE',
+              headers: this.getAntiCacheHeaders(),
+            })
+          );
+        }
+        if (email && email !== username && email !== studentId) {
+          deleteCalls.push(
+            fetch(`${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/submissions?user_id=eq.${encodeURIComponent(email)}`, {
               method: 'DELETE',
               headers: this.getAntiCacheHeaders(),
             })
