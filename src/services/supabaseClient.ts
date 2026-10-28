@@ -82,6 +82,13 @@ export function translateAuthError(rawError?: string | null): string {
   }
 
   if (
+    msg.includes('database error saving new user') ||
+    msg.includes('error saving new user')
+  ) {
+    return 'Lỗi cơ sở dữ liệu Supabase khi lưu tài khoản (thiếu cột full_name trong bảng profiles). Vui lòng chạy lệnh ALTER TABLE trong Supabase SQL Editor.';
+  }
+
+  if (
     msg.includes('networkerror') ||
     msg.includes('failed to fetch') ||
     msg.includes('connection')

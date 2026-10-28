@@ -3,7 +3,7 @@
 -- Hướng dẫn: Mở Supabase Dashboard -> Vào mục "SQL Editor" -> Dán toàn bộ mã này và nhấn "Run"
 -- ==============================================================================
 
--- 1. TẠO BẢNG HỒ SƠ NGƯỜI DÙNG (PROFILES) NẾU CHƯA TỒN TẠI
+-- 1. TẠO BẢNG HỒ SƠ NGƯỜI DÙNG (PROFILES) NẾU CHƯA TỒN TẠI & BỔ SUNG CỘT
 CREATE TABLE IF NOT EXISTS public.profiles (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   email TEXT,
@@ -12,6 +12,11 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Tự động bổ sung các cột nếu bảng profiles đã được tạo từ trước mà thiếu cột
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS full_name TEXT;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'student';
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
 
 -- 2. HÀM KIỂM TRA QUYỀN QUẢN TRỊ VIÊN / GIÁO VIÊN (SECURITY DEFINER)
 -- Chạy với quyền bảo mật của PostgreSQL để tránh vòng lặp vô hạn (infinite recursion) khi kiểm tra RLS
@@ -26,24 +31,36 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, auth;
 
--- 3. TRIGGER TỰ ĐỘNG KHỞI TẠO PROFILE HỌC SINH KHI ĐĂNG KÝ SUPABASE AUTH MỚI
+-- 3. TRIGGER TỰ ĐỘNG KHỞI TẠO PROFILE HỌC SINH KHI ĐĂNG KÝ SUPABASE AUTH MỚI (AN TOÀN TUYỆT ĐỐI)
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
-  INSERT INTO public.profiles (id, email, full_name, role)
-  VALUES (
-    NEW.id,
-    NEW.email,
-    COALESCE(
-      NEW.raw_user_meta_data->>'custom_full_name',
-      NEW.raw_user_meta_data->>'full_name',
-      NEW.raw_user_meta_data->>'name',
-      split_part(NEW.email, '@', 1)
-    ),
-    'student'
-  )
-  ON CONFLICT (id) DO UPDATE
-  SET email = EXCLUDED.email;
+  BEGIN
+    INSERT INTO public.profiles (id, email, full_name, role)
+    VALUES (
+      NEW.id,
+      NEW.email,
+      COALESCE(
+        NEW.raw_user_meta_data->>'custom_full_name',
+        NEW.raw_user_meta_data->>'full_name',
+        NEW.raw_user_meta_data->>'name',
+        split_part(NEW.email, '@', 1)
+      ),
+      'student'
+    )
+    ON CONFLICT (id) DO UPDATE
+    SET email = EXCLUDED.email,
+        full_name = COALESCE(EXCLUDED.full_name, profiles.full_name);
+  EXCEPTION WHEN OTHERS THEN
+    -- Fallback an toàn: nếu bảng profiles có bất kỳ lỗi ràng buộc nào, không bao giờ chặn đăng ký Auth
+    BEGIN
+      INSERT INTO public.profiles (id, email, role)
+      VALUES (NEW.id, NEW.email, 'student')
+      ON CONFLICT (id) DO UPDATE SET email = EXCLUDED.email;
+    EXCEPTION WHEN OTHERS THEN
+      NULL;
+    END;
+  END;
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, auth;

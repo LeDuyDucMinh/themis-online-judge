@@ -3,7 +3,18 @@ import { useJudge } from '../../context/JudgeContext';
 import { supabase, translateAuthError, fetchUserRoleFromSupabase } from '../../services/supabaseClient';
 import { apiService } from '../../services/apiService';
 import { storageService, resolveStudentFullName } from '../../services/storageService';
-import { Eye, EyeOff, X, Loader2, AlertTriangle } from 'lucide-react';
+import {
+  Eye,
+  EyeOff,
+  X,
+  Loader2,
+  AlertTriangle,
+  Mail,
+  CheckCircle2,
+  ExternalLink,
+  RefreshCw,
+  ArrowLeft,
+} from 'lucide-react';
 
 // ---- Hằng số giao diện (thuần trình bày, không chứa logic) ----
 const DISPLAY_FONT: React.CSSProperties = {
@@ -56,8 +67,11 @@ export const AuthModal: React.FC = () => {
     setRole,
   } = useJudge();
 
-  // Chế độ xác thực: 'login' (Đăng nhập) | 'register' (Đăng ký)
-  const [activeTab, setActiveTab] = useState<'login' | 'register'>('login');
+  // Chế độ xác thực: 'login' (Đăng nhập) | 'register' (Đăng ký) | 'verify_email' (Xác nhận email)
+  const [activeTab, setActiveTab] = useState<'login' | 'register' | 'verify_email'>('login');
+  const [pendingEmail, setPendingEmail] = useState('');
+  const [isResending, setIsResending] = useState(false);
+  const [resendStatus, setResendStatus] = useState<string | null>(null);
 
   // Fields: Đăng nhập & Đăng ký
   const [fullName, setFullName] = useState('');
@@ -242,13 +256,17 @@ export const AuthModal: React.FC = () => {
             );
           }
         } else {
-          showToast(
-            'Tạo tài khoản thành công',
-            `Chào mừng ${cleanName}! Vui lòng kiểm tra email "${cleanEmail}" để hoàn tất xác thực hoặc đăng nhập.`,
-            'success'
-          );
-          setActiveTab('login');
+          // Khi Supabase Auth bật xác thực email:
+          // data.user được tạo nhưng session là null cho đến khi học sinh ấn xác nhận trong hòm thư email
+          setPendingEmail(cleanEmail);
+          setActiveTab('verify_email');
           setErrorMessage('');
+          setResendStatus(null);
+          showToast(
+            'Kiểm tra email',
+            `Thư xác nhận đã được gửi đến "${cleanEmail}". Vui lòng mở Gmail để kích hoạt tài khoản!`,
+            'info'
+          );
         }
       }
     } catch (err: any) {
@@ -257,6 +275,39 @@ export const AuthModal: React.FC = () => {
       showToast('Lỗi hệ thống', viMsg, 'error');
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  /**
+   * Xử lý GỬI LẠI THƯ XÁC NHẬN (Resend confirmation email)
+   */
+  const handleResendConfirmation = async () => {
+    const targetEmail = pendingEmail || email.trim();
+    if (!targetEmail) return;
+
+    setIsResending(true);
+    setResendStatus(null);
+    setErrorMessage('');
+    try {
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email: targetEmail,
+      });
+
+      if (error) {
+        const viMsg = translateAuthError(error.message);
+        setErrorMessage(viMsg);
+        showToast('Chưa thể gửi lại', viMsg, 'error');
+      } else {
+        setResendStatus('Đã gửi lại thư xác nhận thành công! Vui lòng kiểm tra hộp thư đến (và mục Spam/Thư rác).');
+        showToast('Đã gửi lại email', `Thư kích hoạt mới đã được gửi tới ${targetEmail}`, 'success');
+      }
+    } catch (err: any) {
+      const viMsg = translateAuthError(err?.message);
+      setErrorMessage(viMsg);
+      showToast('Lỗi gửi email', viMsg, 'error');
+    } finally {
+      setIsResending(false);
     }
   };
 
@@ -284,6 +335,12 @@ export const AuthModal: React.FC = () => {
       if (error) {
         const viMsg = translateAuthError(error.message);
         setErrorMessage(viMsg);
+        if (
+          error.message.toLowerCase().includes('email not confirmed') ||
+          error.message.toLowerCase().includes('unconfirmed')
+        ) {
+          setPendingEmail(cleanEmail);
+        }
         showToast('Đăng nhập thất bại', viMsg, 'error');
         return;
       }
@@ -465,8 +522,8 @@ export const AuthModal: React.FC = () => {
               </span>
             </div>
 
-            {/* Cơ chế Tabs chuyển đổi qua lại giữa 'Đăng nhập' và 'Đăng ký' */}
-            <div role="tablist" className="mb-8 flex gap-7 border-b border-white/10">
+            {/* Cơ chế Tabs chuyển đổi qua lại giữa 'Đăng nhập', 'Đăng ký' và 'Xác thực Email' */}
+            <div role="tablist" className="mb-8 flex flex-wrap gap-5 border-b border-white/10 sm:gap-7">
               <button
                 type="button"
                 role="tab"
@@ -500,6 +557,18 @@ export const AuthModal: React.FC = () => {
               >
                 Đăng ký
               </button>
+
+              {activeTab === 'verify_email' && (
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={true}
+                  className="-mb-px flex cursor-default items-center gap-1.5 border-b-2 border-emerald-500 pb-3 text-sm font-semibold text-emerald-400"
+                >
+                  <Mail className="h-4 w-4" />
+                  Xác thực Email
+                </button>
+              )}
             </div>
 
             <h2
@@ -507,22 +576,44 @@ export const AuthModal: React.FC = () => {
               style={DISPLAY_FONT}
               className="text-2xl font-semibold tracking-tight text-stone-50"
             >
-              {activeTab === 'login' ? 'Đăng Nhập FAMINH JUDGE' : 'Tạo Tài Khoản FAMINH JUDGE'}
+              {activeTab === 'login'
+                ? 'Đăng Nhập FAMINH JUDGE'
+                : activeTab === 'register'
+                ? 'Tạo Tài Khoản FAMINH JUDGE'
+                : 'Xác Thực Tài Khoản Email'}
             </h2>
             <p className="mb-7 mt-2 max-w-sm text-sm leading-relaxed text-stone-400">
               {activeTab === 'login'
                 ? 'Chào mừng bạn quay trở lại! Đăng nhập để truy cập không gian lớp học và nộp bài.'
-                : 'Đăng ký tài khoản để tham gia các lớp học và chấm bài tự động Themis.'}
+                : activeTab === 'register'
+                ? 'Đăng ký tài khoản để tham gia các lớp học và chấm bài tự động Themis.'
+                : 'Vui lòng kiểm tra Gmail và ấn nút xác nhận để kích hoạt tài khoản của bạn.'}
             </p>
 
             {/* Thông báo lỗi nếu có */}
             {errorMessage && (
               <div
                 role="alert"
-                className="mb-5 flex items-start gap-2.5 rounded-lg border border-[#e5322d]/40 bg-[#e5322d]/10 px-3.5 py-3 text-sm text-red-200 animate-in fade-in"
+                className="mb-5 flex flex-col gap-2 rounded-lg border border-[#e5322d]/40 bg-[#e5322d]/10 px-3.5 py-3 text-sm text-red-200 animate-in fade-in"
               >
-                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-[#ff6b63]" />
-                <span className="leading-relaxed">{errorMessage}</span>
+                <div className="flex items-start gap-2.5">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-[#ff6b63]" />
+                  <span className="leading-relaxed">{errorMessage}</span>
+                </div>
+                {(errorMessage.includes('chưa được kích hoạt') ||
+                  errorMessage.includes('chưa kích hoạt')) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (email) setPendingEmail(email);
+                      setActiveTab('verify_email');
+                      setErrorMessage('');
+                    }}
+                    className="mt-0.5 self-start cursor-pointer text-xs font-semibold text-emerald-400 underline underline-offset-4 hover:text-emerald-300"
+                  >
+                    👉 Mở hướng dẫn kiểm tra Gmail & gửi lại mã xác thực
+                  </button>
+                )}
               </div>
             )}
 
@@ -764,6 +855,151 @@ export const AuthModal: React.FC = () => {
                   <span>Tiếp tục với Google</span>
                 </button>
               </form>
+            )}
+
+            {/* ======================================================== */}
+            {/* TAB 3: HƯỚNG DẪN XÁC THỰC EMAIL (Gmail Confirmation)    */}
+            {/* ======================================================== */}
+            {activeTab === 'verify_email' && (
+              <div className="space-y-5 animate-in fade-in duration-200">
+                {/* Khối thông báo chính */}
+                <div className="rounded-xl border border-emerald-500/20 bg-[#0d0c0a] p-5 shadow-inner">
+                  <div className="flex items-start gap-3.5">
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 shadow-[0_0_20px_rgba(16,185,129,0.15)]">
+                      <Mail className="h-6 w-6" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-300">
+                          <CheckCircle2 className="h-3 w-3" /> Đã gửi thư xác nhận
+                        </span>
+                      </div>
+                      <p className="mt-1.5 text-xs text-stone-400">
+                        Hệ thống đã gửi liên kết kích hoạt tài khoản đến địa chỉ:
+                      </p>
+                      <p className="mt-0.5 truncate font-mono text-sm font-semibold text-emerald-300">
+                        {pendingEmail || email}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* 4 bước hướng dẫn rõ ràng */}
+                  <div className="mt-4 space-y-2.5 rounded-lg border border-white/5 bg-white/[0.02] p-4 text-xs text-stone-300">
+                    <div className="flex items-start gap-2.5">
+                      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white/10 text-[11px] font-bold text-stone-200">
+                        1
+                      </span>
+                      <span>
+                        Mở hòm thư <strong>Gmail</strong> (hoặc ứng dụng email bạn dùng để đăng ký).
+                      </span>
+                    </div>
+
+                    <div className="flex items-start gap-2.5">
+                      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white/10 text-[11px] font-bold text-stone-200">
+                        2
+                      </span>
+                      <span className="leading-relaxed">
+                        Tìm email từ <strong>FAMINH JUDGE</strong> (Supabase Auth) với tiêu đề{' '}
+                        <strong className="text-stone-100">"Confirm your email"</strong>.
+                        <br />
+                        <span className="text-amber-300/90">
+                          ⚠️ Chú ý: Nếu không thấy trong Hộp thư đến, vui lòng kiểm tra cả mục{' '}
+                          <strong>Thư rác (Spam)</strong> hoặc <strong>Quảng cáo / Cập nhật</strong>.
+                        </span>
+                      </span>
+                    </div>
+
+                    <div className="flex items-start gap-2.5">
+                      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white/10 text-[11px] font-bold text-stone-200">
+                        3
+                      </span>
+                      <span>
+                        Bấm vào nút <strong className="text-emerald-400">"Confirm your email"</strong>{' '}
+                        hoặc đường link xác nhận trong thư.
+                      </span>
+                    </div>
+
+                    <div className="flex items-start gap-2.5">
+                      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-500/20 text-[11px] font-bold text-emerald-400">
+                        ✓
+                      </span>
+                      <span className="font-medium text-stone-100">
+                        Sau khi bấm xác nhận xong, tài khoản đã được kích hoạt! Quay lại đây bấm{' '}
+                        <strong>"Tôi Đã Ấn Xác Nhận → Đăng Nhập Ngay"</strong>.
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Thông báo gửi lại email thành công */}
+                {resendStatus && (
+                  <div
+                    role="status"
+                    className="flex items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs text-emerald-300 animate-in fade-in"
+                  >
+                    <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" />
+                    <span>{resendStatus}</span>
+                  </div>
+                )}
+
+                {/* Các nút hành động */}
+                <div className="space-y-3 pt-1">
+                  {/* Nút 1: Mở hòm thư Gmail ngay */}
+                  <button
+                    type="button"
+                    onClick={() =>
+                      window.open('https://mail.google.com', '_blank', 'noopener,noreferrer')
+                    }
+                    className={PRIMARY_BUTTON_CLASS}
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                    <span>Mở Hộp Thư Gmail Ngay</span>
+                  </button>
+
+                  {/* Nút 2: Chuyển sang Đăng nhập */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTab('login');
+                      setEmail(pendingEmail || email);
+                      setErrorMessage('');
+                    }}
+                    className="flex h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-sm font-semibold text-emerald-300 transition-colors hover:bg-emerald-500/20 focus-visible:outline-2 focus-visible:outline-emerald-500"
+                  >
+                    <CheckCircle2 className="h-4 w-4" />
+                    <span>Tôi Đã Ấn Xác Nhận → Đăng Nhập Ngay</span>
+                  </button>
+
+                  {/* Nhóm phụ: Gửi lại email & Đổi email */}
+                  <div className="flex items-center justify-between pt-1 text-xs">
+                    <button
+                      type="button"
+                      disabled={isResending}
+                      onClick={handleResendConfirmation}
+                      className="flex cursor-pointer items-center gap-1.5 text-stone-400 transition-colors hover:text-stone-200 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {isResending ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin text-stone-300" />
+                      ) : (
+                        <RefreshCw className="h-3.5 w-3.5" />
+                      )}
+                      <span>Chưa nhận được? Gửi lại thư</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveTab('register');
+                        setErrorMessage('');
+                      }}
+                      className="flex cursor-pointer items-center gap-1 text-stone-500 transition-colors hover:text-stone-300"
+                    >
+                      <ArrowLeft className="h-3.5 w-3.5" />
+                      <span>Đổi địa chỉ email</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
             )}
           </div>
         </div>
