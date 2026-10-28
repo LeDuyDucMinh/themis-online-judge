@@ -473,11 +473,11 @@ export const SubmissionHistory: React.FC = () => {
       {/* Header & Bộ chuyển đổi chế độ xem (Dành cho Giáo viên) */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold text-white flex items-center gap-2">
-            <Trophy className="w-5 h-5 text-amber-400" />
+          <h2 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+            <Trophy className="w-5 h-5 text-amber-500 dark:text-amber-400" />
             {viewMode === 'log' ? 'Nhật ký nộp bài & Kết quả chấm' : 'Bảng điểm & Tiến độ theo Chủ đề'}
           </h2>
-          <p className="text-xs text-slate-400 mt-1">
+          <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
             {viewMode === 'log'
               ? 'Theo dõi chi tiết kết quả của 15 lượt nộp bài gần đây nhất'
               : 'Thống kê tổng điểm và tiến độ hoàn thành từng bài tập của học sinh theo từng chuyên đề'}
@@ -490,7 +490,7 @@ export const SubmissionHistory: React.FC = () => {
             <select
               value={selectedClassId}
               onChange={(e) => setSelectedClassId(e.target.value)}
-              className="bg-slate-800 border border-slate-700 text-slate-200 text-xs rounded-xl px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-red-500 font-medium"
+              className="bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 text-xs rounded-xl px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-red-500 font-medium cursor-pointer shadow-2xs"
             >
               <option value="ALL">Tất cả lớp học ({availableClasses.length})</option>
               {availableClasses.map((c) => (
@@ -504,7 +504,7 @@ export const SubmissionHistory: React.FC = () => {
 
           {/* 2 Nút chuyển chế độ xem dành riêng cho Giáo viên */}
           {isAdminAuthenticated && (
-            <div className="flex items-center p-1 bg-slate-800/80 rounded-2xl border border-slate-700/60 shadow-sm">
+            <div className="flex items-center p-1 bg-slate-100 dark:bg-slate-800/80 rounded-2xl border border-slate-200 dark:border-slate-700/60 shadow-xs">
 
               <button
                 type="button"
@@ -512,7 +512,7 @@ export const SubmissionHistory: React.FC = () => {
                 className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                   viewMode === 'log'
                     ? 'bg-red-600 text-white shadow-md shadow-red-600/20'
-                    : 'text-slate-300 hover:text-white hover:bg-slate-700/50'
+                    : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-slate-700/50'
                 }`}
               >
                 <Clock className="w-3.5 h-3.5" />
@@ -524,7 +524,7 @@ export const SubmissionHistory: React.FC = () => {
                 className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                   viewMode === 'topic_grades'
                     ? 'bg-red-600 text-white shadow-md shadow-red-600/20'
-                    : 'text-slate-300 hover:text-white hover:bg-slate-700/50'
+                    : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-slate-700/50'
                 }`}
               >
                 <BarChart3 className="w-3.5 h-3.5" />
@@ -533,7 +533,7 @@ export const SubmissionHistory: React.FC = () => {
             </div>
           )}
 
-          <span className="text-xs font-mono text-slate-400 bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-700">
+          <span className="text-xs font-mono text-slate-700 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700">
             {viewMode === 'log' ? `${displayedSubmissions.length} lượt nộp gần nhất` : `${topicEligibleStudents.length} học sinh được giao`}
           </span>
         </div>
@@ -552,11 +552,11 @@ export const SubmissionHistory: React.FC = () => {
             </p>
           </div>
         ) : (
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-xl">
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
-                  <tr className="border-b border-slate-800 text-[11px] font-bold uppercase text-slate-400 bg-slate-800/40">
+                  <tr className="border-b border-slate-200 dark:border-slate-800 text-[11px] font-bold uppercase text-slate-600 dark:text-slate-400 bg-slate-100/90 dark:bg-slate-800/40">
                     <th className="py-3 px-4">Thời gian</th>
                     <th className="py-3 px-4">Học sinh</th>
                     <th className="py-3 px-4">Bài tập</th>
@@ -567,35 +567,35 @@ export const SubmissionHistory: React.FC = () => {
                     <th className="py-3 px-4 text-center">Thao tác</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-800/60 font-mono">
+                <tbody className="divide-y divide-slate-200 dark:divide-slate-800/60 font-mono">
                   {displayedSubmissions.map((sub) => (
                     <tr
                       key={sub.id}
-                      className="hover:bg-slate-800/40 transition-colors cursor-pointer"
+                      className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors cursor-pointer"
                       onClick={() => handleOpenDetail(sub)}
                     >
-                      <td className="py-3 px-4 text-slate-400 font-sans flex items-center gap-1.5">
-                        <Calendar className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                      <td className="py-3 px-4 text-slate-500 dark:text-slate-400 font-sans flex items-center gap-1.5">
+                        <Calendar className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 shrink-0" />
                         {new Date(sub.submittedAt).toLocaleTimeString()} ({new Date(sub.submittedAt).toLocaleDateString()})
                       </td>
-                      <td className="py-3 px-4 font-sans font-semibold text-slate-200">
+                      <td className="py-3 px-4 font-sans font-semibold text-slate-900 dark:text-slate-200">
                         <div className="flex items-center gap-1.5">
-                          <User className="w-3.5 h-3.5 text-red-400 shrink-0" />
+                          <User className="w-3.5 h-3.5 text-red-500 dark:text-red-400 shrink-0" />
                           <span>{getSubDisplayName(sub)}</span>
                         </div>
                       </td>
-                      <td className="py-3 px-4 font-sans font-semibold text-slate-200">
+                      <td className="py-3 px-4 font-sans font-semibold text-slate-900 dark:text-slate-200">
                         [{sub.problemCode}] {sub.problemTitle}
                       </td>
-                      <td className="py-3 px-4 uppercase text-slate-300 font-bold">
+                      <td className="py-3 px-4 uppercase text-slate-700 dark:text-slate-300 font-bold">
                         {sub.language}
                       </td>
                       <td className="py-3 px-4">{getVerdictBadge(sub)}</td>
                       <td className="py-3 px-4 font-bold">
-                        <span className="text-amber-400">{sub.totalPointsEarned}</span>
-                        <span className="text-slate-500"> / {sub.maxTotalPoints}</span>
+                        <span className="text-amber-600 dark:text-amber-400">{sub.totalPointsEarned}</span>
+                        <span className="text-slate-400 dark:text-slate-500"> / {sub.maxTotalPoints}</span>
                       </td>
-                      <td className="py-3 px-4 text-slate-400">
+                      <td className="py-3 px-4 text-slate-500 dark:text-slate-400">
                         {(typeof sub.executionTime === 'number' ? sub.executionTime : (typeof (sub as any).time === 'number' ? (sub as any).time : 0)).toFixed(3)}s
                       </td>
                       <td className="py-3 px-4 text-center">
@@ -604,7 +604,7 @@ export const SubmissionHistory: React.FC = () => {
                             e.stopPropagation();
                             handleOpenDetail(sub);
                           }}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-red-600 text-slate-300 hover:text-white transition-colors cursor-pointer"
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-red-600 text-slate-700 dark:text-slate-300 hover:text-white transition-colors cursor-pointer border border-slate-200 dark:border-slate-700"
                         >
                           Chi tiết <ChevronRight className="w-3 h-3" />
                         </button>
@@ -614,12 +614,12 @@ export const SubmissionHistory: React.FC = () => {
                 </tbody>
               </table>
             </div>
-            <div className="px-4 py-2.5 bg-slate-800/40 border-t border-slate-800/80 text-[11px] text-slate-400 flex items-center justify-between">
+            <div className="px-4 py-2.5 bg-slate-50 dark:bg-slate-800/40 border-t border-slate-200 dark:border-slate-800/80 text-[11px] text-slate-500 dark:text-slate-400 flex items-center justify-between">
               <span className="flex items-center gap-1.5">
-                <Clock className="w-3.5 h-3.5 text-slate-500" />
+                <Clock className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
                 Chỉ hiển thị tối đa 15 lượt nộp bài gần đây nhất
               </span>
-              <span className="text-slate-500 font-mono text-[10px]">
+              <span className="text-slate-400 dark:text-slate-500 font-mono text-[10px]">
                 (Các lượt nộp quá 15 lượt được ẩn trên bảng này)
               </span>
             </div>
@@ -631,20 +631,20 @@ export const SubmissionHistory: React.FC = () => {
       {isAdminAuthenticated && viewMode === 'topic_grades' && (
         <div className="space-y-6 animate-in fade-in duration-200">
           {/* Thanh chọn Chủ đề & Thống kê */}
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 flex flex-wrap items-center justify-between gap-4 shadow-lg">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 sm:p-5 flex flex-wrap items-center justify-between gap-4 shadow-sm">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-red-500/15 text-red-400 border border-red-500/30 flex items-center justify-center shrink-0">
+              <div className="w-10 h-10 rounded-xl bg-red-500/15 text-red-500 dark:text-red-400 border border-red-500/30 flex items-center justify-center shrink-0">
                 <BookOpen className="w-5 h-5" />
               </div>
               <div>
-                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 mb-0.5">
                   Chọn chủ đề (Chuyên đề) muốn xem bảng điểm:
                 </label>
                 <div className="flex items-center gap-2">
                   <select
                     value={selectedTopicId}
                     onChange={(e) => setSelectedTopicId(e.target.value)}
-                    className="bg-slate-800 border border-slate-700 text-white text-xs sm:text-sm font-bold rounded-xl px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-red-500 cursor-pointer min-w-[220px]"
+                    className="bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-xs sm:text-sm font-bold rounded-xl px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-red-500 cursor-pointer min-w-[220px]"
                   >
                     {topics.map((t) => (
                       <option key={t.id} value={t.id}>
@@ -657,10 +657,10 @@ export const SubmissionHistory: React.FC = () => {
             </div>
 
             <div className="flex flex-wrap items-center gap-3">
-              <span className="text-xs font-mono text-slate-300 bg-slate-800/80 px-3 py-1.5 rounded-xl border border-slate-700/80 flex items-center gap-1.5">
-                <GraduationCap className="w-3.5 h-3.5 text-indigo-400" />
-                <span className="text-slate-400">Giao cho:</span>{' '}
-                <b className="text-indigo-300 font-sans">
+              <span className="text-xs font-mono text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800/80 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700/80 flex items-center gap-1.5">
+                <GraduationCap className="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-400" />
+                <span className="text-slate-500 dark:text-slate-400">Giao cho:</span>{' '}
+                <b className="text-indigo-600 dark:text-indigo-300 font-sans">
                   {topicClassIds.includes('ALL')
                     ? 'Tất cả các lớp'
                     : topicClassIds
@@ -668,18 +668,18 @@ export const SubmissionHistory: React.FC = () => {
                         .join(', ')}
                 </b>
               </span>
-              <span className="text-xs font-mono text-slate-300 bg-slate-800/80 px-3 py-1.5 rounded-xl border border-slate-700/80 flex items-center gap-1.5">
-                <Users className="w-3.5 h-3.5 text-emerald-400" />
-                <span className="text-slate-400">Học sinh được làm:</span>{' '}
-                <b className="text-emerald-400">{topicEligibleStudents.length} HS</b>
+              <span className="text-xs font-mono text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800/80 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700/80 flex items-center gap-1.5">
+                <Users className="w-3.5 h-3.5 text-emerald-500 dark:text-emerald-400" />
+                <span className="text-slate-500 dark:text-slate-400">Học sinh được làm:</span>{' '}
+                <b className="text-emerald-600 dark:text-emerald-400">{topicEligibleStudents.length} HS</b>
               </span>
-              <span className="text-xs font-mono text-slate-300 bg-slate-800/80 px-3 py-1.5 rounded-xl border border-slate-700/80">
-                <span className="text-slate-400">Số bài:</span>{' '}
-                <b className="text-blue-400">{topicProblems.length}</b>
+              <span className="text-xs font-mono text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800/80 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700/80">
+                <span className="text-slate-500 dark:text-slate-400">Số bài:</span>{' '}
+                <b className="text-blue-600 dark:text-blue-400">{topicProblems.length}</b>
               </span>
-              <span className="text-xs font-mono text-slate-300 bg-slate-800/80 px-3 py-1.5 rounded-xl border border-slate-700/80">
-                <span className="text-slate-400">Điểm tối đa:</span>{' '}
-                <b className="text-amber-400">{topicMaxTotalPoints}đ</b>
+              <span className="text-xs font-mono text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800/80 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700/80">
+                <span className="text-slate-500 dark:text-slate-400">Điểm tối đa:</span>{' '}
+                <b className="text-amber-600 dark:text-amber-400">{topicMaxTotalPoints}đ</b>
               </span>
             </div>
           </div>
@@ -712,39 +712,39 @@ export const SubmissionHistory: React.FC = () => {
               </p>
             </div>
           ) : (
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-xl">
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse text-xs">
                   <thead>
-                    <tr className="border-b border-slate-800 text-[11px] font-bold uppercase text-slate-400 bg-slate-800/40">
+                    <tr className="border-b border-slate-200 dark:border-slate-800 text-[11px] font-bold uppercase text-slate-600 dark:text-slate-400 bg-slate-100/90 dark:bg-slate-800/40">
                       <th className="py-3 px-4 w-12 text-center">STT</th>
                       <th className="py-3 px-4 min-w-[180px]">Học sinh</th>
                       <th className="py-3 px-4 min-w-[170px]">Tiến độ chủ đề</th>
                       {topicProblems.map((prob) => (
                         <th
                           key={prob.id}
-                          className="py-3 px-3 text-center min-w-[125px] border-l border-slate-800/50"
+                          className="py-3 px-3 text-center min-w-[125px] border-l border-slate-200 dark:border-slate-800/50"
                         >
-                          <div className="font-mono text-blue-400 font-bold tracking-tight">
+                          <div className="font-mono text-blue-600 dark:text-blue-400 font-bold tracking-tight">
                             [{prob.code}]
                           </div>
                           <div
-                            className="text-[10px] text-slate-300 truncate max-w-[115px] font-medium mt-0.5 mx-auto"
+                            className="text-[10px] text-slate-700 dark:text-slate-300 truncate max-w-[115px] font-medium mt-0.5 mx-auto"
                             title={prob.title}
                           >
                             {prob.title}
                           </div>
-                          <div className="text-[10px] text-slate-500 font-mono">
+                          <div className="text-[10px] text-slate-400 dark:text-slate-500 font-mono">
                             ({prob.totalPoints || 10}đ)
                           </div>
                         </th>
                       ))}
-                      <th className="py-3 px-4 text-center min-w-[140px] border-l border-slate-800/80 bg-slate-800/30">
+                      <th className="py-3 px-4 text-center min-w-[140px] border-l border-slate-200 dark:border-slate-800/80 bg-slate-50 dark:bg-slate-800/30">
                         Tổng điểm chủ đề
                       </th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-800/60 font-mono">
+                  <tbody className="divide-y divide-slate-200 dark:divide-slate-800/60 font-mono">
                     {topicEligibleStudents.map((st, idx) => {
                       let completedCount = 0;
                       let totalPointsEarned = 0;
@@ -769,21 +769,21 @@ export const SubmissionHistory: React.FC = () => {
                       return (
                         <tr
                           key={st.id}
-                          className="hover:bg-slate-800/40 transition-colors"
+                          className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors"
                         >
-                          <td className="py-3 px-4 text-center text-slate-500 font-bold">
+                          <td className="py-3 px-4 text-center text-slate-400 dark:text-slate-500 font-bold">
                             #{idx + 1}
                           </td>
                           <td className="py-3 px-4 font-sans">
                             <div className="flex items-center gap-2">
-                              <div className="w-7 h-7 rounded-lg bg-blue-500/10 text-blue-400 flex items-center justify-center shrink-0">
+                              <div className="w-7 h-7 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
                                 <User className="w-3.5 h-3.5" />
                               </div>
                               <div>
-                                <span className="font-bold text-slate-100 block">
+                                <span className="font-bold text-slate-900 dark:text-slate-100 block">
                                   {st.fullName}
                                 </span>
-                                <span className="text-[11px] font-mono text-slate-400">
+                                <span className="text-[11px] font-mono text-slate-500 dark:text-slate-400">
                                   @{st.username}
                                 </span>
                               </div>
@@ -792,14 +792,14 @@ export const SubmissionHistory: React.FC = () => {
                           <td className="py-3 px-4 font-sans">
                             <div className="space-y-1.5">
                               <div className="flex items-center justify-between text-[11px]">
-                                <span className="text-slate-300 font-medium">
+                                <span className="text-slate-600 dark:text-slate-300 font-medium">
                                   Đã làm {completedCount} / {topicProblems.length} bài
                                 </span>
-                                <span className="font-mono font-bold text-blue-400">
+                                <span className="font-mono font-bold text-blue-600 dark:text-blue-400">
                                   {progressPercent}%
                                 </span>
                               </div>
-                              <div className="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden border border-slate-700/60">
+                              <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-1.5 overflow-hidden border border-slate-200 dark:border-slate-700/60">
                                 <div
                                   className="bg-gradient-to-r from-blue-500 to-indigo-500 h-full rounded-full transition-all duration-300"
                                   style={{ width: `${progressPercent}%` }}
@@ -844,20 +844,20 @@ export const SubmissionHistory: React.FC = () => {
                           })}
 
                           {/* Tổng điểm chủ đề */}
-                          <td className="py-3 px-4 text-center font-mono font-bold border-l border-slate-800/80 bg-slate-800/20">
+                          <td className="py-3 px-4 text-center font-mono font-bold border-l border-slate-200 dark:border-slate-800/80 bg-slate-50 dark:bg-slate-800/20">
                             <span
                               className={`text-sm ${
                                 totalPointsEarned >= topicMaxTotalPoints &&
                                 topicMaxTotalPoints > 0
-                                  ? 'text-emerald-400'
+                                  ? 'text-emerald-600 dark:text-emerald-400'
                                   : totalPointsEarned > 0
-                                  ? 'text-amber-400'
-                                  : 'text-slate-500'
+                                  ? 'text-amber-600 dark:text-amber-400'
+                                  : 'text-slate-400 dark:text-slate-500'
                               }`}
                             >
                               {totalPointsEarned}
                             </span>
-                            <span className="text-slate-500 text-xs">
+                            <span className="text-slate-400 dark:text-slate-500 text-xs">
                               {' '}
                               / {topicMaxTotalPoints}đ
                             </span>

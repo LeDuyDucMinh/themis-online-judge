@@ -14,6 +14,8 @@ import {
   Menu,
   X,
   ChevronRight,
+  Sun,
+  Moon,
 } from 'lucide-react';
 
 interface AdminLayoutProps {
@@ -35,6 +37,8 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
     resetAllData,
     openConfirmModal,
     setActiveClassId,
+    theme,
+    toggleTheme,
   } = useJudge();
 
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -120,7 +124,9 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
   ];
 
   return (
-    <div className="min-h-screen flex bg-[#f8fafc] text-stone-900 font-sans antialiased">
+    <div className={`min-h-screen flex font-sans antialiased transition-colors duration-200 ${
+      theme === 'dark' ? 'bg-[#090d16] text-slate-100' : 'bg-[#f8fafc] text-stone-900'
+    }`}>
       {/* ============================================================== */}
       {/* 1. THANH ĐIỀU HƯỚNG DỌC BÊN TRÁI (REX ADMIN CRIMSON SIDEBAR)    */}
       {/* ============================================================== */}
@@ -208,6 +214,27 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
               Hệ thống & Máy chủ
             </div>
 
+            {/* Nút Chuyển chế độ Giao diện Dark / Light Mode trên thanh đỏ */}
+            <button
+              onClick={toggleTheme}
+              className="w-full flex items-center justify-between px-4 py-2.5 rounded-2xl text-sm font-semibold text-white/85 hover:text-white hover:bg-white/10 transition-all text-left cursor-pointer"
+              title={theme === 'dark' ? 'Chuyển sang Giao diện Sáng (Light Mode)' : 'Chuyển sang Giao diện Tối (Dark Mode)'}
+            >
+              <div className="flex items-center gap-3.5 min-w-0">
+                {theme === 'dark' ? (
+                  <Sun className="w-4 h-4 text-amber-300 shrink-0" />
+                ) : (
+                  <Moon className="w-4 h-4 text-amber-200 shrink-0" />
+                )}
+                <span className="flex-1 truncate">
+                  {theme === 'dark' ? 'Chế độ Sáng' : 'Chế độ Tối'}
+                </span>
+              </div>
+              <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-white/20 text-white shadow-2xs">
+                {theme === 'dark' ? 'DARK' : 'LIGHT'}
+              </span>
+            </button>
+
             {/* Nút Cấu hình Máy chủ Chấm bài VPS */}
             <button
               onClick={() => {
@@ -267,13 +294,21 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
       {/* ============================================================== */}
       <div className="flex-1 flex flex-col min-w-0 min-h-screen">
         {/* Top Header Bar theo đúng ảnh REX Admin */}
-        <header className="h-18 min-h-[72px] bg-white border-b border-stone-200/90 px-6 sm:px-8 flex items-center justify-between sticky top-0 z-20 shadow-2xs">
+        <header className={`h-18 min-h-[72px] border-b px-6 sm:px-8 flex items-center justify-between sticky top-0 z-20 shadow-2xs transition-colors duration-200 ${
+          theme === 'dark'
+            ? 'bg-slate-900/95 border-slate-800 text-white'
+            : 'bg-white border-stone-200/90 text-stone-900'
+        }`}>
           {/* Bên trái Header: TÀI KHOẢN QUẢN TRỊ + Email */}
           <div className="flex items-center gap-3 min-w-0">
             {/* Nút bật menu trên Mobile */}
             <button
               onClick={() => setIsMobileMenuOpen(true)}
-              className="md:hidden p-2 rounded-xl text-stone-600 hover:text-stone-900 hover:bg-stone-100 cursor-pointer"
+              className={`md:hidden p-2 rounded-xl cursor-pointer ${
+                theme === 'dark'
+                  ? 'text-slate-300 hover:text-white hover:bg-slate-800'
+                  : 'text-stone-600 hover:text-stone-900 hover:bg-stone-100'
+              }`}
               aria-label="Mở menu quản trị"
             >
               <Menu className="w-5 h-5" />
@@ -283,22 +318,51 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
               <span className="block text-[10px] font-black uppercase tracking-wider text-[#c51f26]">
                 TÀI KHOẢN QUẢN TRỊ
               </span>
-              <span className="block text-sm font-bold text-stone-900 truncate max-w-[200px] sm:max-w-md">
+              <span className={`block text-sm font-bold truncate max-w-[200px] sm:max-w-md ${
+                theme === 'dark' ? 'text-white' : 'text-stone-900'
+              }`}>
                 {displayEmail || 'Giáo viên Quản trị'}
               </span>
             </div>
           </div>
 
-          {/* Bên phải Header: Nút "Xem trang chủ" + Trạng thái */}
+          {/* Bên phải Header: Nút Chuyển theme + Nút "Xem trang chủ" */}
           <div className="flex items-center gap-3 shrink-0">
+            {/* Nút Toggle theme trên Header */}
+            <button
+              onClick={toggleTheme}
+              className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border text-xs font-bold transition-all shadow-2xs cursor-pointer ${
+                theme === 'dark'
+                  ? 'border-slate-700 bg-slate-800 text-amber-300 hover:bg-slate-700 hover:text-white'
+                  : 'border-stone-300 bg-white text-stone-700 hover:border-[#c51f26] hover:text-[#c51f26]'
+              }`}
+              title={theme === 'dark' ? 'Chuyển sang Giao diện Sáng (Light Mode)' : 'Chuyển sang Giao diện Tối (Dark Mode)'}
+            >
+              {theme === 'dark' ? (
+                <>
+                  <Sun className="w-3.5 h-3.5 text-amber-300" />
+                  <span className="hidden sm:inline">Chế độ Sáng</span>
+                </>
+              ) : (
+                <>
+                  <Moon className="w-3.5 h-3.5 text-stone-600" />
+                  <span className="hidden sm:inline">Chế độ Tối</span>
+                </>
+              )}
+            </button>
+
             {/* Nút Xem trang chủ như ảnh REX Admin */}
             <button
               onClick={handleOpenStudentView}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-stone-300 hover:border-[#c51f26] bg-white hover:bg-red-50/50 text-stone-700 hover:text-[#c51f26] text-xs font-bold transition-all shadow-2xs cursor-pointer"
+              className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl border text-xs font-bold transition-all shadow-2xs cursor-pointer ${
+                theme === 'dark'
+                  ? 'border-slate-700 bg-slate-800 text-slate-200 hover:text-white hover:bg-slate-700'
+                  : 'border-stone-300 hover:border-[#c51f26] bg-white hover:bg-red-50/50 text-stone-700 hover:text-[#c51f26]'
+              }`}
               title="Mở giao diện học sinh (Trang chủ) trong tab mới"
             >
               <span>Xem trang chủ</span>
-              <ExternalLink className="w-3.5 h-3.5 text-stone-400" />
+              <ExternalLink className={`w-3.5 h-3.5 ${theme === 'dark' ? 'text-slate-400' : 'text-stone-400'}`} />
             </button>
           </div>
         </header>

@@ -320,11 +320,11 @@ export const TopicManager: React.FC<TopicManagerProps> = ({ initialClassId }) =>
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold text-white flex items-center gap-2">
-            <ListTree className="w-5 h-5 text-red-400" />
+          <h2 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+            <ListTree className="w-5 h-5 text-red-500 dark:text-red-400" />
             Quản lý Chủ đề & Bài tập (Topics & Problems)
           </h2>
-          <p className="text-xs text-slate-400 mt-1">
+          <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
             Tạo chủ đề, tích chọn các lớp học được giao, thêm bài tập cụ thể vào từng chủ đề và quản lý thứ tự giảng dạy
           </p>
         </div>
@@ -333,9 +333,9 @@ export const TopicManager: React.FC<TopicManagerProps> = ({ initialClassId }) =>
           {/* Nút thêm bài tập mới */}
           <button
             onClick={() => setCreatingForTopicId(activeTab === 'topics' ? (topics[0]?.id || '') : '')}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white text-xs font-semibold border border-slate-700 transition-all shadow cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 hover:text-slate-900 dark:hover:text-white text-xs font-semibold border border-slate-300 dark:border-slate-700 transition-all shadow-2xs cursor-pointer"
           >
-            <FilePlus className="w-4 h-4 text-emerald-400" />
+            <FilePlus className="w-4 h-4 text-emerald-500 dark:text-emerald-400" />
             <span>Thêm bài tập mới</span>
           </button>
 
@@ -352,19 +352,19 @@ export const TopicManager: React.FC<TopicManagerProps> = ({ initialClassId }) =>
       </div>
 
       {/* Tab Switcher: Danh sách Chủ đề vs Các bài tập */}
-      <div className="flex items-center gap-2 border-b border-slate-800 pb-1">
+      <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-1">
         <button
           type="button"
           onClick={() => setActiveTab('topics')}
           className={`pb-2.5 px-4 text-xs font-bold flex items-center gap-2 border-b-2 transition-all cursor-pointer ${
             activeTab === 'topics'
-              ? 'border-red-500 text-red-400 shadow-sm'
-              : 'border-transparent text-slate-400 hover:text-slate-200'
+              ? 'border-red-500 text-red-600 dark:text-red-400 shadow-sm'
+              : 'border-transparent text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'
           }`}
         >
           <ListTree className="w-4 h-4" />
           <span>Danh sách Chủ đề</span>
-          <span className="px-2 py-0.5 rounded-full text-[10px] bg-slate-800 text-slate-300 font-mono font-semibold">
+          <span className="px-2 py-0.5 rounded-full text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-mono font-semibold">
             {topics.length}
           </span>
         </button>
@@ -374,18 +374,18 @@ export const TopicManager: React.FC<TopicManagerProps> = ({ initialClassId }) =>
           onClick={() => setActiveTab('problems')}
           className={`pb-2.5 px-4 text-xs font-bold flex items-center gap-2 border-b-2 transition-all cursor-pointer ${
             activeTab === 'problems'
-              ? 'border-red-500 text-red-400 shadow-sm'
-              : 'border-transparent text-slate-400 hover:text-slate-200'
+              ? 'border-red-500 text-red-600 dark:text-red-400 shadow-sm'
+              : 'border-transparent text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'
           }`}
         >
           <BookOpen className="w-4 h-4" />
           <span>Các bài tập</span>
-          <span className="px-2 py-0.5 rounded-full text-[10px] bg-red-500/20 text-red-300 font-mono font-bold">
+          <span className="px-2 py-0.5 rounded-full text-[10px] bg-red-500/10 dark:bg-red-500/20 text-red-600 dark:text-red-300 font-mono font-bold">
             {problems.length}
           </span>
           {unassignedProblemsCount > 0 && (
             <span
-              className="px-2 py-0.5 rounded-full text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold"
+              className="px-2 py-0.5 rounded-full text-[10px] bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 font-bold"
               title={`${unassignedProblemsCount} bài tập chưa phân vào chủ đề`}
             >
               {unassignedProblemsCount} chưa gán
@@ -398,14 +398,14 @@ export const TopicManager: React.FC<TopicManagerProps> = ({ initialClassId }) =>
         <>
 
       {/* Bộ lọc chủ đề theo lớp */}
-      <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-slate-900 border border-slate-800 rounded-2xl">
+      <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xs">
         <div className="flex items-center gap-2">
-          <Filter className="w-4 h-4 text-red-400" />
-          <span className="text-xs font-semibold text-slate-300">Lọc chủ đề theo lớp:</span>
+          <Filter className="w-4 h-4 text-red-500 dark:text-red-400" />
+          <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">Lọc chủ đề theo lớp:</span>
           <select
             value={selectedClassFilter}
             onChange={(e) => setSelectedClassFilter(e.target.value)}
-            className="px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:ring-1 focus:ring-red-500 font-medium cursor-pointer"
+            className="px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-red-500 font-medium cursor-pointer"
           >
             <option value="ALL">🌐 Tất cả lớp học ({topics.length} chủ đề)</option>
             {classes.map((cls) => {
@@ -419,27 +419,27 @@ export const TopicManager: React.FC<TopicManagerProps> = ({ initialClassId }) =>
           </select>
         </div>
 
-        <span className="text-xs text-slate-400">
-          Đang hiển thị <b className="text-white font-mono">{displayedTopics.length}</b> / <b className="text-slate-300 font-mono">{topics.length}</b> chủ đề
+        <span className="text-xs text-slate-500 dark:text-slate-400">
+          Đang hiển thị <b className="text-slate-900 dark:text-white font-mono">{displayedTopics.length}</b> / <b className="text-slate-700 dark:text-slate-300 font-mono">{topics.length}</b> chủ đề
         </span>
       </div>
 
       {/* Add / Edit Form Box for Topic */}
       {(isAddingTopic || editingTopicId) && (
-        <div className="bg-slate-900 border border-red-500/40 rounded-2xl p-6 shadow-2xl space-y-4 animate-in fade-in duration-200">
+        <div className="bg-white dark:bg-slate-900 border border-red-500/40 rounded-2xl p-6 shadow-xl space-y-4 animate-in fade-in duration-200">
           <div className="flex items-center justify-between">
-            <h4 className="text-sm font-bold text-red-300 flex items-center gap-2">
+            <h4 className="text-sm font-bold text-red-600 dark:text-red-300 flex items-center gap-2">
               <Plus className="w-4 h-4" />
               {isAddingTopic ? 'Tạo chủ đề bài tập mới' : 'Chỉnh sửa chủ đề'}
             </h4>
-            <span className="text-xs text-slate-400 font-medium">
+            <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
               Tích chọn 1 hoặc nhiều lớp bên dưới để giao chủ đề cùng lúc
             </span>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                 Tên chủ đề: *
               </label>
               <input
@@ -447,12 +447,12 @@ export const TopicManager: React.FC<TopicManagerProps> = ({ initialClassId }) =>
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Ví dụ: Mảng 1 chiều, Quy hoạch động, Số học..."
-                className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-red-500"
+                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-red-500"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                 Mô tả ngắn về chủ đề:
               </label>
               <input
@@ -460,16 +460,16 @@ export const TopicManager: React.FC<TopicManagerProps> = ({ initialClassId }) =>
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="Ví dụ: Rèn luyện kỹ thuật cơ bản, prefix sum, binary search..."
-                className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-red-500"
+                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-red-500"
               />
             </div>
           </div>
 
           {/* KHUNG TÍCH CHỌN CÁC LỚP HỌC (MULTI-CLASSROOM CHECKBOX GROUP) */}
-          <div className="space-y-2.5 pt-3 border-t border-slate-800">
+          <div className="space-y-2.5 pt-3 border-t border-slate-200 dark:border-slate-800">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <label className="block text-xs font-bold text-slate-200 flex items-center gap-1.5">
-                <GraduationCap className="w-4 h-4 text-red-400" />
+              <label className="block text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                <GraduationCap className="w-4 h-4 text-red-500 dark:text-red-400" />
                 <span>Giao vào các Lớp học (Tích chọn một hoặc nhiều lớp): *</span>
               </label>
 
@@ -481,7 +481,7 @@ export const TopicManager: React.FC<TopicManagerProps> = ({ initialClassId }) =>
                   className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all flex items-center gap-1 cursor-pointer border ${
                     isAllClasses
                       ? 'bg-blue-600 text-white border-blue-500 shadow-sm'
-                      : 'bg-slate-800 text-slate-300 hover:text-white border-slate-700 hover:bg-slate-700'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white border-slate-300 dark:border-slate-700'
                   }`}
                   title="Giao cho tất cả học sinh ở mọi lớp học"
                 >
@@ -492,7 +492,7 @@ export const TopicManager: React.FC<TopicManagerProps> = ({ initialClassId }) =>
                 <button
                   type="button"
                   onClick={handleClearAllClasses}
-                  className="px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-400 hover:text-slate-200 bg-slate-800/80 hover:bg-slate-800 border border-slate-700 transition-colors cursor-pointer"
+                  className="px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 bg-slate-100 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 transition-colors cursor-pointer"
                 >
                   Bỏ chọn tất cả
                 </button>
@@ -511,8 +511,8 @@ export const TopicManager: React.FC<TopicManagerProps> = ({ initialClassId }) =>
                     onClick={() => handleToggleClass(cls.id)}
                     className={`p-3 rounded-xl border transition-all cursor-pointer flex items-center justify-between gap-3 select-none ${
                       isSelected
-                        ? 'bg-red-500/15 border-red-500/50 shadow-sm shadow-red-500/10 text-white'
-                        : 'bg-slate-800/60 border-slate-700/80 hover:border-slate-600 text-slate-300 hover:text-white'
+                        ? 'bg-red-500/15 border-red-500/50 shadow-sm shadow-red-500/10 text-slate-900 dark:text-white'
+                        : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700/80 hover:border-slate-300 dark:hover:border-slate-600 text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
                     }`}
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
@@ -520,18 +520,18 @@ export const TopicManager: React.FC<TopicManagerProps> = ({ initialClassId }) =>
                       <div className={`w-5 h-5 rounded-md flex items-center justify-center border transition-colors shrink-0 ${
                         isSelected
                           ? 'bg-red-600 border-red-500 text-white'
-                          : 'border-slate-600 bg-slate-900'
+                          : 'border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900'
                       }`}>
                         {isSelected && <Check className="w-3.5 h-3.5 stroke-[3]" />}
                       </div>
 
                       <div className="truncate">
                         <div className="text-xs font-bold truncate flex items-center gap-1.5">
-                          <GraduationCap className="w-3.5 h-3.5 text-red-400 shrink-0" />
+                          <GraduationCap className="w-3.5 h-3.5 text-red-500 dark:text-red-400 shrink-0" />
                           <span className="truncate">{cls.className}</span>
                         </div>
-                        <div className="text-[10px] text-slate-400 font-mono mt-0.5">
-                          Mã: <span className="text-slate-300 font-bold">{cls.joinCode}</span> • {studentCount} HS
+                        <div className="text-[10px] text-slate-500 dark:text-slate-400 font-mono mt-0.5">
+                          Mã: <span className="text-slate-700 dark:text-slate-300 font-bold">{cls.joinCode}</span> • {studentCount} HS
                         </div>
                       </div>
                     </div>
@@ -547,34 +547,34 @@ export const TopicManager: React.FC<TopicManagerProps> = ({ initialClassId }) =>
             </div>
 
             {/* Thanh hiển thị trạng thái số lớp đã chọn */}
-            <div className="p-2.5 rounded-xl bg-slate-950/60 border border-slate-800 text-xs">
+            <div className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 text-xs">
               {isAllClasses ? (
-                <div className="text-blue-400 flex items-center gap-1.5 font-medium">
-                  <Globe className="w-4 h-4 text-blue-400 shrink-0" />
+                <div className="text-blue-600 dark:text-blue-400 flex items-center gap-1.5 font-medium">
+                  <Globe className="w-4 h-4 text-blue-500 shrink-0" />
                   <span>Chủ đề này đang được giao công khai cho <b>Tất cả các lớp ({classes.length} lớp học)</b>.</span>
                 </div>
               ) : selectedClassObjects.length > 0 ? (
-                <div className="text-red-400 flex items-center gap-1.5 font-medium">
-                  <Check className="w-4 h-4 text-red-400 shrink-0" />
+                <div className="text-red-600 dark:text-red-400 flex items-center gap-1.5 font-medium">
+                  <Check className="w-4 h-4 text-red-500 shrink-0" />
                   <span>
                     Đang giao cho <b>{selectedClassObjects.length} lớp</b>:{' '}
-                    <span className="text-slate-200 font-semibold">
+                    <span className="text-slate-800 dark:text-slate-200 font-semibold">
                       {selectedClassObjects.map((c: Classroom) => c.className).join(', ')}
                     </span>
                   </span>
                 </div>
               ) : (
-                <div className="text-amber-400 flex items-center gap-1.5 font-medium">
+                <div className="text-amber-600 dark:text-amber-400 flex items-center gap-1.5 font-medium">
                   <span>⚠️ Bạn chưa tích chọn lớp nào. Vui lòng bấm vào lớp muốn giao bài hoặc chọn "Tất cả các lớp".</span>
                 </div>
               )}
             </div>
           </div>
 
-          <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
+          <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
             <button
               onClick={handleCancelTopic}
-              className="px-3 py-1.5 rounded-xl bg-slate-800 text-slate-400 hover:text-white text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer"
+              className="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-slate-700 text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer"
             >
               <X className="w-3.5 h-3.5" /> Hủy
             </button>
@@ -583,7 +583,7 @@ export const TopicManager: React.FC<TopicManagerProps> = ({ initialClassId }) =>
               disabled={!isAllClasses && selectedClassObjects.length === 0}
               className={`px-4 py-1.5 rounded-xl text-white text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer shadow-lg shadow-red-600/20 ${
                 !isAllClasses && selectedClassObjects.length === 0
-                  ? 'bg-slate-700 opacity-50 cursor-not-allowed'
+                  ? 'bg-slate-300 dark:bg-slate-700 opacity-50 cursor-not-allowed'
                   : 'bg-red-600 hover:bg-red-500'
               }`}
             >
@@ -897,7 +897,7 @@ export const TopicManager: React.FC<TopicManagerProps> = ({ initialClassId }) =>
       {activeTab === 'problems' && (
         <div className="space-y-4 animate-in fade-in duration-200">
           {/* Bộ lọc & Tìm kiếm bài tập */}
-          <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-slate-900 border border-slate-800 rounded-2xl">
+          <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xs">
             <div className="flex flex-wrap items-center gap-3 flex-1 min-w-[280px]">
               {/* Ô tìm kiếm */}
               <div className="relative flex-1 min-w-[200px] max-w-sm">
@@ -907,17 +907,17 @@ export const TopicManager: React.FC<TopicManagerProps> = ({ initialClassId }) =>
                   value={problemSearch}
                   onChange={(e) => setProblemSearch(e.target.value)}
                   placeholder="Tìm theo mã bài, tiêu đề, tác giả..."
-                  className="w-full pl-9 pr-3 py-1.5 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-red-500 font-medium"
+                  className="w-full pl-9 pr-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-red-500 font-medium"
                 />
               </div>
 
               {/* Lọc theo chủ đề */}
               <div className="flex items-center gap-1.5">
-                <Layers className="w-4 h-4 text-blue-400 shrink-0" />
+                <Layers className="w-4 h-4 text-blue-500 dark:text-blue-400 shrink-0" />
                 <select
                   value={problemTopicFilter}
                   onChange={(e) => setProblemTopicFilter(e.target.value)}
-                  className="px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:ring-1 focus:ring-red-500 font-medium cursor-pointer"
+                  className="px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-red-500 font-medium cursor-pointer"
                 >
                   <option value="ALL">🌐 Tất cả chủ đề ({problems.length} bài)</option>
                   <option value="__UNASSIGNED__">
@@ -936,8 +936,8 @@ export const TopicManager: React.FC<TopicManagerProps> = ({ initialClassId }) =>
             </div>
 
             <div className="flex items-center gap-3">
-              <span className="text-xs text-slate-400">
-                Đang hiển thị <b className="text-white font-mono">{filteredProblems.length}</b> / <b className="text-slate-300 font-mono">{problems.length}</b> bài tập
+              <span className="text-xs text-slate-500 dark:text-slate-400">
+                Đang hiển thị <b className="text-slate-900 dark:text-white font-mono">{filteredProblems.length}</b> / <b className="text-slate-700 dark:text-slate-300 font-mono">{problems.length}</b> bài tập
               </span>
               <button
                 type="button"
