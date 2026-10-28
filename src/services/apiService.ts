@@ -385,7 +385,16 @@ export const apiService = {
    * Lưu danh sách Học sinh lên Supabase Cloud
    */
   async saveStudents(list: StudentUser[], removeIds: string[] = []): Promise<StudentUser[]> {
-    const removeSet = new Set(removeIds);
+    const removeSet = new Set(removeIds.map((id) => (id || '').trim().toLowerCase()));
+    const isToRemove = (s: StudentUser) => {
+      const sId = (s.id || '').trim().toLowerCase();
+      const sUser = (s.username || '').trim().toLowerCase();
+      const sEmail = (s.email || '').trim().toLowerCase();
+      if (sId && removeSet.has(sId)) return true;
+      if (sUser && removeSet.has(sUser)) return true;
+      if (sEmail && removeSet.has(sEmail)) return true;
+      return false;
+    };
     const getKey = (s: StudentUser) => (s.id || s.username || '').trim().toLowerCase();
 
     // Hợp nhất với danh sách MỚI NHẤT trên Cloud: không bao giờ ghi đè làm mất học sinh do máy khác tạo
@@ -395,18 +404,18 @@ export const apiService = {
       // Không đọc được Cloud -> chỉ lưu trên máy, tuyệt đối không ghi đè Cloud bằng danh sách không đầy đủ
       list.forEach((s) => {
         const k = getKey(s);
-        if (k && !removeSet.has(s.id) && s.username !== 'leduyducminh@gmail.com') merged.set(k, s);
+        if (k && !isToRemove(s) && s.username !== 'leduyducminh@gmail.com') merged.set(k, s);
       });
       storageService.saveStudents(Array.from(merged.values()));
       throw new Error('Không đọc được danh sách học sinh trên Cloud (mạng chậm hoặc mất kết nối)');
     }
     cloudLatest.forEach((s) => {
       const k = getKey(s);
-      if (k && !removeSet.has(s.id) && s.username !== 'leduyducminh@gmail.com') merged.set(k, s);
+      if (k && !isToRemove(s) && s.username !== 'leduyducminh@gmail.com') merged.set(k, s);
     });
     list.forEach((s) => {
       const k = getKey(s);
-      if (k && !removeSet.has(s.id) && s.username !== 'leduyducminh@gmail.com') {
+      if (k && !isToRemove(s) && s.username !== 'leduyducminh@gmail.com') {
         const prev = merged.get(k);
         const customName = storageService.getStudentCustomName(s.id, s.email || s.username) || storageService.getStudentCustomName(prev?.id, prev?.email || prev?.username);
         const chosenFullName = customName || (s.fullName && s.fullName !== 'Học sinh' ? s.fullName : (prev?.fullName || s.fullName || 'Học sinh'));

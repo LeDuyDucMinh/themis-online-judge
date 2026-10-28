@@ -1406,17 +1406,23 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     return { success: true, message: 'Đổi mật khẩu thành công' };
   };
 
-  // Giáo viên xóa tài khoản Học sinh
+  // Giáo viên xóa tài khoản Học sinh (Xoá vĩnh viễn khỏi toàn bộ hệ thống)
   const deleteStudent = async (id: string) => {
-    const studentToDelete = students.find((s) => s.id === id) || storageService.getStudents().find((s) => s.id === id);
+    const cleanTarget = (id || '').trim().toLowerCase();
+    const studentToDelete =
+      students.find((s) => (s.id && s.id.toLowerCase() === cleanTarget) || (s.username && s.username.toLowerCase() === cleanTarget) || (s.email && s.email.toLowerCase() === cleanTarget)) ||
+      storageService.getStudents().find((s) => (s.id && s.id.toLowerCase() === cleanTarget) || (s.username && s.username.toLowerCase() === cleanTarget) || (s.email && s.email.toLowerCase() === cleanTarget));
+    
+    const stuId = studentToDelete?.id || id;
     const stuUsername = studentToDelete?.username;
     const stuFullName = studentToDelete?.fullName;
     const stuEmail = studentToDelete?.email;
 
-    // 1. Xóa khỏi danh sách học sinh
-    storageService.deleteStudent(id, stuUsername, stuEmail);
+    // 1. Xóa khỏi danh sách học sinh & xóa tên tuỳ chỉnh
+    storageService.deleteStudent(stuId, stuUsername, stuEmail);
+    storageService.removeStudentCustomName(stuId, stuEmail || stuUsername);
     try {
-      const removeIds = [id];
+      const removeIds = [stuId];
       if (stuUsername) removeIds.push(stuUsername);
       if (stuEmail && stuEmail !== stuUsername) removeIds.push(stuEmail);
       const updatedList = await apiService.saveStudents(storageService.getStudents(), removeIds);
@@ -1428,19 +1434,19 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     }
 
     // 2. Xóa khỏi mọi lớp học
-    storageService.removeStudentFromAllClasses(id, stuUsername, stuEmail);
+    storageService.removeStudentFromAllClasses(stuId, stuUsername, stuEmail);
     const remainingClassStudents = storageService.getClassStudents();
     setClassStudents(remainingClassStudents);
     await apiService.saveClassStudents(remainingClassStudents);
 
     // 3. XÓA TOÀN BỘ LỊCH SỬ NỘP BÀI CỦA HỌC SINH NÀY (LocalStorage, IndexedDB, Supabase Cloud, React State)
-    storageService.deleteSubmissionsForStudent(id, stuUsername, stuFullName, stuEmail);
-    await apiService.deleteSubmissionsForStudent(id, stuUsername, stuFullName, stuEmail);
+    storageService.deleteSubmissionsForStudent(stuId, stuUsername, stuFullName, stuEmail);
+    await apiService.deleteSubmissionsForStudent(stuId, stuUsername, stuFullName, stuEmail);
     setSubmissions((prev) =>
       prev.filter((sub) => {
         const subUid = (sub.userId || '').trim().toLowerCase();
         const subName = (sub.userName || '').trim().toLowerCase();
-        const matchId = id && subUid === id.toLowerCase();
+        const matchId = stuId && subUid === stuId.toLowerCase();
         const matchUser = stuUsername && subUid === stuUsername.toLowerCase();
         const matchEmail = stuEmail && subUid === stuEmail.toLowerCase();
         const matchName = stuFullName && subName === stuFullName.toLowerCase();
@@ -1448,7 +1454,23 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       })
     );
 
-    showToast('Đã xóa', `Đã xóa học sinh "${stuFullName || stuUsername || ''}" và toàn bộ lịch sử bài nộp khỏi hệ thống.`, 'info');
+    // 4. Nếu tài khoản này đang đăng nhập trên trình duyệt hiện tại, thu hồi session
+    const curSession = storageService.getStudentSession();
+    if (curSession) {
+      const curId = (curSession.id || '').trim().toLowerCase();
+      const curUser = (curSession.username || '').trim().toLowerCase();
+      const curEmail = (curSession.email || '').trim().toLowerCase();
+      if (
+        (stuId && curId === stuId.toLowerCase()) ||
+        (stuUsername && (curUser === stuUsername.toLowerCase() || curId === stuUsername.toLowerCase())) ||
+        (stuEmail && (curEmail === stuEmail.toLowerCase() || curUser === stuEmail.toLowerCase()))
+      ) {
+        storageService.clearStudentSession();
+        setCurrentStudent(null);
+      }
+    }
+
+    showToast('Đã xóa', `Đã xóa vĩnh viễn tài khoản "${stuFullName || stuUsername || ''}" khỏi hệ thống.`, 'info');
   };
 
   // Giáo viên (Admin) Đăng nhập - BẮT BUỘC ĐỐI CHIẾU TRỰC TIẾP VỚI DATABASE

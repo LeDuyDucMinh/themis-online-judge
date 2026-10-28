@@ -18,8 +18,8 @@ import {
 } from 'lucide-react';
 
 interface NavbarProps {
-  currentTab: 'classes' | 'problems' | 'admin_classes' | 'admin_topics' | 'submissions';
-  setCurrentTab: (tab: 'classes' | 'problems' | 'admin_classes' | 'admin_topics' | 'submissions') => void;
+  currentTab: 'classes' | 'problems' | 'admin_classes' | 'admin_topics' | 'admin_users' | 'submissions';
+  setCurrentTab: (tab: 'classes' | 'problems' | 'admin_classes' | 'admin_topics' | 'admin_users' | 'submissions') => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab }) => {

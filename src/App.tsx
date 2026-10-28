@@ -9,6 +9,7 @@ import { StudentClassList } from './components/user/StudentClassList';
 import { TopicManager } from './components/admin/TopicManager';
 import { TeacherClassList } from './components/admin/TeacherClassList';
 import { TeacherClassDetail } from './components/admin/TeacherClassDetail';
+import { UserManager } from './components/admin/UserManager';
 import { AdminLayout } from './components/admin/AdminLayout';
 import { AuthModal } from './components/auth/AuthModal';
 import { ChangePasswordModal } from './components/admin/ChangePasswordModal';
@@ -35,11 +36,12 @@ function MainApp() {
     showToast,
   } = useJudge();
 
-  const [currentTab, setCurrentTab] = useState<'classes' | 'problems' | 'admin_classes' | 'admin_topics' | 'submissions'>(() => {
+  const [currentTab, setCurrentTab] = useState<'classes' | 'problems' | 'admin_classes' | 'admin_topics' | 'admin_users' | 'submissions'>(() => {
     // 1. Ưu tiên đọc từ URL Hash khi người dùng tải lại trang
     if (typeof window !== 'undefined' && window.location.hash) {
       const hash = window.location.hash.replace(/^#\/?/, '');
       if (hash.startsWith('submissions')) return 'submissions';
+      if (hash.startsWith('admin/users')) return 'admin_users';
       if (hash.startsWith('admin/topics')) return 'admin_topics';
       if (hash.startsWith('admin/classes') || hash.startsWith('admin')) return 'admin_classes';
       if (hash.startsWith('classes')) return 'classes';
@@ -48,7 +50,7 @@ function MainApp() {
     const saved = storageService.getCurrentTab();
     if (saved === 'submissions') return 'submissions';
     if (isAdminAuthenticated) {
-      if (saved === 'admin_classes' || saved === 'admin_topics') return saved;
+      if (saved === 'admin_classes' || saved === 'admin_topics' || saved === 'admin_users') return saved;
       return 'admin_classes';
     } else {
       if (saved === 'classes') return 'classes';
@@ -144,7 +146,7 @@ function MainApp() {
       setSelectedProblem(null);
       storageService.setSelectedProblemId(null);
     } else {
-      if (currentTab === 'admin_classes' || currentTab === 'admin_topics') {
+      if (currentTab === 'admin_classes' || currentTab === 'admin_topics' || currentTab === 'admin_users') {
         setCurrentTab('classes');
         storageService.setCurrentTab('classes');
       }
@@ -161,6 +163,8 @@ function MainApp() {
         targetHash = activeClassId ? `#admin/classes/${activeClassId}` : '#admin/classes';
       } else if (currentTab === 'admin_topics') {
         targetHash = '#admin/topics';
+      } else if (currentTab === 'admin_users') {
+        targetHash = '#admin/users';
       } else if (currentTab === 'submissions') {
         targetHash = '#submissions';
       } else {
@@ -321,6 +325,11 @@ function MainApp() {
             <TopicManager />
           )}
 
+          {/* Phân vùng GIÁO VIÊN: Quản lý Người dùng */}
+          {currentTab === 'admin_users' && (
+            <UserManager />
+          )}
+
           {/* Phân vùng GIÁO VIÊN: Lịch sử nộp bài toàn hệ thống */}
           {currentTab === 'submissions' && (
             <SubmissionHistory />
@@ -334,7 +343,7 @@ function MainApp() {
             currentTab={currentTab}
             setCurrentTab={(tab) => {
               if (isAuthLoading) return;
-              if ((tab === 'admin_classes' || tab === 'admin_topics') && !isAdminAuthenticated) {
+              if ((tab === 'admin_classes' || tab === 'admin_topics' || tab === 'admin_users') && !isAdminAuthenticated) {
                 setIsAuthModalOpen(true);
                 return;
               }

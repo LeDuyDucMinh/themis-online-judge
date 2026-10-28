@@ -16,11 +16,12 @@ import {
   ChevronRight,
   Sun,
   Moon,
+  Users,
 } from 'lucide-react';
 
 interface AdminLayoutProps {
-  currentTab: 'classes' | 'problems' | 'admin_classes' | 'admin_topics' | 'submissions';
-  setCurrentTab: (tab: 'classes' | 'problems' | 'admin_classes' | 'admin_topics' | 'submissions') => void;
+  currentTab: 'classes' | 'problems' | 'admin_classes' | 'admin_topics' | 'admin_users' | 'submissions';
+  setCurrentTab: (tab: 'classes' | 'problems' | 'admin_classes' | 'admin_topics' | 'admin_users' | 'submissions') => void;
   children: React.ReactNode;
 }
 
@@ -108,6 +109,16 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
       isActive: currentTab === 'admin_topics',
       onClick: () => {
         setCurrentTab('admin_topics');
+        setIsMobileMenuOpen(false);
+      },
+    },
+    {
+      id: 'admin_users',
+      label: 'Người dùng',
+      icon: Users,
+      isActive: currentTab === 'admin_users',
+      onClick: () => {
+        setCurrentTab('admin_users');
         setIsMobileMenuOpen(false);
       },
     },
@@ -326,32 +337,8 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
             </div>
           </div>
 
-          {/* Bên phải Header: Nút Chuyển theme + Nút "Xem trang chủ" */}
+          {/* Bên phải Header: Nút "Xem trang chủ" như ảnh REX Admin (Đã bỏ nút chế độ sáng ở header theo yêu cầu) */}
           <div className="flex items-center gap-3 shrink-0">
-            {/* Nút Toggle theme trên Header */}
-            <button
-              onClick={toggleTheme}
-              className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border text-xs font-bold transition-all shadow-2xs cursor-pointer ${
-                theme === 'dark'
-                  ? 'border-slate-700 bg-slate-800 text-amber-300 hover:bg-slate-700 hover:text-white'
-                  : 'border-stone-300 bg-white text-stone-700 hover:border-[#c51f26] hover:text-[#c51f26]'
-              }`}
-              title={theme === 'dark' ? 'Chuyển sang Giao diện Sáng (Light Mode)' : 'Chuyển sang Giao diện Tối (Dark Mode)'}
-            >
-              {theme === 'dark' ? (
-                <>
-                  <Sun className="w-3.5 h-3.5 text-amber-300" />
-                  <span className="hidden sm:inline">Chế độ Sáng</span>
-                </>
-              ) : (
-                <>
-                  <Moon className="w-3.5 h-3.5 text-stone-600" />
-                  <span className="hidden sm:inline">Chế độ Tối</span>
-                </>
-              )}
-            </button>
-
-            {/* Nút Xem trang chủ như ảnh REX Admin */}
             <button
               onClick={handleOpenStudentView}
               className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl border text-xs font-bold transition-all shadow-2xs cursor-pointer ${

@@ -1086,6 +1086,17 @@ export const storageService = {
     } catch {}
   },
 
+  removeStudentCustomName(userId?: string | null, emailOrUser?: string | null): void {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEYS.STUDENT_CUSTOM_NAMES);
+      if (!raw) return;
+      const map: Record<string, string> = JSON.parse(raw);
+      if (userId && map[userId]) delete map[userId];
+      if (emailOrUser && map[emailOrUser.toLowerCase()]) delete map[emailOrUser.toLowerCase()];
+      localStorage.setItem(STORAGE_KEYS.STUDENT_CUSTOM_NAMES, JSON.stringify(map));
+    } catch {}
+  },
+
   updateStudentPassword(id: string, newPassword: string): void {
     const list = this.getStudents().map((s) =>
       s.id === id ? { ...s, password: newPassword.trim() } : s
@@ -1198,6 +1209,10 @@ export const storageService = {
       try { localStorage.removeItem(STORAGE_KEYS.STUDENT_SESSION); } catch {}
       try { sessionStorage.removeItem(STORAGE_KEYS.STUDENT_SESSION); } catch {}
     }
+  },
+
+  clearStudentSession(): void {
+    this.setStudentSession(null);
   },
 
   /**
