@@ -175,7 +175,7 @@ export const UserManager: React.FC = () => {
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Tìm theo tên người dùng, email hoặc username..."
+            placeholder="Tìm theo tên người dùng hoặc email..."
             className="w-full pl-10 pr-4 py-2 text-xs sm:text-sm rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#c51f26]/20 focus:border-[#c51f26] transition-all"
           />
         </div>
@@ -218,7 +218,6 @@ export const UserManager: React.FC = () => {
                   <th className="py-3.5 px-4 w-14 text-center">STT</th>
                   <th className="py-3.5 px-4">Tên người dùng hiện tại & Thao tác</th>
                   <th className="py-3.5 px-4">Email đăng nhập</th>
-                  <th className="py-3.5 px-4">Tên đăng nhập (Username)</th>
                   <th className="py-3.5 px-4">Lớp tham gia</th>
                   <th className="py-3.5 px-4 w-40 text-right">Xoá khỏi hệ thống</th>
                 </tr>
@@ -272,20 +271,13 @@ export const UserManager: React.FC = () => {
                       <td className="py-3.5 px-4">
                         <div className="flex items-center gap-2 text-slate-700 dark:text-slate-300">
                           <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                          <span className="font-medium font-mono text-xs truncate max-w-[220px]">
+                          <span className="font-medium font-mono text-xs truncate max-w-[280px]">
                             {displayEmail}
                           </span>
                         </div>
                       </td>
 
-                      {/* Cột 4: Tên đăng nhập (Username) */}
-                      <td className="py-3.5 px-4">
-                        <span className="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-mono text-xs border border-slate-200 dark:border-slate-700/60 inline-block">
-                          {student.username || '—'}
-                        </span>
-                      </td>
-
-                      {/* Cột 5: Các lớp học đang tham gia */}
+                      {/* Cột 4: Các lớp học đang tham gia */}
                       <td className="py-3.5 px-4">
                         {userClasses.length > 0 ? (
                           <div className="flex flex-wrap gap-1.5 max-w-xs">
