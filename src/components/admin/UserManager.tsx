@@ -76,13 +76,26 @@ export const UserManager: React.FC = () => {
   };
 
   // Chỉ lấy các tài khoản hợp lệ tạo bằng Gmail/Email (loại bỏ hoàn toàn các tài khoản cơ chế cũ không có email)
+  // và khử trùng lặp theo địa chỉ Email (mỗi email chỉ có duy nhất 1 tài khoản, ưu tiên tài khoản mới từ Supabase Auth)
   const validEmailStudents = useMemo(() => {
-    return students.filter((s) => {
-      return Boolean(
-        (s.email && s.email.includes('@')) ||
-        (s.username && s.username.includes('@'))
-      );
+    const studentMap = new Map<string, StudentUser>();
+    students.forEach((s) => {
+      const email = (s.email || (s.username && s.username.includes('@') ? s.username : '')).trim().toLowerCase();
+      if (!email || !email.includes('@')) return;
+      const existing = studentMap.get(email);
+      if (!existing) {
+        studentMap.set(email, s);
+      } else {
+        const isExistingUUID = existing.id && !existing.id.startsWith('student_');
+        const isNewUUID = s.id && !s.id.startsWith('student_');
+        if (isNewUUID && !isExistingUUID) {
+          studentMap.set(email, s);
+        } else if (new Date(s.createdAt || 0).getTime() >= new Date(existing.createdAt || 0).getTime()) {
+          studentMap.set(email, s);
+        }
+      }
     });
+    return Array.from(studentMap.values());
   }, [students]);
 
   // Lọc danh sách theo từ khoá tìm kiếm
@@ -97,7 +110,7 @@ export const UserManager: React.FC = () => {
     });
   }, [validEmailStudents, searchTerm]);
 
-  // Tự động dọn dẹp các tài khoản rác cơ chế cũ khỏi Cloud nếu còn sót lại
+  // Tự động dọn dẹp các tài khoản rác cơ chế cũ và tài khoản trùng lặp khỏi Storage nếu còn sót lại
   React.useEffect(() => {
     if (students.length > 0 && students.length !== validEmailStudents.length) {
       storageService.saveStudents(validEmailStudents);

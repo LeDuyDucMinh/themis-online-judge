@@ -362,19 +362,40 @@ export const apiService = {
     // Hợp nhất an toàn: Không làm mất học sinh cục bộ còn đang hoạt động
     const localList = storageService.getStudents();
     const studentMap = new Map<string, StudentUser>();
+
+    const getEmailKey = (s: StudentUser) => {
+      const e = (s.email || '').trim().toLowerCase();
+      if (e && e.includes('@')) return e;
+      const u = (s.username || '').trim().toLowerCase();
+      if (u && u.includes('@')) return u;
+      return (s.id || '').trim().toLowerCase();
+    };
+
+    const upsertStudent = (s: StudentUser) => {
+      const k = getEmailKey(s);
+      if (!k || s.username === 'leduyducminh@gmail.com') return;
+      const existing = studentMap.get(k);
+      if (!existing) {
+        studentMap.set(k, s);
+      } else {
+        // Ưu tiên tài khoản Supabase Auth (UUID) hơn ID mock "student_..." cũ
+        const isExistingUUID = existing.id && !existing.id.startsWith('student_');
+        const isNewUUID = s.id && !s.id.startsWith('student_');
+        if (isNewUUID && !isExistingUUID) {
+          studentMap.set(k, s);
+        } else if (new Date(s.createdAt || 0).getTime() >= new Date(existing.createdAt || 0).getTime()) {
+          studentMap.set(k, s);
+        }
+      }
+    };
+
     cloudStudents.forEach((s) => {
       const hasEmail = Boolean((s.email && s.email.includes('@')) || (s.username && s.username.includes('@')));
-      if (!hasEmail) return;
-      const k = (s.id || s.username || '').trim().toLowerCase();
-      if (k && s.username !== 'leduyducminh@gmail.com') studentMap.set(k, s);
+      if (hasEmail) upsertStudent(s);
     });
     localList.forEach((s) => {
       const hasEmail = Boolean((s.email && s.email.includes('@')) || (s.username && s.username.includes('@')));
-      if (!hasEmail) return;
-      const k = (s.id || s.username || '').trim().toLowerCase();
-      if (k && !studentMap.has(k) && s.username !== 'leduyducminh@gmail.com') {
-        studentMap.set(k, s);
-      }
+      if (hasEmail) upsertStudent(s);
     });
     const mergedList = Array.from(studentMap.values());
     storageService.saveStudents(mergedList);
@@ -406,7 +427,13 @@ export const apiService = {
       if (sEmail && removeSet.has(sEmail)) return true;
       return false;
     };
-    const getKey = (s: StudentUser) => (s.id || s.username || '').trim().toLowerCase();
+    const getKey = (s: StudentUser) => {
+      const e = (s.email || '').trim().toLowerCase();
+      if (e && e.includes('@')) return e;
+      const u = (s.username || '').trim().toLowerCase();
+      if (u && u.includes('@')) return u;
+      return (s.id || '').trim().toLowerCase();
+    };
 
     // Hợp nhất với danh sách MỚI NHẤT trên Cloud: không bao giờ ghi đè làm mất học sinh do máy khác tạo
     const merged = new Map<string, StudentUser>();
@@ -422,7 +449,18 @@ export const apiService = {
     }
     cloudLatest.forEach((s) => {
       const k = getKey(s);
-      if (k && !isToRemove(s) && s.username !== 'leduyducminh@gmail.com') merged.set(k, s);
+      if (k && !isToRemove(s) && s.username !== 'leduyducminh@gmail.com') {
+        const existing = merged.get(k);
+        if (!existing) {
+          merged.set(k, s);
+        } else {
+          const isExistingUUID = existing.id && !existing.id.startsWith('student_');
+          const isNewUUID = s.id && !s.id.startsWith('student_');
+          if (isNewUUID && !isExistingUUID) {
+            merged.set(k, s);
+          }
+        }
+      }
     });
     list.forEach((s) => {
       const k = getKey(s);

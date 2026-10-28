@@ -660,19 +660,38 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       if (cloudStudents || storageService.getStudents().length > 0) {
         const local = storageService.getStudents();
         const studentMap = new Map<string, StudentUser>();
-        // Cloud là Single Source of Truth
-        if (cloudStudents && cloudStudents.length > 0) {
-          cloudStudents.forEach((s) => {
-            const key = (s.id || s.username || '').toLowerCase();
-            if (key && s.username !== 'leduyducminh@gmail.com') studentMap.set(key, s);
-          });
-        }
-        local.forEach((s) => {
-          const key = (s.id || s.username || '').toLowerCase();
-          if (key && !studentMap.has(key) && s.username !== 'leduyducminh@gmail.com') {
+
+        const getEmailKey = (s: StudentUser) => {
+          const e = (s.email || '').trim().toLowerCase();
+          if (e && e.includes('@')) return e;
+          const u = (s.username || '').trim().toLowerCase();
+          if (u && u.includes('@')) return u;
+          return (s.id || '').trim().toLowerCase();
+        };
+
+        const upsertStudent = (s: StudentUser) => {
+          const key = getEmailKey(s);
+          if (!key || s.username === 'leduyducminh@gmail.com') return;
+          const existing = studentMap.get(key);
+          if (!existing) {
             studentMap.set(key, s);
+          } else {
+            // Ưu tiên tài khoản Supabase Auth (UUID) hơn ID mock cũ "student_..."
+            const isExistingUUID = existing.id && !existing.id.startsWith('student_');
+            const isNewUUID = s.id && !s.id.startsWith('student_');
+            if (isNewUUID && !isExistingUUID) {
+              studentMap.set(key, s);
+            } else if (new Date(s.createdAt || 0).getTime() >= new Date(existing.createdAt || 0).getTime()) {
+              studentMap.set(key, s);
+            }
           }
-        });
+        };
+
+        if (cloudStudents && cloudStudents.length > 0) {
+          cloudStudents.forEach(upsertStudent);
+        }
+        local.forEach(upsertStudent);
+
         const mergedStudents = Array.from(studentMap.values()).filter((s) => {
           if (!s.username || s.username === 'leduyducminh@gmail.com') return false;
           return Boolean((s.email && s.email.includes('@')) || (s.username && s.username.includes('@')));

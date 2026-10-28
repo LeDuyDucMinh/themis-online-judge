@@ -1030,14 +1030,38 @@ export const storageService = {
         return isTest || hasEmail;
       });
 
-      // Nếu có tài khoản rác từ cơ chế cũ, tự động dọn dẹp localStorage đồng bộ
-      if (filtered.length !== parsed.length) {
+      // DEDUPLICATION: Mỗi email chỉ được có duy nhất 1 tài khoản trong toàn bộ hệ thống
+      // Ưu tiên tài khoản Supabase Auth (UUID) hơn ID mock cũ ("student_...") hoặc bản ghi mới hơn
+      const deduplicatedMap = new Map<string, StudentUser>();
+      filtered.forEach((s) => {
+        const email = (s.email || (s.username && s.username.includes('@') ? s.username : '')).trim().toLowerCase();
+        const key = email || (s.id || s.username || '').trim().toLowerCase();
+        if (!key) return;
+
+        const existing = deduplicatedMap.get(key);
+        if (!existing) {
+          deduplicatedMap.set(key, s);
+        } else {
+          const isExistingUUID = existing.id && !existing.id.startsWith('student_');
+          const isNewUUID = s.id && !s.id.startsWith('student_');
+          if (isNewUUID && !isExistingUUID) {
+            deduplicatedMap.set(key, s);
+          } else if (new Date(s.createdAt || 0).getTime() >= new Date(existing.createdAt || 0).getTime()) {
+            deduplicatedMap.set(key, s);
+          }
+        }
+      });
+
+      const uniqueList = Array.from(deduplicatedMap.values());
+
+      // Nếu có tài khoản rác từ cơ chế cũ hoặc tài khoản trùng email, tự động dọn dẹp localStorage đồng bộ
+      if (uniqueList.length !== parsed.length) {
         try {
-          localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(filtered));
+          localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(uniqueList));
         } catch {}
       }
 
-      return filtered.map((s) => {
+      return uniqueList.map((s) => {
         if (s.email === 'leduyducminh@gmail.com' || s.username === 'leduyducminh@gmail.com') {
           return {
             ...s,
