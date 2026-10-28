@@ -27,6 +27,8 @@ interface JudgeContextType {
   setRole: (role: UserRole) => void;
   isAdminAuthenticated: boolean;
   setIsAdminAuthenticated: (auth: boolean) => void;
+  adminEmail: string | null;
+  setAdminEmail: (email: string | null) => void;
   currentStudent: StudentUser | null;
   setCurrentStudent: (student: StudentUser | null) => void;
   students: StudentUser[];
@@ -197,6 +199,9 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   // Mặc định luôn là USER để học sinh không thể truy cập trái phép
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState<boolean>(() => {
     return storageService.isAdminSessionActive();
+  });
+  const [adminEmail, setAdminEmail] = useState<string | null>(() => {
+    return storageService.getAdminEmail();
   });
   const [currentStudent, setCurrentStudent] = useState<StudentUser | null>(() => {
     return storageService.getStudentSession();
@@ -869,6 +874,10 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
           // Người dùng là QUẢN TRỊ VIÊN (Admin)
           setIsAdminAuthenticated(true);
           setRole('ADMIN');
+          if (u?.email) {
+            setAdminEmail(u.email);
+            storageService.setAdminEmail(u.email);
+          }
           storageService.setAdminSessionActive(true);
           setCurrentStudent(null);
           setIsAuthModalOpen(false);
@@ -918,6 +927,8 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         }
       } else if (event === 'SIGNED_OUT') {
         storageService.setAdminSessionActive(false);
+        storageService.setAdminEmail(null);
+        setAdminEmail(null);
         storageService.setStudentSession(null);
         setIsAdminAuthenticated(false);
         setCurrentStudent(null);
@@ -974,6 +985,10 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
               if (isMounted) {
                 setIsAdminAuthenticated(true);
                 setRole('ADMIN');
+                if (u?.email) {
+                  setAdminEmail(u.email);
+                  storageService.setAdminEmail(u.email);
+                }
                 storageService.setAdminSessionActive(true);
                 setCurrentStudent(null);
                 setIsAuthModalOpen(false);
@@ -1500,6 +1515,8 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const logoutAdmin = () => {
     supabase.auth.signOut().catch(() => {});
     storageService.setAdminSessionActive(false);
+    storageService.setAdminEmail(null);
+    setAdminEmail(null);
     sessionStorage.removeItem('faminh_admin_verified_pass');
     try { localStorage.removeItem('faminh_admin_verified_pass'); } catch {}
     storageService.deleteCookie('faminh_admin_verified_pass');
@@ -2055,6 +2072,8 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         setRole,
         isAdminAuthenticated,
         setIsAdminAuthenticated,
+        adminEmail,
+        setAdminEmail,
         currentStudent,
         setCurrentStudent,
         students,

@@ -22,6 +22,7 @@ const STORAGE_KEYS = {
   SUBMISSIONS_CLASS_FILTER: 'faminh_judge_submissions_class_filter_v1',
   SUBMISSIONS_VIEW_MODE: 'faminh_judge_submissions_view_mode_v1',
   STUDENT_CUSTOM_NAMES: 'faminh_student_custom_names_v1',
+  ADMIN_EMAIL: 'faminh_admin_email_v1',
 };
 
 // Dọn dẹp bộ nhớ đệm mẫu cũ (v1) nếu có trong trình duyệt người dùng
@@ -972,6 +973,40 @@ export const storageService = {
       this.deleteCookie(STORAGE_KEYS.ADMIN_SESSION);
       try { sessionStorage.removeItem(STORAGE_KEYS.ADMIN_SESSION); } catch {}
       try { localStorage.removeItem(STORAGE_KEYS.ADMIN_SESSION); } catch {}
+    }
+  },
+
+  getAdminEmail(): string | null {
+    if (typeof localStorage !== 'undefined') {
+      const saved = localStorage.getItem(STORAGE_KEYS.ADMIN_EMAIL);
+      if (saved && saved.trim()) return saved.trim();
+
+      // Fallback: Tìm trong Supabase Auth Session từ localStorage
+      try {
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && key.startsWith('sb-') && key.endsWith('-auth-token')) {
+            const raw = localStorage.getItem(key);
+            if (raw) {
+              const parsed = JSON.parse(raw);
+              if (parsed?.user?.email) {
+                return parsed.user.email;
+              }
+            }
+          }
+        }
+      } catch {}
+    }
+    return null;
+  },
+
+  setAdminEmail(email: string | null): void {
+    if (typeof localStorage !== 'undefined') {
+      if (email && email.trim()) {
+        try { localStorage.setItem(STORAGE_KEYS.ADMIN_EMAIL, email.trim()); } catch {}
+      } else {
+        try { localStorage.removeItem(STORAGE_KEYS.ADMIN_EMAIL); } catch {}
+      }
     }
   },
 

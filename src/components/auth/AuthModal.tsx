@@ -62,6 +62,7 @@ export const AuthModal: React.FC = () => {
     currentStudent,
     setCurrentStudent,
     setIsAdminAuthenticated,
+    setAdminEmail,
     showToast,
     setActiveClassId,
     setRole,
@@ -209,6 +210,8 @@ export const AuthModal: React.FC = () => {
           if (roleRes.role === 'admin') {
             setIsAdminAuthenticated(true);
             setRole('ADMIN');
+            setAdminEmail(cleanEmail);
+            storageService.setAdminEmail(cleanEmail);
             storageService.setAdminSessionActive(true);
             setCurrentStudent(null);
             setIsAuthModalOpen(false);
@@ -363,6 +366,8 @@ export const AuthModal: React.FC = () => {
           // =========================================================================
           setIsAdminAuthenticated(true);
           setRole('ADMIN');
+          setAdminEmail(cleanEmail);
+          storageService.setAdminEmail(cleanEmail);
           storageService.setAdminSessionActive(true);
           setCurrentStudent(null);
           setIsAuthModalOpen(false);

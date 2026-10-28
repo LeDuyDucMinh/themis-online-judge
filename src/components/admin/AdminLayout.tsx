@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useJudge } from '../../context/JudgeContext';
+import { storageService } from '../../services/storageService';
+import { supabase } from '../../services/supabaseClient';
 import {
   GraduationCap,
   ListTree,
@@ -26,7 +28,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
   children,
 }) => {
   const {
-    currentStudent,
+    adminEmail: contextAdminEmail,
     logoutAdmin,
     setIsServerConfigModalOpen,
     setIsChangePasswordModalOpen,
@@ -37,11 +39,28 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
 
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  // Email hoặc danh tính tài khoản quản trị
-  const adminEmail =
-    currentStudent?.email ||
-    (typeof window !== 'undefined' ? localStorage.getItem('themis_admin_email') : '') ||
-    'admin@faminh.com';
+  // Email hoặc danh tính tài khoản giáo viên quản trị
+  const [displayEmail, setDisplayEmail] = useState<string>(() => {
+    return contextAdminEmail || storageService.getAdminEmail() || '';
+  });
+
+  useEffect(() => {
+    if (contextAdminEmail) {
+      setDisplayEmail(contextAdminEmail);
+      return;
+    }
+    const cached = storageService.getAdminEmail();
+    if (cached) {
+      setDisplayEmail(cached);
+      return;
+    }
+    supabase.auth.getUser().then(({ data }) => {
+      if (data?.user?.email) {
+        setDisplayEmail(data.user.email);
+        storageService.setAdminEmail(data.user.email);
+      }
+    }).catch(() => {});
+  }, [contextAdminEmail]);
 
   const handleResetConfirm = () => {
     openConfirmModal({
@@ -265,7 +284,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                 TÀI KHOẢN QUẢN TRỊ
               </span>
               <span className="block text-sm font-bold text-stone-900 truncate max-w-[200px] sm:max-w-md">
-                {adminEmail}
+                {displayEmail || 'Giáo viên Quản trị'}
               </span>
             </div>
           </div>
