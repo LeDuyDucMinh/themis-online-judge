@@ -135,7 +135,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
   ];
 
   return (
-    <div className={`min-h-screen flex font-sans antialiased transition-colors duration-200 ${
+    <div className={`h-screen min-h-screen flex overflow-hidden font-sans antialiased transition-colors duration-200 ${
       theme === 'dark' ? 'bg-[#090d16] text-slate-100' : 'bg-[#f8fafc] text-stone-900'
     }`}>
       {/* ============================================================== */}
@@ -150,13 +150,13 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
       )}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-64 bg-[#c51f26] text-white flex flex-col justify-between p-5 shadow-2xl transition-transform duration-300 md:static md:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-50 w-64 h-full md:h-screen shrink-0 bg-[#c51f26] text-white flex flex-col justify-between p-5 shadow-2xl transition-transform duration-300 md:sticky md:top-0 md:translate-x-0 ${
           isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
         <div className="flex flex-col flex-1 min-h-0">
           {/* Header Sidebar: Logo + FAMINH Admin Control Center */}
-          <div className="flex items-center justify-between pb-6 border-b border-white/15">
+          <div className="flex items-center justify-between pb-6 border-b border-white/15 shrink-0">
             <div className="flex items-center gap-3">
               <div className="w-11 h-11 rounded-2xl bg-white p-1.5 shadow-sm flex items-center justify-center shrink-0">
                 <img
@@ -190,7 +190,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
           </div>
 
           {/* Nhóm Menu chính (Nav Items) */}
-          <nav className="mt-6 flex flex-col gap-1.5 flex-1 overflow-y-auto pr-1">
+          <nav className="mt-6 flex flex-col gap-1.5 flex-1 overflow-y-auto min-h-0 pr-1">
             <div className="text-[10px] font-black uppercase tracking-wider text-white/60 px-3 mb-1">
               Phân hệ quản trị
             </div>
@@ -288,7 +288,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
         </div>
 
         {/* Nút Đăng xuất ở chân Sidebar */}
-        <div className="pt-4 mt-auto border-t border-white/15">
+        <div className="pt-4 mt-auto border-t border-white/15 shrink-0">
           <button
             onClick={handleLogout}
             className="w-full flex items-center gap-3.5 px-4 py-3 rounded-2xl text-sm font-bold text-white/90 hover:text-white hover:bg-white/15 transition-all cursor-pointer text-left"
@@ -303,9 +303,9 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
       {/* ============================================================== */}
       {/* 2. KHÔNG GIAN NỘI DUNG CHÍNH (RIGHT PANEL: HEADER + BODY)       */}
       {/* ============================================================== */}
-      <div className="flex-1 flex flex-col min-w-0 min-h-screen">
+      <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
         {/* Top Header Bar theo đúng ảnh REX Admin */}
-        <header className={`h-18 min-h-[72px] border-b px-6 sm:px-8 flex items-center justify-between sticky top-0 z-20 shadow-2xs transition-colors duration-200 ${
+        <header className={`h-18 min-h-[72px] shrink-0 border-b px-6 sm:px-8 flex items-center justify-between sticky top-0 z-20 shadow-2xs transition-colors duration-200 ${
           theme === 'dark'
             ? 'bg-slate-900/95 border-slate-800 text-white'
             : 'bg-white border-stone-200/90 text-stone-900'
@@ -355,7 +355,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
         </header>
 
         {/* Nội dung trang quản trị */}
-        <main className="flex-1 p-6 sm:p-8 overflow-y-auto">
+        <main className="flex-1 p-6 sm:p-8 overflow-y-auto min-h-0">
           {children}
         </main>
       </div>
