@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useJudge } from '../../context/JudgeContext';
 import { storageService } from '../../services/storageService';
 import { supabase } from '../../services/supabaseClient';
@@ -43,6 +43,26 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
   } = useJudge();
 
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isNavScrolling, setIsNavScrolling] = useState(false);
+  const scrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleNavScroll = () => {
+    setIsNavScrolling(true);
+    if (scrollTimeoutRef.current) {
+      clearTimeout(scrollTimeoutRef.current);
+    }
+    scrollTimeoutRef.current = setTimeout(() => {
+      setIsNavScrolling(false);
+    }, 1000);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (scrollTimeoutRef.current) {
+        clearTimeout(scrollTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Email hoặc danh tính tài khoản giáo viên quản trị
   const [displayEmail, setDisplayEmail] = useState<string>(() => {
@@ -190,7 +210,12 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
           </div>
 
           {/* Nhóm Menu chính (Nav Items) */}
-          <nav className="mt-6 flex flex-col gap-1.5 flex-1 overflow-y-auto min-h-0 pr-1">
+          <nav
+            onScroll={handleNavScroll}
+            className={`mt-6 flex flex-col gap-1.5 flex-1 overflow-y-auto min-h-0 pr-1 sidebar-scrollbar ${
+              isNavScrolling ? 'is-scrolling' : ''
+            }`}
+          >
             <div className="text-[10px] font-black uppercase tracking-wider text-white/60 px-3 mb-1">
               Phân hệ quản trị
             </div>
