@@ -18,6 +18,8 @@ import {
   BookOpen,
   Users,
   GraduationCap,
+  Copy,
+  Check,
 } from 'lucide-react';
 import { ThemisGradingTable } from './ThemisGradingTable';
 import { apiService } from '../../services/apiService';
@@ -39,6 +41,14 @@ export const SubmissionHistory: React.FC = () => {
     refreshAllData,
   } = useJudge();
   const [selectedSub, setSelectedSub] = useState<Submission | null>(null);
+  const [copiedCode, setCopiedCode] = useState(false);
+
+  const handleCopySourceCode = (codeStr: string) => {
+    if (!codeStr) return;
+    navigator.clipboard.writeText(codeStr);
+    setCopiedCode(true);
+    setTimeout(() => setCopiedCode(false), 2000);
+  };
 
   const handleOpenDetail = async (sub: Submission) => {
     setSelectedSub(sub);
@@ -960,12 +970,38 @@ export const SubmissionHistory: React.FC = () => {
 
               {/* Source Code View */}
               <div className="w-full">
-                <h4 className={`text-xs font-bold uppercase tracking-wider mb-2 flex items-center gap-2 ${
-                  theme === 'light' ? 'text-slate-700' : 'text-slate-300'
-                }`}>
-                  <Code2 className="w-4 h-4 text-red-500 dark:text-red-400" /> Mã nguồn đã nộp ({(typeof selectedSub.language === 'string' ? selectedSub.language : String(selectedSub.language || '')).toUpperCase()}):
-                </h4>
-                <pre className="p-4 bg-slate-950 rounded-2xl text-emerald-400 font-mono text-xs overflow-x-auto max-h-64 border border-slate-800">
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className={`text-xs font-bold uppercase tracking-wider flex items-center gap-2 ${
+                    theme === 'light' ? 'text-stone-700' : 'text-stone-300'
+                  }`}>
+                    <Code2 className="w-4 h-4 text-[#c51f26]" /> Mã nguồn đã nộp ({(typeof selectedSub.language === 'string' ? selectedSub.language : String(selectedSub.language || '')).toUpperCase()}):
+                  </h4>
+                  <button
+                    type="button"
+                    onClick={() => handleCopySourceCode(typeof selectedSub.sourceCode === 'object' ? JSON.stringify(selectedSub.sourceCode, null, 2) : String(selectedSub.sourceCode || ''))}
+                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold transition-colors border cursor-pointer ${
+                      copiedCode
+                        ? 'bg-emerald-600 text-white border-emerald-500'
+                        : theme === 'light'
+                        ? 'bg-white hover:bg-stone-100 text-stone-700 border-stone-200'
+                        : 'bg-stone-800 hover:bg-stone-700 text-stone-300 border-stone-700'
+                    }`}
+                    title="Sao chép toàn bộ mã nguồn"
+                  >
+                    {copiedCode ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                    <span>{copiedCode ? 'Đã chép' : 'Sao chép code'}</span>
+                  </button>
+                </div>
+                <pre
+                  className="p-4 bg-stone-950 rounded-xl text-emerald-400 font-mono text-xs sm:text-sm overflow-x-auto max-h-80 border border-stone-800 leading-relaxed select-text"
+                  style={{
+                    fontFamily: "'Consolas', 'Courier New', monospace",
+                    fontVariantLigatures: 'none',
+                    fontFeatureSettings: '"liga" 0, "calt" 0',
+                    whiteSpace: 'pre',
+                    tabSize: 4,
+                  }}
+                >
                   {typeof selectedSub.sourceCode === 'object' ? JSON.stringify(selectedSub.sourceCode, null, 2) : String(selectedSub.sourceCode || '')}
                 </pre>
               </div>

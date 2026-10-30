@@ -594,6 +594,7 @@ export const ProblemView: React.FC<ProblemViewProps> = ({ problem, onBackToList 
                 options={{
                   fontSize: 14,
                   fontFamily: "'Consolas', 'Fira Code', 'Cascadia Code', monospace",
+                  fontLigatures: false,
                   minimap: { enabled: false },
                   scrollBeyondLastLine: false,
                   automaticLayout: true,
