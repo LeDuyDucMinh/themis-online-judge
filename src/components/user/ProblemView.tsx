@@ -262,24 +262,24 @@ export const ProblemView: React.FC<ProblemViewProps> = ({ problem, onBackToList 
       {/* Layout: Đề bài ở TRÊN, Phần nộp bài ở DƯỚI */}
       <div className="flex flex-col space-y-8">
         {/* SECTION 1 (TRÊN): KHU VỰC ĐỀ BÀI CHI TIẾT */}
-        <section className={`rounded-3xl p-6 sm:p-8 shadow-2xl space-y-6 border ${
+        <section className={`rounded-2xl p-6 sm:p-8 space-y-6 border ${
           theme === 'light'
-            ? 'bg-white border-slate-200 shadow-slate-200/50'
-            : 'bg-[#0d121d] border-slate-800/90'
+            ? 'bg-white border-stone-200 shadow-2xs'
+            : 'bg-[#0d121d] border-stone-800'
         }`}>
           {/* Header Đề Bài */}
-          <div className={`border-b pb-5 ${theme === 'light' ? 'border-slate-100' : 'border-slate-800'}`}>
+          <div className={`border-b pb-5 ${theme === 'light' ? 'border-stone-100' : 'border-stone-800'}`}>
             <div className="flex flex-wrap items-center justify-between gap-3 mb-2">
               <div className="flex items-center gap-2">
-                <span className={`font-mono text-xs font-bold px-3 py-1 rounded-xl border ${
+                <span className={`font-mono text-xs font-bold px-3 py-1 rounded-lg border ${
                   theme === 'light'
-                    ? 'bg-red-50 text-red-600 border-red-200'
-                    : 'bg-red-500/15 text-red-400 border-red-500/30'
+                    ? 'bg-red-50 text-[#c51f26] border-red-200'
+                    : 'bg-red-950/40 text-red-300 border-red-900/60'
                 }`}>
                   {problem.code}
                 </span>
-                <span className={`text-xs ${theme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>
-                  Tác giả / Nguồn đề: <b className={theme === 'light' ? 'text-slate-800' : 'text-slate-200'}>{problem.author || 'FAMINH Judge'}</b>
+                <span className={`text-xs ${theme === 'light' ? 'text-stone-500' : 'text-stone-400'}`}>
+                  Tác giả / Nguồn đề: <b className={theme === 'light' ? 'text-stone-800' : 'text-stone-200'}>{problem.author || 'FAMINH Judge'}</b>
                 </span>
               </div>
 
@@ -527,19 +527,19 @@ export const ProblemView: React.FC<ProblemViewProps> = ({ problem, onBackToList 
 
         {/* SECTION 2 (DƯỚI): KHU VỰC NỘP BÀI & TRÌNH BIÊN DỊCH CODE */}
         <section className="space-y-6">
-          <div className={`rounded-3xl overflow-hidden shadow-2xl border ${
+          <div className={`rounded-2xl overflow-hidden border ${
             theme === 'light'
-              ? 'bg-white border-slate-200 shadow-slate-200/50'
-              : 'bg-[#0d121d] border-slate-800/90'
+              ? 'bg-white border-stone-200 shadow-2xs'
+              : 'bg-[#0d121d] border-stone-800'
           }`}>
             {/* Editor Toolbar */}
-            <div className={`p-4 border-b flex flex-wrap items-center justify-between gap-3 ${
-              theme === 'light' ? 'bg-slate-100 border-slate-200' : 'bg-slate-950 border-slate-800'
+            <div className={`p-3.5 border-b flex flex-wrap items-center justify-between gap-3 ${
+              theme === 'light' ? 'bg-stone-50 border-stone-200' : 'bg-stone-900/80 border-stone-800'
             }`}>
               <div className="flex items-center gap-2">
-                <FileCode className="w-5 h-5 text-red-500" />
+                <FileCode className="w-5 h-5 text-[#c51f26]" />
                 <span className={`text-xs font-bold uppercase tracking-wider ${
-                  theme === 'light' ? 'text-slate-800' : 'text-white'
+                  theme === 'light' ? 'text-stone-800' : 'text-white'
                 }`}>
                   Trình soạn thảo mã nguồn & Nộp bài
                 </span>
@@ -608,16 +608,16 @@ export const ProblemView: React.FC<ProblemViewProps> = ({ problem, onBackToList 
 
             {/* Bottom Bar & Submit Action */}
             <div className={`p-4 sm:p-5 border-t flex flex-wrap items-center justify-between gap-4 ${
-              theme === 'light' ? 'bg-slate-100 border-slate-200' : 'bg-slate-950 border-slate-800'
+              theme === 'light' ? 'bg-stone-50 border-stone-200' : 'bg-stone-900/80 border-stone-800'
             }`}>
-              <div className={`text-xs flex items-center gap-2 ${theme === 'light' ? 'text-slate-600' : 'text-slate-400'}`}>
-                <Sparkles className="w-4 h-4 text-red-500 shrink-0" />
+              <div className={`text-xs flex items-center gap-2 ${theme === 'light' ? 'text-stone-600' : 'text-stone-400'}`}>
+                <Sparkles className="w-4 h-4 text-[#c51f26] shrink-0" />
                 <span>
                   Hệ thống tự động hỗ trợ lệnh đọc/ghi file kiểu Themis:{' '}
                   <code className={`px-1.5 py-0.5 rounded font-mono border ${
                     theme === 'light'
-                      ? 'text-red-700 bg-white border-red-200'
-                      : 'text-red-400 bg-red-500/10 border-red-500/20'
+                      ? 'text-[#c51f26] bg-white border-red-200 font-semibold'
+                      : 'text-red-400 bg-red-950/40 border-red-900/60'
                   }`}>
                     freopen(&quot;{problem.code}.INP&quot;, &quot;r&quot;, stdin);
                   </code>
@@ -627,10 +627,10 @@ export const ProblemView: React.FC<ProblemViewProps> = ({ problem, onBackToList 
               <button
                 onClick={handleSubmit}
                 disabled={isGrading}
-                className={`inline-flex items-center gap-2.5 px-8 py-3 rounded-2xl font-bold text-sm text-white shadow-xl transition-all cursor-pointer ${
+                className={`inline-flex items-center gap-2.5 px-7 py-2.5 rounded-xl font-bold text-xs sm:text-sm text-white shadow-2xs transition-all cursor-pointer ${
                   isGrading
-                    ? 'bg-red-600/50 cursor-not-allowed'
-                    : 'bg-red-600 hover:bg-red-500 hover:shadow-red-600/30 hover:scale-[1.02] active:scale-[0.98]'
+                    ? 'bg-[#c51f26]/50 cursor-not-allowed'
+                    : 'bg-[#c51f26] hover:bg-[#a8181e]'
                 }`}
               >
                 <Play className={`w-4 h-4 ${isGrading ? 'animate-spin' : 'fill-white'}`} />

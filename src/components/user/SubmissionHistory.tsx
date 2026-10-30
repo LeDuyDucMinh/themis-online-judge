@@ -490,7 +490,7 @@ export const SubmissionHistory: React.FC = () => {
             <select
               value={selectedClassId}
               onChange={(e) => setSelectedClassId(e.target.value)}
-              className="bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 text-xs rounded-xl px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-red-500 font-medium cursor-pointer shadow-2xs"
+              className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 text-stone-800 dark:text-stone-200 text-xs rounded-lg px-3 py-1.5 focus:outline-none focus:border-[#c51f26] font-medium cursor-pointer"
             >
               <option value="ALL">Tất cả lớp học ({availableClasses.length})</option>
               {availableClasses.map((c) => (
@@ -501,18 +501,16 @@ export const SubmissionHistory: React.FC = () => {
             </select>
           </div>
 
-
           {/* 2 Nút chuyển chế độ xem dành riêng cho Giáo viên */}
           {isAdminAuthenticated && (
-            <div className="flex items-center p-1 bg-slate-100 dark:bg-slate-800/80 rounded-2xl border border-slate-200 dark:border-slate-700/60 shadow-xs">
-
+            <div className="flex items-center p-1 bg-stone-100 dark:bg-stone-800/80 rounded-xl border border-stone-200 dark:border-stone-700">
               <button
                 type="button"
                 onClick={() => setViewMode('log')}
-                className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
                   viewMode === 'log'
-                    ? 'bg-red-600 text-white shadow-md shadow-red-600/20'
-                    : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-slate-700/50'
+                    ? 'bg-[#c51f26] text-white'
+                    : 'text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-white hover:bg-stone-200/60 dark:hover:bg-stone-700/50'
                 }`}
               >
                 <Clock className="w-3.5 h-3.5" />
@@ -521,10 +519,10 @@ export const SubmissionHistory: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setViewMode('topic_grades')}
-                className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
                   viewMode === 'topic_grades'
-                    ? 'bg-red-600 text-white shadow-md shadow-red-600/20'
-                    : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-slate-700/50'
+                    ? 'bg-[#c51f26] text-white'
+                    : 'text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-white hover:bg-stone-200/60 dark:hover:bg-stone-700/50'
                 }`}
               >
                 <BarChart3 className="w-3.5 h-3.5" />
@@ -533,7 +531,7 @@ export const SubmissionHistory: React.FC = () => {
             </div>
           )}
 
-          <span className="text-xs font-mono text-slate-700 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700">
+          <span className="text-xs font-mono text-stone-700 dark:text-stone-300 bg-white dark:bg-stone-900 px-3 py-1.5 rounded-lg border border-stone-200 dark:border-stone-800">
             {viewMode === 'log' ? `${displayedSubmissions.length} lượt nộp gần nhất` : `${topicEligibleStudents.length} học sinh được giao`}
           </span>
         </div>
@@ -542,21 +540,21 @@ export const SubmissionHistory: React.FC = () => {
       {/* CHẾ ĐỘ 1: NHẬT KÝ TỪNG LẦN NỘP (Bảng thời gian như hiện tại) */}
       {(viewMode === 'log' || !isAdminAuthenticated) && (
         displayedSubmissions.length === 0 ? (
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-12 text-center text-slate-400">
-            <Layers className="w-10 h-10 mx-auto text-slate-600 mb-2" />
-            <h5 className="font-semibold text-slate-300">Chưa có lượt nộp bài nào</h5>
-            <p className="text-xs text-slate-500 mt-1">
+          <div className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl p-12 text-center text-stone-500">
+            <Layers className="w-10 h-10 mx-auto text-stone-400 dark:text-stone-600 mb-2" />
+            <h5 className="font-semibold text-stone-900 dark:text-stone-200">Chưa có lượt nộp bài nào</h5>
+            <p className="text-xs text-stone-500 mt-1">
               {isAdminAuthenticated
                 ? 'Chưa có lượt nộp bài nào được ghi nhận trên hệ thống.'
                 : 'Hãy chọn một bài tập bất kỳ và thử nộp bài để trải nghiệm hệ thống chấm Themis!'}
             </p>
           </div>
         ) : (
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+          <div className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
-                  <tr className="border-b border-slate-200 dark:border-slate-800 text-[11px] font-bold uppercase text-slate-600 dark:text-slate-400 bg-slate-100/90 dark:bg-slate-800/40">
+                  <tr className="border-b border-stone-200 dark:border-stone-800 text-[11px] font-bold uppercase text-stone-600 dark:text-stone-400 bg-stone-50 dark:bg-stone-800/50">
                     <th className="py-3 px-4">Thời gian</th>
                     <th className="py-3 px-4">Học sinh</th>
                     <th className="py-3 px-4">Bài tập</th>
@@ -567,11 +565,11 @@ export const SubmissionHistory: React.FC = () => {
                     <th className="py-3 px-4 text-center">Thao tác</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-200 dark:divide-slate-800/60 font-mono">
+                <tbody className="divide-y divide-stone-200 dark:divide-stone-800/80 font-mono">
                   {displayedSubmissions.map((sub) => (
                     <tr
                       key={sub.id}
-                      className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors cursor-pointer"
+                      className="hover:bg-stone-50 dark:hover:bg-stone-800/40 transition-colors cursor-pointer"
                       onClick={() => handleOpenDetail(sub)}
                     >
                       <td className="py-3 px-4 text-slate-500 dark:text-slate-400 font-sans flex items-center gap-1.5">
@@ -877,58 +875,58 @@ export const SubmissionHistory: React.FC = () => {
       {selectedSub && (
         <div
           onClick={() => setSelectedSub(null)}
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-150"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150"
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className={`border rounded-3xl max-w-4xl w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden relative transition-colors ${
-              theme === 'light' ? 'bg-white border-slate-200' : 'bg-slate-900 border-slate-800'
+            className={`border rounded-xl max-w-4xl w-full max-h-[90vh] flex flex-col overflow-hidden relative transition-colors ${
+              theme === 'light' ? 'bg-white border-stone-200' : 'bg-stone-900 border-stone-800'
             }`}
           >
             {/* Header: Cố định ở trên, không bao giờ bị cuộn nội dung tràn qua */}
             <div className={`shrink-0 px-6 py-4 border-b flex items-start justify-between gap-4 transition-colors ${
-              theme === 'light' ? 'bg-white border-slate-200' : 'bg-slate-900 border-slate-800'
+              theme === 'light' ? 'bg-stone-50/50 border-stone-200' : 'bg-stone-900 border-stone-800'
             }`}>
               <div className="space-y-1.5">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className={`font-mono text-xs font-bold px-2.5 py-0.5 rounded-lg border ${
+                  <span className={`font-mono text-xs font-bold px-2 py-0.5 rounded border ${
                     theme === 'light'
-                      ? 'bg-red-50 text-red-700 border-red-200'
-                      : 'bg-red-500/15 text-red-400 border-red-500/30'
+                      ? 'bg-red-50 text-[#c51f26] border-red-200'
+                      : 'bg-red-950/30 text-red-400 border-red-900/40'
                   }`}>
                     Mã bài: {displayCode}
                   </span>
-                  <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-0.5 rounded-lg border ${
+                  <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded border ${
                     theme === 'light'
                       ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                      : 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+                      : 'bg-emerald-950/30 text-emerald-400 border-emerald-900/40'
                   }`}>
-                    <User className="w-3.5 h-3.5 text-emerald-500" />
+                    <User className="w-3.5 h-3.5 text-emerald-600" />
                     Học sinh: {getSubDisplayName(selectedSub)}
                   </span>
                   {activeTopic && (
-                    <span className={`inline-flex items-center gap-1 text-xs font-medium px-2.5 py-0.5 rounded-lg border ${
+                    <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded border ${
                       theme === 'light'
-                        ? 'bg-slate-100 text-slate-700 border-slate-200'
-                        : 'bg-slate-800 text-slate-300 border-slate-700'
+                        ? 'bg-stone-100 text-stone-700 border-stone-200'
+                        : 'bg-stone-800 text-stone-300 border-stone-700'
                     }`}>
-                      <Layers className="w-3.5 h-3.5 text-indigo-500" />
+                      <Layers className="w-3.5 h-3.5 text-stone-500" />
                       Chủ đề: {activeTopic.name}
                     </span>
                   )}
-                  <span className={`text-xs ${theme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>
+                  <span className={`text-xs ${theme === 'light' ? 'text-stone-500' : 'text-stone-400'}`}>
                     • Nhật ký chấm Themis
                   </span>
                 </div>
 
                 <div>
                   <span className={`text-[11px] font-bold uppercase tracking-wider block ${
-                    theme === 'light' ? 'text-slate-500' : 'text-slate-400'
+                    theme === 'light' ? 'text-stone-500' : 'text-stone-400'
                   }`}>
                     Tên bài tập:
                   </span>
-                  <h3 className={`text-xl sm:text-2xl font-black tracking-tight ${
-                    theme === 'light' ? 'text-slate-900' : 'text-white'
+                  <h3 className={`text-xl font-bold tracking-tight ${
+                    theme === 'light' ? 'text-stone-900' : 'text-white'
                   }`}>
                     {displayTitle}
                   </h3>
@@ -938,10 +936,10 @@ export const SubmissionHistory: React.FC = () => {
               {/* Chỉ 1 nút Đóng duy nhất ở góc trên bên phải */}
               <button
                 onClick={() => setSelectedSub(null)}
-                className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl transition-all border shadow-sm shrink-0 cursor-pointer ${
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-colors border shrink-0 cursor-pointer ${
                   theme === 'light'
-                    ? 'bg-slate-100 hover:bg-rose-600 hover:text-white text-slate-700 border-slate-200 hover:border-rose-500'
-                    : 'bg-slate-800 hover:bg-rose-600 text-slate-300 hover:text-white border-slate-700 hover:border-rose-500'
+                    ? 'bg-white hover:bg-[#c51f26] hover:text-white text-stone-700 border-stone-200 hover:border-[#c51f26]'
+                    : 'bg-stone-800 hover:bg-[#c51f26] text-stone-300 hover:text-white border-stone-700 hover:border-[#c51f26]'
                 }`}
                 title="Đóng cửa sổ (Phím ESC hoặc click ra ngoài)"
               >

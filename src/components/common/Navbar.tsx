@@ -85,7 +85,11 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab }) => 
   };
 
   return (
-    <header className="bg-slate-950/90 backdrop-blur border-b border-slate-800 text-slate-100 sticky top-0 z-40">
+    <header className={`backdrop-blur-md border-b sticky top-0 z-40 transition-colors duration-200 ${
+      theme === 'light'
+        ? 'bg-white/95 border-stone-200 text-stone-900 shadow-2xs'
+        : 'bg-[#090d16]/95 border-stone-800 text-stone-100'
+    }`}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
         {/* Brand / Logo FAMINH */}
         <div
@@ -93,11 +97,13 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab }) => 
           className="flex items-center gap-3 cursor-pointer group shrink-0"
           title="Trang chủ FAMINH Online Judge"
         >
-          <div className="w-9 h-9 rounded-lg bg-slate-800 border border-slate-700 overflow-hidden flex items-center justify-center">
+          <div className={`w-9 h-9 rounded-xl border p-0.5 overflow-hidden flex items-center justify-center shrink-0 shadow-2xs ${
+            theme === 'light' ? 'bg-white border-stone-200' : 'bg-stone-900 border-stone-700'
+          }`}>
             <img
               src="/faminh-logo.jpg"
               alt="FAMINH Logo"
-              className="w-full h-full object-cover"
+              className="w-full h-full object-cover rounded-lg"
               onError={(e) => {
                 (e.target as HTMLElement).style.display = 'none';
               }}
@@ -105,13 +111,15 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab }) => 
           </div>
           <div className="leading-tight">
             <div className="flex items-center gap-2">
-              <span className="font-display font-semibold text-lg tracking-tight text-slate-100">
-                FAMINH <span className="text-red-500">Judge</span>
+              <span className={`font-display font-black text-lg tracking-tight ${
+                theme === 'light' ? 'text-stone-900' : 'text-stone-100'
+              }`}>
+                FAMINH <span className="text-[#c51f26]">Judge</span>
               </span>
             </div>
-            <p className="text-[11px] text-slate-500 hidden sm:block">
+            <p className="text-[11px] text-stone-500 dark:text-stone-400 hidden sm:block">
               {activeClass ? (
-                <span className="text-red-400 font-semibold flex items-center gap-1">
+                <span className="text-[#c51f26] font-semibold flex items-center gap-1">
                   <span>Lớp:</span>
                   <span className="truncate max-w-[150px]">{activeClass.className}</span>
                 </span>
@@ -123,7 +131,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab }) => 
         </div>
 
         {/* Navigation Tabs based on Role */}
-        <div className="hidden md:flex items-stretch gap-1 self-stretch">
+        <div className="hidden md:flex items-stretch gap-1.5 self-stretch py-2.5">
           {/* HỌC SINH: Tab Lớp học của tôi */}
           {!isAdminAuthenticated && (
             <button
@@ -131,13 +139,13 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab }) => 
                 setCurrentTab('classes');
                 setActiveClassId(null);
               }}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-2 transition-all cursor-pointer ${
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
                 currentTab === 'classes' && !activeClass
-                  ? 'bg-red-600 text-white shadow'
-                  : 'text-slate-300 hover:text-white hover:bg-slate-700/50'
+                  ? 'bg-[#c51f26] text-white shadow-2xs'
+                  : 'text-stone-600 dark:text-stone-300 hover:text-[#c51f26] dark:hover:text-white hover:bg-red-50/50 dark:hover:bg-stone-800/60'
               }`}
             >
-              <GraduationCap className="w-4 h-4 text-red-400" />
+              <GraduationCap className="w-4 h-4 text-[#c51f26] dark:text-red-400 group-hover:scale-105" />
               <span>Lớp học của tôi</span>
             </button>
           )}
@@ -146,10 +154,10 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab }) => 
           {!isAdminAuthenticated && activeClass && (
             <button
               onClick={() => setCurrentTab('classes')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-2 transition-all cursor-pointer ${
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
                 currentTab === 'classes' && activeClass
-                  ? 'bg-red-600 text-white shadow'
-                  : 'text-slate-300 hover:text-white hover:bg-slate-700/50'
+                  ? 'bg-[#c51f26] text-white shadow-2xs'
+                  : 'text-stone-600 dark:text-stone-300 hover:text-[#c51f26] dark:hover:text-white hover:bg-red-50/50 dark:hover:bg-stone-800/60'
               }`}
             >
               <Code2 className="w-4 h-4" />
@@ -164,13 +172,13 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab }) => 
                 setCurrentTab('admin_classes');
                 setActiveClassId(null);
               }}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-2 transition-all cursor-pointer ${
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
                 currentTab === 'admin_classes' && !activeClass
-                  ? 'bg-red-600 text-white shadow'
-                  : 'text-slate-300 hover:text-white hover:bg-slate-700/50'
+                  ? 'bg-[#c51f26] text-white shadow-2xs'
+                  : 'text-stone-600 dark:text-stone-300 hover:text-[#c51f26] dark:hover:text-white hover:bg-red-50/50 dark:hover:bg-stone-800/60'
               }`}
             >
-              <GraduationCap className="w-4 h-4 text-red-400" />
+              <GraduationCap className="w-4 h-4 text-[#c51f26] dark:text-red-400" />
               <span>Quản lý Lớp học</span>
             </button>
           )}
@@ -181,10 +189,10 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab }) => 
               onClick={() => {
                 setCurrentTab('admin_classes');
               }}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-2 transition-all cursor-pointer ${
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
                 currentTab === 'admin_classes' && activeClass
-                  ? 'bg-red-600 text-white shadow'
-                  : 'text-slate-300 hover:text-white hover:bg-slate-700/50'
+                  ? 'bg-[#c51f26] text-white shadow-2xs'
+                  : 'text-stone-600 dark:text-stone-300 hover:text-[#c51f26] dark:hover:text-white hover:bg-red-50/50 dark:hover:bg-stone-800/60'
               }`}
             >
               <ListTree className="w-4 h-4" />
@@ -198,10 +206,10 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab }) => 
               onClick={() => {
                 setCurrentTab('admin_topics');
               }}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-2 transition-all cursor-pointer ${
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
                 currentTab === 'admin_topics'
-                  ? 'bg-red-600 text-white shadow'
-                  : 'text-slate-300 hover:text-white hover:bg-slate-700/50'
+                  ? 'bg-[#c51f26] text-white shadow-2xs'
+                  : 'text-stone-600 dark:text-stone-300 hover:text-[#c51f26] dark:hover:text-white hover:bg-red-50/50 dark:hover:bg-stone-800/60'
               }`}
             >
               <ListTree className="w-4 h-4" />
@@ -214,13 +222,13 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab }) => 
             onClick={() => {
               setCurrentTab('submissions');
             }}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-2 transition-all cursor-pointer ${
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
               currentTab === 'submissions'
-                ? 'bg-red-600 text-white shadow'
-                : 'text-slate-300 hover:text-white hover:bg-slate-700/50'
+                ? 'bg-[#c51f26] text-white shadow-2xs'
+                : 'text-stone-600 dark:text-stone-300 hover:text-[#c51f26] dark:hover:text-white hover:bg-red-50/50 dark:hover:bg-stone-800/60'
             }`}
           >
-            <Trophy className="w-4 h-4 text-amber-400" />
+            <Trophy className="w-4 h-4 text-amber-500" />
             <span>Lịch sử nộp bài</span>
           </button>
         </div>
@@ -231,18 +239,18 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab }) => 
           {/* ROLE & AUTHENTICATION ACTIONS */}
           {isAdminAuthenticated ? (
             <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-500/15 text-red-300 border border-red-500/30 text-xs font-bold shadow-sm">
-                <ShieldCheck className="w-4 h-4 text-red-400" />
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-50 dark:bg-red-950/40 text-[#c51f26] dark:text-red-300 border border-red-200 dark:border-red-900/60 text-xs font-bold shadow-2xs">
+                <ShieldCheck className="w-4 h-4 text-[#c51f26]" />
                 <span className="hidden sm:inline">GIÁO VIÊN (ADMIN)</span>
               </div>
 
               {/* Nút Cấu hình Máy chủ Chấm bài VPS */}
               <button
                 onClick={() => setIsServerConfigModalOpen(true)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-700 text-xs font-semibold transition-colors cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-stone-100 hover:bg-stone-200 dark:bg-stone-800 dark:hover:bg-stone-700 text-stone-700 dark:text-stone-200 hover:text-stone-900 dark:hover:text-white border border-stone-200 dark:border-stone-700 text-xs font-semibold transition-colors cursor-pointer"
                 title="Cấu hình Máy chủ Chấm bài VPS (Judge0)"
               >
-                <Server className="w-3.5 h-3.5 text-emerald-400" />
+                <Server className="w-3.5 h-3.5 text-emerald-500" />
                 <span className="hidden lg:inline">Server Chấm VPS</span>
               </button>
             </div>
@@ -251,10 +259,10 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab }) => 
             <div className="flex items-center gap-2">
               <div
                 onClick={() => setIsChangeNameModalOpen(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-500/15 hover:bg-red-500/25 text-red-300 border border-red-500/30 text-xs font-bold shadow-sm cursor-pointer transition-all"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-50 hover:bg-red-100/80 dark:bg-red-950/40 dark:hover:bg-red-900/50 text-[#c51f26] dark:text-red-300 border border-red-200 dark:border-red-900/60 text-xs font-bold shadow-2xs cursor-pointer transition-all"
                 title="Nhấn để đổi họ và tên"
               >
-                <GraduationCap className="w-4 h-4 text-red-400" />
+                <GraduationCap className="w-4 h-4 text-[#c51f26]" />
                 <span className="max-w-[130px] truncate" title={currentStudent.fullName}>
                   {currentStudent.fullName}
                 </span>
@@ -263,10 +271,10 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab }) => 
               {/* Nút Đổi tên học sinh */}
               <button
                 onClick={() => setIsChangeNameModalOpen(true)}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 transition-all cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold bg-stone-100 hover:bg-stone-200 dark:bg-stone-900 dark:hover:bg-stone-800 text-stone-700 hover:text-stone-900 dark:text-stone-300 dark:hover:text-white border border-stone-200 dark:border-stone-800 transition-all cursor-pointer"
                 title="Đổi họ và tên của bạn"
               >
-                <UserCheck className="w-3.5 h-3.5 text-red-400" />
+                <UserCheck className="w-3.5 h-3.5 text-[#c51f26]" />
                 <span className="hidden sm:inline">Đổi tên</span>
               </button>
             </div>
@@ -276,14 +284,14 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab }) => 
           {!isAdminAuthenticated ? (
             <button
               onClick={toggleTheme}
-              className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition-colors flex items-center justify-center cursor-pointer shadow-sm"
+              className="p-2 rounded-xl bg-stone-100 hover:bg-stone-200 dark:bg-stone-800 dark:hover:bg-stone-700 text-stone-700 dark:text-stone-300 hover:text-stone-900 dark:hover:text-white border border-stone-200 dark:border-stone-700 transition-colors flex items-center justify-center cursor-pointer shadow-2xs"
               title={theme === 'dark' ? 'Chuyển sang chế độ Nền Sáng' : 'Chuyển sang chế độ Nền Tối'}
               aria-label="Đổi giao diện sáng/tối"
             >
               {theme === 'dark' ? (
                 <Sun className="w-4 h-4 text-amber-400" />
               ) : (
-                <Moon className="w-4 h-4 text-indigo-400" />
+                <Moon className="w-4 h-4 text-stone-700" />
               )}
             </button>
           ) : (

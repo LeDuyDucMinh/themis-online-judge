@@ -138,19 +138,19 @@ export const UserManager: React.FC = () => {
   };
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6 pb-12">
+    <div className="max-w-7xl mx-auto space-y-6 pb-12 animate-in fade-in duration-200">
       {/* 1. Header Quản lý Người dùng */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-2xl bg-red-100 dark:bg-red-950/50 text-[#c51f26] border border-red-200 dark:border-red-900/60 shadow-xs">
-              <Users className="w-6 h-6" />
+            <div className="p-2.5 rounded-lg bg-red-50 dark:bg-red-950/20 text-[#c51f26] dark:text-red-400 border border-red-100 dark:border-red-900/30">
+              <Users className="w-5 h-5" />
             </div>
             <div>
-              <h1 className="text-2xl font-black tracking-tight text-slate-900 dark:text-white">
+              <h1 className="text-2xl font-bold tracking-tight text-stone-900 dark:text-white">
                 Quản lý Người dùng (Users)
               </h1>
-              <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-0.5">
+              <p className="text-xs sm:text-sm text-stone-500 dark:text-stone-400 mt-0.5">
                 Danh sách tài khoản học sinh trong hệ thống, thông tin đăng nhập và quản trị tài khoản
               </p>
             </div>
@@ -162,7 +162,7 @@ export const UserManager: React.FC = () => {
           <button
             onClick={() => refreshStudents?.()}
             disabled={isRefreshing}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-bold transition-all shadow-2xs disabled:opacity-50 cursor-pointer"
+            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 hover:bg-stone-50 dark:hover:bg-stone-800 text-stone-700 dark:text-stone-200 text-xs font-semibold transition-colors disabled:opacity-50 cursor-pointer"
             title="Đồng bộ danh sách người dùng mới nhất từ Cloud"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-[#c51f26]' : ''}`} />
@@ -172,35 +172,35 @@ export const UserManager: React.FC = () => {
       </div>
 
       {/* 2. Cảnh báo thông tin quản trị */}
-      <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 flex items-start gap-3 shadow-2xs">
-        <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-        <div className="text-xs sm:text-sm text-amber-800 dark:text-amber-300 leading-relaxed">
-          <span className="font-bold">Lưu ý quan trọng:</span> Nút <span className="font-bold text-rose-600 dark:text-rose-400">Xóa tài khoản</span> tại mục này sẽ <span className="font-semibold underline">xóa hẳn tài khoản người dùng ra khỏi toàn bộ hệ thống</span> (bao gồm thu hồi quyền đăng nhập, đưa học sinh ra khỏi mọi lớp học và dọn dẹp sạch toàn bộ lịch sử nộp bài trên máy chủ lẫn đám mây).
+      <div className="p-3.5 rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 flex items-start gap-3">
+        <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+        <div className="text-xs text-amber-800 dark:text-amber-300 leading-relaxed">
+          <span className="font-bold">Lưu ý quan trọng:</span> Nút <span className="font-bold text-[#c51f26] dark:text-red-400">Xóa tài khoản</span> tại mục này sẽ <span className="font-semibold underline">xóa hẳn tài khoản người dùng ra khỏi toàn bộ hệ thống</span> (thu hồi quyền đăng nhập, đưa học sinh ra khỏi mọi lớp học và dọn dẹp sạch toàn bộ lịch sử nộp bài trên máy chủ lẫn đám mây).
         </div>
       </div>
 
       {/* 3. Thanh Tìm kiếm & Thống kê */}
-      <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="p-3.5 rounded-xl bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         {/* Ô tìm kiếm */}
         <div className="relative flex-1 max-w-md">
-          <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+          <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-400" />
           <input
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             placeholder="Tìm theo tên người dùng hoặc email..."
-            className="w-full pl-10 pr-4 py-2 text-xs sm:text-sm rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#c51f26]/20 focus:border-[#c51f26] transition-all"
+            className="w-full pl-10 pr-4 py-2 text-xs sm:text-sm rounded-lg border border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-800 text-stone-900 dark:text-white placeholder:text-stone-400 focus:outline-none focus:border-[#c51f26] transition-colors"
           />
         </div>
 
         {/* Thống kê người dùng */}
-        <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400">
+        <div className="flex items-center gap-2 text-xs font-semibold text-stone-500 dark:text-stone-400">
           <span>Tổng số:</span>
-          <span className="px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-bold">
+          <span className="px-2.5 py-1 rounded-md bg-stone-100 dark:bg-stone-800 text-stone-800 dark:text-stone-200 font-bold">
             {validEmailStudents.length} tài khoản
           </span>
           {searchTerm && (
-            <span className="text-slate-400">
+            <span className="text-stone-400">
               (Khớp: {filteredStudents.length})
             </span>
           )}
@@ -208,16 +208,16 @@ export const UserManager: React.FC = () => {
       </div>
 
       {/* 4. Bảng Danh sách Người dùng */}
-      <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xs overflow-hidden">
+      <div className="rounded-xl bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 overflow-hidden">
         {filteredStudents.length === 0 ? (
           <div className="p-12 text-center space-y-3">
-            <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center mx-auto text-slate-400">
+            <div className="w-12 h-12 rounded-xl bg-stone-100 dark:bg-stone-800 flex items-center justify-center mx-auto text-stone-400">
               <User className="w-6 h-6" />
             </div>
-            <div className="text-base font-bold text-slate-800 dark:text-slate-200">
+            <div className="text-base font-bold text-stone-800 dark:text-stone-200">
               {searchTerm ? 'Không tìm thấy người dùng phù hợp' : 'Chưa có tài khoản người dùng nào'}
             </div>
-            <p className="text-xs text-slate-500 max-w-sm mx-auto">
+            <p className="text-xs text-stone-500 max-w-sm mx-auto">
               {searchTerm
                 ? 'Vui lòng kiểm tra lại từ khóa tìm kiếm hoặc thử với email/tên khác.'
                 : 'Khi học sinh đăng ký hoặc tham gia hệ thống, danh sách tài khoản sẽ xuất hiện tại đây.'}
@@ -227,7 +227,7 @@ export const UserManager: React.FC = () => {
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50/75 dark:bg-slate-950/50 text-[11px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                <tr className="border-b border-stone-200 dark:border-stone-800 bg-stone-50 dark:bg-stone-800/50 text-[11px] font-bold uppercase tracking-wider text-stone-500 dark:text-stone-400">
                   <th className="py-3.5 px-4 w-14 text-center">STT</th>
                   <th className="py-3.5 px-4">Tên người dùng hiện tại & Thao tác</th>
                   <th className="py-3.5 px-4">Email đăng nhập</th>
@@ -235,7 +235,7 @@ export const UserManager: React.FC = () => {
                   <th className="py-3.5 px-4 w-40 text-right">Xoá khỏi hệ thống</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 text-xs sm:text-sm">
+              <tbody className="divide-y divide-stone-200 dark:divide-stone-800 text-xs sm:text-sm">
                 {filteredStudents.map((student, idx) => {
                   const displayName = getDisplayName(student);
                   const displayEmail = getDisplayEmail(student);
@@ -245,10 +245,10 @@ export const UserManager: React.FC = () => {
                   return (
                     <tr
                       key={student.id || student.username || idx}
-                      className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors"
+                      className="hover:bg-stone-50 dark:hover:bg-stone-800/40 transition-colors"
                     >
                       {/* Cột 1: STT */}
-                      <td className="py-3.5 px-4 text-center text-xs font-mono text-slate-400">
+                      <td className="py-3.5 px-4 text-center text-xs font-mono text-stone-400">
                         #{idx + 1}
                       </td>
 
@@ -256,13 +256,13 @@ export const UserManager: React.FC = () => {
                       <td className="py-3.5 px-4">
                         <div className="flex items-center gap-3">
                           {/* Avatar chữ cái đầu */}
-                          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-red-500 to-[#c51f26] text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-2xs">
+                          <div className="w-8 h-8 rounded-lg bg-[#c51f26] text-white flex items-center justify-center font-bold text-xs shrink-0">
                             {displayName.charAt(0).toUpperCase()}
                           </div>
 
                           <div className="min-w-0 flex flex-wrap items-center gap-2">
                             {/* Tên người dùng hiện tại */}
-                            <span className="font-bold text-slate-900 dark:text-white truncate">
+                            <span className="font-bold text-stone-900 dark:text-white truncate">
                               {displayName}
                             </span>
 
@@ -270,7 +270,7 @@ export const UserManager: React.FC = () => {
                             <button
                               onClick={() => handleDeleteUserCompletely(student)}
                               disabled={isBusy}
-                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-bold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/50 hover:bg-rose-600 hover:text-white dark:hover:bg-rose-600 dark:hover:text-white transition-all cursor-pointer shadow-2xs shrink-0 disabled:opacity-50"
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold text-[#c51f26] dark:text-red-400 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/40 hover:bg-[#c51f26] hover:text-white dark:hover:bg-[#c51f26] dark:hover:text-white transition-colors cursor-pointer shrink-0 disabled:opacity-50"
                               title={`Xóa vĩnh viễn tài khoản "${displayName}" ra khỏi hệ thống`}
                             >
                               <Trash2 className="w-3 h-3" />
@@ -282,8 +282,8 @@ export const UserManager: React.FC = () => {
 
                       {/* Cột 3: Email đăng nhập */}
                       <td className="py-3.5 px-4">
-                        <div className="flex items-center gap-2 text-slate-700 dark:text-slate-300">
-                          <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                        <div className="flex items-center gap-2 text-stone-700 dark:text-stone-300">
+                          <Mail className="w-3.5 h-3.5 text-stone-400 shrink-0" />
                           <span className="font-medium font-mono text-xs truncate max-w-[280px]">
                             {displayEmail}
                           </span>
@@ -297,7 +297,7 @@ export const UserManager: React.FC = () => {
                             {userClasses.map((clsName, cIdx) => (
                               <span
                                 key={cIdx}
-                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/50"
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/40"
                               >
                                 <GraduationCap className="w-3 h-3 shrink-0" />
                                 <span className="truncate max-w-[130px]">{clsName}</span>
@@ -305,7 +305,7 @@ export const UserManager: React.FC = () => {
                             ))}
                           </div>
                         ) : (
-                          <span className="text-xs text-slate-400 italic">Chưa vào lớp nào</span>
+                          <span className="text-xs text-stone-400 italic">Chưa vào lớp nào</span>
                         )}
                       </td>
 
@@ -314,7 +314,7 @@ export const UserManager: React.FC = () => {
                         <button
                           onClick={() => handleDeleteUserCompletely(student)}
                           disabled={isBusy}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 hover:bg-rose-600 hover:text-white dark:hover:bg-rose-600 dark:hover:text-white transition-all cursor-pointer shadow-2xs disabled:opacity-50"
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-[#c51f26] dark:text-red-400 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/40 hover:bg-[#c51f26] hover:text-white dark:hover:bg-[#c51f26] dark:hover:text-white transition-colors cursor-pointer disabled:opacity-50"
                           title={`Xóa vĩnh viễn tài khoản "${displayName}" ra khỏi hệ thống`}
                         >
                           <Trash2 className="w-3.5 h-3.5" />

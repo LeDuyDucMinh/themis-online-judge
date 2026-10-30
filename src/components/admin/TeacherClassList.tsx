@@ -134,7 +134,7 @@ export const TeacherClassList: React.FC = () => {
         <div className="flex items-center gap-2.5">
           <button
             onClick={handleOpenCreateModal}
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#c51f26] hover:bg-[#a8181e] text-white text-xs font-bold transition-all shadow-sm cursor-pointer hover:scale-[1.02]"
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-[#c51f26] hover:bg-[#a8181e] text-white text-xs font-bold transition-colors cursor-pointer"
           >
             <Plus className="w-4 h-4" />
             <span>Tạo lớp học mới</span>
@@ -143,7 +143,7 @@ export const TeacherClassList: React.FC = () => {
       </div>
 
       {/* Filter Bar REX Admin style */}
-      <div className="p-4 rounded-2xl border border-stone-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-wrap items-center justify-between gap-4 shadow-2xs">
+      <div className="p-3.5 rounded-xl border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 flex flex-wrap items-center justify-between gap-4">
         <div className="flex-1 min-w-[240px] relative">
           <Search className="w-4 h-4 text-stone-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
           <input
@@ -151,30 +151,30 @@ export const TeacherClassList: React.FC = () => {
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             placeholder="Tìm theo tên lớp học, mã tham gia (Join Code)..."
-            className="w-full pl-10 pr-4 py-2.5 bg-stone-50 dark:bg-slate-800 border border-stone-200 dark:border-slate-700 rounded-xl text-xs text-stone-900 dark:text-white placeholder-stone-400 dark:placeholder-slate-500 focus:outline-none focus:border-[#c51f26] focus:ring-1 focus:ring-[#c51f26]"
+            className="w-full pl-10 pr-4 py-2 bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-lg text-xs text-stone-900 dark:text-white placeholder-stone-400 focus:outline-none focus:border-[#c51f26]"
           />
         </div>
 
-        <div className="text-xs font-semibold text-stone-500 dark:text-slate-400">
-          Tổng cộng: <b className="text-[#c51f26] font-black">{filteredClasses.length}</b> lớp học
+        <div className="text-xs font-semibold text-stone-500 dark:text-stone-400">
+          Tổng cộng: <b className="text-[#c51f26] font-bold">{filteredClasses.length}</b> lớp học
         </div>
       </div>
 
       {/* Grid Danh sách lớp học REX Admin style */}
       {filteredClasses.length === 0 ? (
-        <div className="p-12 text-center rounded-2xl border border-dashed border-stone-300 bg-white shadow-2xs">
-          <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-red-50 text-[#c51f26] border border-red-100 flex items-center justify-center">
-            <GraduationCap className="w-8 h-8" />
+        <div className="p-12 text-center rounded-xl border border-dashed border-stone-300 dark:border-stone-800 bg-white dark:bg-stone-900">
+          <div className="w-14 h-14 mx-auto mb-3 rounded-xl bg-red-50 dark:bg-red-950/20 text-[#c51f26] border border-red-100 dark:border-red-900/30 flex items-center justify-center">
+            <GraduationCap className="w-7 h-7" />
           </div>
-          <h3 className="text-base font-bold text-stone-900">Không tìm thấy lớp học nào</h3>
-          <p className="text-xs text-stone-500 mt-1 max-w-sm mx-auto">
+          <h3 className="text-base font-bold text-stone-900 dark:text-white">Không tìm thấy lớp học nào</h3>
+          <p className="text-xs text-stone-500 dark:text-stone-400 mt-1 max-w-sm mx-auto">
             {searchTerm
               ? 'Không có lớp học nào khớp với từ khóa tìm kiếm của bạn.'
               : 'Hãy bấm "Tạo lớp học mới" để bắt đầu mở lớp và giao đề cho học sinh.'}
           </p>
           <button
             onClick={handleOpenCreateModal}
-            className="mt-4 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#c51f26] hover:bg-[#a8181e] text-white text-xs font-bold transition-all shadow-sm cursor-pointer"
+            className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#c51f26] hover:bg-[#a8181e] text-white text-xs font-bold transition-colors cursor-pointer"
           >
             <Plus className="w-4 h-4" /> Tạo lớp học đầu tiên
           </button>
@@ -191,27 +191,27 @@ export const TeacherClassList: React.FC = () => {
               <div
                 key={cls.id}
                 onClick={() => setActiveClassId(cls.id)}
-                className="group rounded-2xl border border-stone-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 flex flex-col justify-between transition-all duration-200 hover:border-[#c51f26]/40 dark:hover:border-red-500/40 hover:shadow-lg cursor-pointer relative overflow-hidden"
+                className="group rounded-xl border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 p-5 flex flex-col justify-between transition-colors hover:border-[#c51f26] cursor-pointer relative overflow-hidden"
               >
                 <div className="space-y-3 relative z-10">
                   {/* Header Card */}
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-center gap-2.5 min-w-0">
-                      <div className="w-11 h-11 rounded-2xl bg-red-50 dark:bg-red-500/10 text-[#c51f26] dark:text-red-400 border border-red-100 dark:border-red-500/20 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform shadow-2xs">
+                      <div className="w-10 h-10 rounded-xl bg-red-50 dark:bg-red-950/20 text-[#c51f26] border border-red-100 dark:border-red-900/30 flex items-center justify-center shrink-0">
                         <GraduationCap className="w-5 h-5" />
                       </div>
                       <div className="min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <h3 className="text-base font-black text-stone-900 dark:text-white group-hover:text-[#c51f26] dark:group-hover:text-red-400 transition-colors truncate">
+                          <h3 className="text-base font-bold text-stone-900 dark:text-white group-hover:text-[#c51f26] transition-colors truncate">
                             {cls.className}
                           </h3>
                           {pendingCount > 0 && (
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 dark:bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-500/30 shrink-0 animate-pulse">
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800 shrink-0">
                               ⏳ {pendingCount} chờ duyệt
                             </span>
                           )}
                         </div>
-                        <span className="text-[11px] text-stone-400 dark:text-slate-500 font-medium">
+                        <span className="text-[11px] text-stone-400 dark:text-stone-500 font-medium">
                           Tạo ngày {new Date(cls.createdAt).toLocaleDateString('vi-VN')}
                         </span>
                       </div>
@@ -314,22 +314,22 @@ export const TeacherClassList: React.FC = () => {
 
       {/* Modal Tạo / Sửa lớp học */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-150">
-          <div className={`border rounded-3xl max-w-lg w-full p-6 shadow-2xl relative ${
-            theme === 'light' ? 'bg-white border-slate-200' : 'bg-slate-900 border-slate-800'
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className={`border rounded-xl max-w-lg w-full p-6 relative ${
+            theme === 'light' ? 'bg-white border-stone-200' : 'bg-stone-900 border-stone-800'
           }`}>
-            <div className="flex items-center justify-between pb-4 border-b border-slate-200 dark:border-slate-800">
+            <div className="flex items-center justify-between pb-4 border-b border-stone-200 dark:border-stone-800">
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-red-500/15 text-red-500 flex items-center justify-center">
+                <div className="w-8 h-8 rounded-lg bg-red-50 dark:bg-red-950/20 text-[#c51f26] border border-red-100 dark:border-red-900/30 flex items-center justify-center">
                   <Sparkles className="w-4 h-4" />
                 </div>
-                <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                <h3 className="text-base font-bold text-stone-900 dark:text-white">
                   {editingClass ? 'Chỉnh sửa Lớp học' : 'Tạo Lớp học mới'}
                 </h3>
               </div>
               <button
                 onClick={() => setIsModalOpen(false)}
-                className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800"
+                className="p-1 rounded-lg text-stone-400 hover:text-stone-700 dark:hover:text-white hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -337,7 +337,7 @@ export const TeacherClassList: React.FC = () => {
 
             <form onSubmit={handleSaveClass} className="space-y-4 mt-4">
               <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                <label className="block text-xs font-bold text-stone-700 dark:text-stone-300 mb-1">
                   Tên lớp học / Khóa học: *
                 </label>
                 <input
@@ -345,13 +345,13 @@ export const TeacherClassList: React.FC = () => {
                   value={classNameInput}
                   onChange={(e) => setClassNameInput(e.target.value)}
                   placeholder="Ví dụ: Đội tuyển Tin 9 - Trường THCS Chu Văn An"
-                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-red-500"
+                  className="w-full px-3.5 py-2 bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-lg text-xs text-stone-900 dark:text-white placeholder-stone-400 focus:outline-none focus:border-[#c51f26]"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                <label className="block text-xs font-bold text-stone-700 dark:text-stone-300 mb-1">
                   Mô tả / Ghi chú:
                 </label>
                 <textarea
@@ -359,27 +359,27 @@ export const TeacherClassList: React.FC = () => {
                   value={descriptionInput}
                   onChange={(e) => setDescriptionInput(e.target.value)}
                   placeholder="Ví dụ: Khóa học lập trình C++ nâng cao luyện thi Học sinh giỏi các cấp..."
-                  className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-red-500"
+                  className="w-full p-3 bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-lg text-xs text-stone-900 dark:text-white placeholder-stone-400 focus:outline-none focus:border-[#c51f26]"
                 />
               </div>
 
               {!editingClass && (
-                <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-xs text-red-700 dark:text-red-300">
+                <div className="p-3 rounded-lg bg-red-50 dark:bg-red-950/20 border border-red-100 dark:border-red-900/30 text-xs text-[#c51f26] dark:text-red-400">
                   💡 <b>Mã tham gia lớp (Join Code) 6 ký tự</b> sẽ được hệ thống tự động sinh ngẫu nhiên để bạn gửi cho học sinh ngay sau khi tạo.
                 </div>
               )}
 
-              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200 dark:border-slate-800">
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-stone-200 dark:border-stone-800">
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-500 dark:text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+                  className="px-4 py-2 rounded-lg text-xs font-semibold text-stone-500 hover:text-stone-800 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors"
                 >
                   Hủy
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold shadow-lg shadow-red-600/25 transition-all"
+                  className="px-5 py-2 rounded-lg bg-[#c51f26] hover:bg-[#a8181e] text-white text-xs font-bold transition-colors cursor-pointer"
                 >
                   {editingClass ? 'Lưu thay đổi' : 'Tạo lớp ngay'}
                 </button>

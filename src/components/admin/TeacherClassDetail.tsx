@@ -141,36 +141,34 @@ export const TeacherClassDetail: React.FC<TeacherClassDetailProps> = ({ classId 
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6 animate-in fade-in duration-200">
       {/* Breadcrumb Navigation & Back Button */}
       <div className="flex flex-wrap items-center justify-between gap-3 text-xs">
-        <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
+        <div className="flex items-center gap-2 text-stone-500 dark:text-stone-400">
           <button
             onClick={() => setActiveClassId(null)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 hover:text-red-500 font-bold border border-slate-300 dark:border-slate-700 transition-all cursor-pointer group"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-stone-700 dark:text-stone-200 hover:text-[#c51f26] font-bold border border-stone-200 dark:border-stone-700 transition-colors cursor-pointer group"
           >
-            <ArrowLeft className="w-4 h-4 text-red-500 group-hover:-translate-x-0.5 transition-transform" />
+            <ArrowLeft className="w-4 h-4 text-[#c51f26]" />
             <span>Danh sách Lớp học</span>
           </button>
           <span>/</span>
-          <span className="font-bold text-slate-900 dark:text-white truncate max-w-[200px] sm:max-w-none">
+          <span className="font-bold text-stone-900 dark:text-white truncate max-w-[200px] sm:max-w-none">
             {currentClass.className}
           </span>
         </div>
 
         {/* Join Code Banner */}
-        <div className={`px-4 py-2 rounded-2xl border flex items-center gap-3 shadow-sm ${
-          theme === 'light' ? 'bg-white border-slate-200' : 'bg-slate-900 border-slate-800'
-        }`}>
+        <div className="px-3.5 py-1.5 rounded-lg border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 flex items-center gap-3">
           <div className="flex items-center gap-2">
-            <span className="text-slate-500 dark:text-slate-400 font-medium">Mã vào lớp:</span>
-            <span className="font-mono font-black text-sm text-red-600 dark:text-red-400 tracking-wider">
+            <span className="text-stone-500 dark:text-stone-400 font-medium">Mã vào lớp:</span>
+            <span className="font-mono font-bold text-sm text-[#c51f26] dark:text-red-400 tracking-wider">
               {currentClass.joinCode}
             </span>
           </div>
           <button
             onClick={handleCopyCode}
-            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-bold transition-all border ${
+            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold transition-colors border cursor-pointer ${
               copiedCode
                 ? 'bg-emerald-600 text-white border-emerald-500'
-                : 'bg-slate-100 dark:bg-slate-800 hover:bg-red-500 hover:text-white text-slate-700 dark:text-slate-200 border-slate-300 dark:border-slate-700'
+                : 'bg-stone-50 dark:bg-stone-800 hover:bg-[#c51f26] hover:text-white text-stone-700 dark:text-stone-200 border-stone-200 dark:border-stone-700'
             }`}
             title="Sao chép mã gửi cho học sinh"
           >
@@ -180,44 +178,36 @@ export const TeacherClassDetail: React.FC<TeacherClassDetailProps> = ({ classId 
         </div>
       </div>
 
-      {/* Hero Banner lớp học */}
-      <div className={`p-6 rounded-3xl border relative overflow-hidden shadow-sm ${
-        theme === 'light'
-          ? 'bg-gradient-to-r from-red-50 via-white to-slate-50 border-red-200'
-          : 'bg-gradient-to-r from-red-950/40 via-slate-900 to-slate-950 border-red-500/30'
-      }`}>
-        <div className="relative z-10 flex flex-wrap items-center justify-between gap-6">
+      {/* Hero Banner lớp học 2D minimalist */}
+      <div className="p-5 rounded-xl border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900">
+        <div className="flex flex-wrap items-center justify-between gap-6">
           <div className="space-y-1.5 max-w-2xl">
-            <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full bg-red-500/15 text-red-500 text-[10px] font-extrabold uppercase tracking-wide border border-red-500/20">
+            <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-red-50 dark:bg-red-950/20 text-[#c51f26] dark:text-red-400 border border-red-100 dark:border-red-900/30">
               <GraduationCap className="w-3 h-3" /> Không gian lớp học độc lập
             </div>
-            <h1 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+            <h1 className="text-2xl font-bold text-stone-900 dark:text-white tracking-tight">
               {currentClass.className}
             </h1>
-            <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+            <p className="text-xs text-stone-500 dark:text-stone-400 leading-relaxed">
               {currentClass.description || 'Không gian giao đề thi, bài tập và chấm điểm chuẩn Themis cho học sinh của lớp.'}
             </p>
           </div>
 
           <div className="flex items-center gap-3">
-            <div className={`px-4 py-3 rounded-2xl border text-center min-w-[90px] ${
-              theme === 'light' ? 'bg-white border-slate-200' : 'bg-slate-900/80 border-slate-800'
-            }`}>
-              <div className="text-xl font-black text-red-600 dark:text-red-400">{classProblems.length}</div>
-              <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 flex items-center justify-center gap-1">
+            <div className="px-4 py-2.5 rounded-lg border border-stone-200 dark:border-stone-800 bg-stone-50 dark:bg-stone-800/50 text-center min-w-[90px]">
+              <div className="text-xl font-bold text-[#c51f26] dark:text-red-400">{classProblems.length}</div>
+              <div className="text-[11px] font-semibold text-stone-500 dark:text-stone-400 flex items-center justify-center gap-1">
                 <FileCode2 className="w-3 h-3 text-amber-500" /> Bài tập
               </div>
             </div>
 
-            <div className={`px-4 py-3 rounded-2xl border text-center min-w-[90px] relative ${
-              theme === 'light' ? 'bg-white border-slate-200' : 'bg-slate-900/80 border-slate-800'
-            }`}>
-              <div className="text-xl font-black text-blue-600 dark:text-blue-400">{classStudents.length}</div>
-              <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 flex items-center justify-center gap-1">
-                <Users className="w-3 h-3 text-blue-500" /> Học sinh
+            <div className="px-4 py-2.5 rounded-lg border border-stone-200 dark:border-stone-800 bg-stone-50 dark:bg-stone-800/50 text-center min-w-[90px] relative">
+              <div className="text-xl font-bold text-stone-900 dark:text-stone-100">{classStudents.length}</div>
+              <div className="text-[11px] font-semibold text-stone-500 dark:text-stone-400 flex items-center justify-center gap-1">
+                <Users className="w-3 h-3 text-stone-400" /> Học sinh
               </div>
               {pendingStudents.length > 0 && (
-                <span className="absolute -top-1.5 -right-1.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500 text-slate-950 shadow">
+                <span className="absolute -top-1.5 -right-1.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500 text-white">
                   +{pendingStudents.length}
                 </span>
               )}
@@ -227,13 +217,13 @@ export const TeacherClassDetail: React.FC<TeacherClassDetailProps> = ({ classId 
       </div>
 
       {/* Tabs Switcher: [Bài tập] vs [Chủ đề] vs [Học sinh] */}
-      <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800">
+      <div className="flex items-center gap-2 border-b border-stone-200 dark:border-stone-800">
         <button
           onClick={() => setActiveTab('assignments')}
-          className={`pb-3 px-4 text-xs font-bold flex items-center gap-2 border-b-2 transition-all cursor-pointer ${
+          className={`pb-2.5 px-4 text-xs font-bold flex items-center gap-2 border-b-2 transition-colors cursor-pointer ${
             activeTab === 'assignments'
-              ? 'border-red-600 text-red-600 dark:text-red-400'
-              : 'border-transparent text-slate-500 hover:text-slate-900 dark:hover:text-white'
+              ? 'border-[#c51f26] text-[#c51f26] dark:text-red-400'
+              : 'border-transparent text-stone-500 hover:text-stone-900 dark:hover:text-white'
           }`}
         >
           <BookOpen className="w-4 h-4" />
@@ -242,10 +232,10 @@ export const TeacherClassDetail: React.FC<TeacherClassDetailProps> = ({ classId 
 
         <button
           onClick={() => setActiveTab('topics')}
-          className={`pb-3 px-4 text-xs font-bold flex items-center gap-2 border-b-2 transition-all cursor-pointer ${
+          className={`pb-2.5 px-4 text-xs font-bold flex items-center gap-2 border-b-2 transition-colors cursor-pointer ${
             activeTab === 'topics'
-              ? 'border-red-600 text-red-600 dark:text-red-400'
-              : 'border-transparent text-slate-500 hover:text-slate-900 dark:hover:text-white'
+              ? 'border-[#c51f26] text-[#c51f26] dark:text-red-400'
+              : 'border-transparent text-stone-500 hover:text-stone-900 dark:hover:text-white'
           }`}
         >
           <ListTree className="w-4 h-4" />
@@ -261,16 +251,16 @@ export const TeacherClassDetail: React.FC<TeacherClassDetailProps> = ({ classId 
 
         <button
           onClick={() => setActiveTab('students')}
-          className={`pb-3 px-4 text-xs font-bold flex items-center gap-2 border-b-2 transition-all cursor-pointer ${
+          className={`pb-2.5 px-4 text-xs font-bold flex items-center gap-2 border-b-2 transition-colors cursor-pointer ${
             activeTab === 'students'
-              ? 'border-red-600 text-red-600 dark:text-red-400'
-              : 'border-transparent text-slate-500 hover:text-slate-900 dark:hover:text-white'
+              ? 'border-[#c51f26] text-[#c51f26] dark:text-red-400'
+              : 'border-transparent text-stone-500 hover:text-stone-900 dark:hover:text-white'
           }`}
         >
           <Users className="w-4 h-4" />
           <span>Danh sách Học sinh ({classStudents.length})</span>
           {pendingStudents.length > 0 && (
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-500 text-slate-950 animate-pulse">
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500 text-white">
               {pendingStudents.length} chờ duyệt
             </span>
           )}
@@ -391,26 +381,22 @@ export const TeacherClassDetail: React.FC<TeacherClassDetailProps> = ({ classId 
           {/* Top Bar Học sinh */}
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex-1 min-w-[240px] relative">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <Search className="w-4 h-4 text-stone-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
                 value={studentSearch}
                 onChange={(e) => setStudentSearch(e.target.value)}
                 placeholder="Tìm học sinh theo họ tên, username..."
-                className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-red-500"
+                className="w-full pl-10 pr-4 py-2 bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-lg text-xs text-stone-900 dark:text-white placeholder-stone-400 focus:outline-none focus:border-[#c51f26]"
               />
             </div>
           </div>
 
           {/* Table Học sinh */}
-          <div className={`rounded-2xl border overflow-hidden shadow-sm ${
-            theme === 'light' ? 'bg-white border-slate-200' : 'bg-slate-900 border-slate-800'
-          }`}>
+          <div className="rounded-xl border border-stone-200 dark:border-stone-800 overflow-hidden bg-white dark:bg-stone-900">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
-                <tr className={`border-b font-bold text-slate-500 dark:text-slate-400 ${
-                  theme === 'light' ? 'bg-slate-50 border-slate-200' : 'bg-slate-800/60 border-slate-800'
-                }`}>
+                <tr className="border-b border-stone-200 dark:border-stone-800 font-bold text-stone-500 dark:text-stone-400 bg-stone-50 dark:bg-stone-800/50">
                   <th className="py-3 px-4">#</th>
                   <th className="py-3 px-4">Họ và tên</th>
                   <th className="py-3 px-4">Email / Tên đăng nhập</th>
@@ -419,20 +405,20 @@ export const TeacherClassDetail: React.FC<TeacherClassDetailProps> = ({ classId 
                   <th className="py-3 px-4 text-right">Thao tác</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+              <tbody className="divide-y divide-stone-200 dark:divide-stone-800">
                 {filteredStudents.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="py-12 text-center text-slate-500 dark:text-slate-400">
+                    <td colSpan={6} className="py-12 text-center text-stone-500 dark:text-stone-400">
                       Chưa có học sinh nào trong lớp này. Hãy gửi mã vào lớp{' '}
-                      <b className="text-red-500 font-mono">{currentClass.joinCode}</b> cho học sinh để tham gia.
+                      <b className="text-[#c51f26] font-mono">{currentClass.joinCode}</b> cho học sinh để tham gia.
                     </td>
                   </tr>
                 ) : (
                   filteredStudents.map((stu, idx) => (
-                    <tr key={stu.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
-                      <td className="py-3 px-4 font-mono text-slate-400">{idx + 1}</td>
-                      <td className="py-3 px-4 font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                        <div className="w-7 h-7 rounded-lg bg-red-500/15 text-red-500 font-bold flex items-center justify-center text-xs">
+                    <tr key={stu.id} className="hover:bg-stone-50 dark:hover:bg-stone-800/40 transition-colors">
+                      <td className="py-3 px-4 font-mono text-stone-400">{idx + 1}</td>
+                      <td className="py-3 px-4 font-bold text-stone-900 dark:text-white flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-lg bg-red-50 dark:bg-red-950/20 text-[#c51f26] border border-red-100 dark:border-red-900/30 font-bold flex items-center justify-center text-xs">
                           {stu.fullName.charAt(0).toUpperCase()}
                         </div>
                         <span>{stu.fullName}</span>
@@ -441,22 +427,22 @@ export const TeacherClassDetail: React.FC<TeacherClassDetailProps> = ({ classId 
                         {(() => {
                           const email = getDisplayEmail(stu);
                           return email ? (
-                            <span className="flex items-center gap-1.5 text-xs text-blue-500 dark:text-blue-400" title={email}>
-                              <Mail className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                            <span className="flex items-center gap-1.5 text-xs text-stone-800 dark:text-stone-200" title={email}>
+                              <Mail className="w-3.5 h-3.5 text-stone-400 shrink-0" />
                               <span className="truncate max-w-[200px]">{email}</span>
                             </span>
                           ) : (
-                            <span className="text-blue-500 text-xs">{stu.username}</span>
+                            <span className="text-stone-800 dark:text-stone-200 text-xs">{stu.username}</span>
                           );
                         })()}
                       </td>
-                      <td className="py-3 px-4 font-mono text-slate-400">
+                      <td className="py-3 px-4 font-mono text-stone-400">
                         <span className="flex items-center gap-1">
                           <KeyRound className="w-3 h-3 text-amber-500" />
                           <span>{stu.password || 'Auth (Bảo mật)'}</span>
                         </span>
                       </td>
-                      <td className="py-3 px-4 text-slate-400">
+                      <td className="py-3 px-4 text-stone-400">
                         <span className="flex items-center gap-1 text-[11px]">
                           <Calendar className="w-3 h-3" />
                           <span>{new Date(stu.createdAt).toLocaleDateString('vi-VN')}</span>
@@ -466,14 +452,14 @@ export const TeacherClassDetail: React.FC<TeacherClassDetailProps> = ({ classId 
                         <div className="flex items-center justify-end gap-1">
                           <button
                             onClick={() => handleRemoveStudent(stu.id, stu.fullName, stu.username, stu.email)}
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-amber-500 hover:bg-amber-500/10 transition-colors cursor-pointer"
+                            className="p-1.5 rounded-lg text-stone-400 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/30 transition-colors cursor-pointer"
                             title="Đưa học sinh ra khỏi lớp này (giữ bài làm và tài khoản)"
                           >
                             <UserMinus className="w-4 h-4" />
                           </button>
                           <button
                             onClick={() => handleDeleteStudentCompletely(stu.id, stu.fullName)}
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-500/10 transition-colors cursor-pointer"
+                            className="p-1.5 rounded-lg text-stone-400 hover:text-[#c51f26] hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors cursor-pointer"
                             title="Xóa vĩnh viễn học sinh & xóa sạch toàn bộ bài nộp khỏi bảng điểm"
                           >
                             <Trash2 className="w-4 h-4" />

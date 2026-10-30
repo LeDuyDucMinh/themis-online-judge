@@ -130,10 +130,10 @@ export const UserProblemList: React.FC<UserProblemListProps> = ({ onSelectProble
       <div
         key={prob.id}
         onClick={() => onSelectProblem(prob)}
-        className={`group cursor-pointer rounded-2xl p-4 sm:p-5 transition-all shadow-md flex flex-col sm:flex-row sm:items-center justify-between gap-4 border ${
+        className={`group cursor-pointer rounded-2xl p-4 sm:p-5 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4 border ${
           theme === 'light'
-            ? 'bg-white border-slate-200 hover:border-red-400 hover:shadow-lg'
-            : 'bg-[#0d121d] border-slate-800/80 hover:border-red-500/40 hover:bg-slate-800/60'
+            ? 'bg-white border-stone-200 hover:border-[#c51f26] hover:shadow-2xs'
+            : 'bg-[#0d121d] border-stone-800 hover:border-red-500/50 hover:bg-stone-800/40'
         }`}
       >
         {/* Cột Trái: Thứ tự, Trạng thái, Mã bài, Tiêu đề, Tác giả */}
@@ -185,13 +185,13 @@ export const UserProblemList: React.FC<UserProblemListProps> = ({ onSelectProble
             <div className="flex flex-wrap items-center gap-2 mb-1.5">
               <span className={`font-mono text-xs font-bold px-2.5 py-0.5 rounded-lg border ${
                 theme === 'light'
-                  ? 'text-red-600 bg-red-50 border-red-200'
-                  : 'text-red-400 bg-red-500/10 border-red-500/20'
+                  ? 'text-[#c51f26] bg-red-50 border-red-200'
+                  : 'text-red-400 bg-red-950/40 border-red-900/60'
               }`}>
                 {prob.code}
               </span>
-              <h4 className={`font-bold text-sm sm:text-base group-hover:text-red-500 transition-colors ${
-                theme === 'light' ? 'text-slate-900' : 'text-white'
+              <h4 className={`font-bold text-sm sm:text-base group-hover:text-[#c51f26] transition-colors ${
+                theme === 'light' ? 'text-stone-900' : 'text-white'
               }`}>
                 {prob.title}
               </h4>
@@ -544,32 +544,36 @@ export const UserProblemList: React.FC<UserProblemListProps> = ({ onSelectProble
         </div>
       )}
 
-      {/* Hero Banner FAMINH */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-red-950 via-slate-900 to-slate-900 p-8 border border-red-500/20 shadow-2xl flex flex-col md:flex-row items-center justify-between gap-6">
-        <div className="relative z-10 max-w-2xl">
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-red-500/20 text-red-300 border border-red-500/30 mb-3">
-            <Sparkles className="w-3.5 h-3.5 text-red-400" /> Hệ thống Luyện thi FAMINH JUDGE
+      {/* Hero Banner FAMINH - 2D Minimalist Red & White */}
+      <div className={`p-6 sm:p-8 rounded-2xl border flex flex-col md:flex-row items-center justify-between gap-6 transition-colors ${
+        theme === 'light'
+          ? 'bg-white border-stone-200 shadow-2xs'
+          : 'bg-[#0d121d] border-stone-800'
+      }`}>
+        <div className="max-w-2xl">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-black uppercase tracking-wider bg-red-50 text-[#c51f26] border border-red-200 dark:bg-red-950/50 dark:text-red-300 dark:border-red-900/60 mb-3">
+            <Sparkles className="w-3.5 h-3.5" /> Hệ thống Luyện thi FAMINH JUDGE
           </span>
 
-          <h1 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight leading-tight">
+          <h1 className="text-2xl sm:text-3xl font-black text-stone-900 dark:text-white tracking-tight leading-tight">
             Nền Tảng Luyện Code & Chấm Điểm Chuẩn Themis
           </h1>
-          <p className="text-slate-300 text-sm mt-2 leading-relaxed">
+          <p className="text-stone-600 dark:text-stone-400 text-xs sm:text-sm mt-2 leading-relaxed">
             Học sinh tự do luyện giải các chủ đề thuật toán, nhận kết quả chấm tự động từng phần (Partial Scoring), tự động tương thích{' '}
-            <code className="text-red-300 bg-red-950/80 px-1.5 py-0.5 rounded font-mono">freopen</code>,
+            <code className="text-[#c51f26] bg-red-50 dark:bg-red-950/60 dark:text-red-300 px-1.5 py-0.5 rounded font-mono font-semibold border border-red-100 dark:border-red-900/40">freopen</code>,
             và bảng kết quả chi tiết từng test case chuẩn thi Học sinh giỏi Tin học.
           </p>
         </div>
 
         <div className="shrink-0 flex flex-col items-center">
-          <div className="w-24 h-24 rounded-2xl p-1.5 bg-gradient-to-tr from-red-600 via-rose-500 to-amber-500 shadow-2xl shadow-red-600/30">
+          <div className="w-20 h-20 rounded-2xl p-1 bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 shadow-2xs">
             <img
               src="/faminh-logo.jpg"
               alt="FAMINH Logo"
               className="w-full h-full object-cover rounded-xl"
             />
           </div>
-          <span className="text-xs font-extrabold text-slate-700 dark:text-slate-300 mt-2 tracking-widest uppercase">FAMINH</span>
+          <span className="text-xs font-black text-stone-700 dark:text-stone-300 mt-2 tracking-widest uppercase">FAMINH</span>
         </div>
       </div>
 
@@ -615,24 +619,17 @@ export const UserProblemList: React.FC<UserProblemListProps> = ({ onSelectProble
                 <div
                   key={topic.id}
                   onClick={() => setActiveTopicId(topic.id)}
-                  className={`cursor-pointer p-6 rounded-3xl transition-all duration-200 relative overflow-hidden group border flex flex-col justify-between ${
+                  className={`cursor-pointer p-5 rounded-2xl transition-all duration-150 group border flex flex-col justify-between ${
                     theme === 'light'
-                      ? 'bg-white border-slate-200 hover:border-red-400 hover:shadow-xl shadow-md'
-                      : 'bg-[#0d121d] border-slate-800/80 hover:bg-slate-800/80 hover:border-red-500/50 shadow-lg hover:shadow-2xl hover:shadow-red-500/10'
+                      ? 'bg-white border-stone-200 hover:border-[#c51f26] hover:shadow-2xs'
+                      : 'bg-[#0d121d] border-stone-800 hover:border-red-500/50'
                   }`}
                 >
-                  {/* Subtle red ambient on hover */}
-                  <div className={`absolute top-0 right-0 w-32 h-32 rounded-full blur-2xl -mr-10 -mt-10 pointer-events-none transition-colors ${
-                    theme === 'light'
-                      ? 'bg-red-500/5 group-hover:bg-red-500/10'
-                      : 'bg-red-500/5 group-hover:bg-red-500/15'
-                  }`} />
-
-                  <div className="relative z-10">
+                  <div>
                     {/* Top: Icon và số lượng bài */}
                     <div className="flex items-start justify-between mb-4">
-                      <div className="w-12 h-12 rounded-2xl bg-red-500/15 border border-red-500/25 text-red-500 dark:text-red-400 flex items-center justify-center font-bold group-hover:scale-105 group-hover:bg-red-600 group-hover:text-white transition-all shadow-sm">
-                        <Layers className="w-6 h-6" />
+                      <div className="w-11 h-11 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/60 text-[#c51f26] dark:text-red-400 flex items-center justify-center font-bold shadow-2xs group-hover:bg-[#c51f26] group-hover:text-white transition-all">
+                        <Layers className="w-5 h-5" />
                       </div>
                       <span className={`text-xs font-mono font-semibold px-2.5 py-1 rounded-lg border ${
                         theme === 'light'

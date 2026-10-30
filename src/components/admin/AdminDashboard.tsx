@@ -123,7 +123,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ classId, hideHea
           <select
             value={selectedTopicId}
             onChange={(e) => setSelectedTopicId(e.target.value)}
-            className="bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 text-xs rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-red-500"
+            className="bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-800 dark:text-stone-200 text-xs rounded-lg px-3 py-2 focus:outline-none focus:border-[#c51f26]"
           >
             <option value="ALL">Tất cả chủ đề</option>
             {topics.map((t) => (
@@ -136,7 +136,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ classId, hideHea
           {hideHeader && (
             <button
               onClick={() => setIsCreatingNew(true)}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold transition-all shadow-md shadow-red-600/20 cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-[#c51f26] hover:bg-[#a8181e] text-white text-xs font-bold transition-colors cursor-pointer"
             >
               <Plus className="w-4 h-4" />
               <span>Tạo đề bài mới</span>
@@ -146,11 +146,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ classId, hideHea
       </div>
 
       {/* Problems Table */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+      <div className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse text-xs">
             <thead>
-              <tr className="border-b border-slate-200 dark:border-slate-800 text-[11px] font-bold uppercase text-slate-600 dark:text-slate-400 bg-slate-100/90 dark:bg-slate-800/40">
+              <tr className="border-b border-stone-200 dark:border-stone-800 text-[11px] font-bold uppercase text-stone-600 dark:text-stone-400 bg-stone-50 dark:bg-stone-800/50">
                 <th className="py-3 px-4">Mã bài & Tiêu đề</th>
                 <th className="py-3 px-4">Chủ đề</th>
                 <th className="py-3 px-4">Giới hạn</th>
@@ -159,18 +159,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ classId, hideHea
                 <th className="py-3 px-4 text-right">Thao tác</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-200 dark:divide-slate-800/60">
+            <tbody className="divide-y divide-stone-200 dark:divide-stone-800">
               {filteredProblems.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-12 text-center text-slate-500">
-                    <BookOpen className="w-10 h-10 mx-auto text-slate-400 mb-2 opacity-50" />
+                  <td colSpan={6} className="py-12 text-center text-stone-500">
+                    <BookOpen className="w-10 h-10 mx-auto text-stone-400 mb-2 opacity-50" />
                     <p className="font-semibold text-sm">Chưa có bài tập nào</p>
-                    <p className="text-xs text-slate-400 mt-1">
+                    <p className="text-xs text-stone-400 mt-1">
                       Nhấn vào nút "Tạo đề bài mới" ở trên để bắt đầu thêm bài tập vào hệ thống.
                     </p>
                     <button
                       onClick={() => setIsCreatingNew(true)}
-                      className="mt-3 inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold transition-all shadow-sm shadow-red-600/20 cursor-pointer"
+                      className="mt-3 inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-[#c51f26] hover:bg-[#a8181e] text-white text-xs font-bold transition-colors cursor-pointer"
                     >
                       <Plus className="w-3.5 h-3.5" />
                       <span>Tạo đề bài mới</span>

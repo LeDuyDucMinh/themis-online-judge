@@ -320,11 +320,11 @@ export const TopicManager: React.FC<TopicManagerProps> = ({ initialClassId }) =>
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-            <ListTree className="w-5 h-5 text-red-500 dark:text-red-400" />
+          <h2 className="text-xl font-bold text-stone-900 dark:text-white flex items-center gap-2">
+            <ListTree className="w-5 h-5 text-[#c51f26] dark:text-red-400" />
             Quản lý Chủ đề & Bài tập (Topics & Problems)
           </h2>
-          <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
+          <p className="text-xs text-stone-500 dark:text-stone-400 mt-1">
             Tạo chủ đề, tích chọn các lớp học được giao, thêm bài tập cụ thể vào từng chủ đề và quản lý thứ tự giảng dạy
           </p>
         </div>
@@ -333,9 +333,9 @@ export const TopicManager: React.FC<TopicManagerProps> = ({ initialClassId }) =>
           {/* Nút thêm bài tập mới */}
           <button
             onClick={() => setCreatingForTopicId(activeTab === 'topics' ? (topics[0]?.id || '') : '')}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 hover:text-slate-900 dark:hover:text-white text-xs font-semibold border border-slate-300 dark:border-slate-700 transition-all shadow-2xs cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-white dark:bg-stone-900 hover:bg-stone-50 dark:hover:bg-stone-800 text-stone-700 dark:text-stone-200 hover:text-[#c51f26] text-xs font-semibold border border-stone-200 dark:border-stone-700 transition-colors cursor-pointer"
           >
-            <FilePlus className="w-4 h-4 text-emerald-500 dark:text-emerald-400" />
+            <FilePlus className="w-4 h-4 text-emerald-600" />
             <span>Thêm bài tập mới</span>
           </button>
 
@@ -343,7 +343,7 @@ export const TopicManager: React.FC<TopicManagerProps> = ({ initialClassId }) =>
           {activeTab === 'topics' && !isAddingTopic && !editingTopicId && (
             <button
               onClick={handleStartAddTopic}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold transition-all shadow-lg shadow-red-600/20 cursor-pointer"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#c51f26] hover:bg-[#a8181e] text-white text-xs font-bold transition-colors cursor-pointer"
             >
               <Plus className="w-4 h-4" /> Thêm chủ đề mới
             </button>
@@ -352,19 +352,19 @@ export const TopicManager: React.FC<TopicManagerProps> = ({ initialClassId }) =>
       </div>
 
       {/* Tab Switcher: Danh sách Chủ đề vs Các bài tập */}
-      <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-1">
+      <div className="flex items-center gap-2 border-b border-stone-200 dark:border-stone-800 pb-1">
         <button
           type="button"
           onClick={() => setActiveTab('topics')}
-          className={`pb-2.5 px-4 text-xs font-bold flex items-center gap-2 border-b-2 transition-all cursor-pointer ${
+          className={`pb-2 px-4 text-xs font-bold flex items-center gap-2 border-b-2 transition-colors cursor-pointer ${
             activeTab === 'topics'
-              ? 'border-red-500 text-red-600 dark:text-red-400 shadow-sm'
-              : 'border-transparent text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'
+              ? 'border-[#c51f26] text-[#c51f26] dark:text-red-400'
+              : 'border-transparent text-stone-500 hover:text-stone-900 dark:text-stone-400 dark:hover:text-stone-200'
           }`}
         >
           <ListTree className="w-4 h-4" />
           <span>Danh sách Chủ đề</span>
-          <span className="px-2 py-0.5 rounded-full text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-mono font-semibold">
+          <span className="px-2 py-0.5 rounded-full text-[10px] bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300 font-mono font-semibold">
             {topics.length}
           </span>
         </button>
@@ -372,20 +372,20 @@ export const TopicManager: React.FC<TopicManagerProps> = ({ initialClassId }) =>
         <button
           type="button"
           onClick={() => setActiveTab('problems')}
-          className={`pb-2.5 px-4 text-xs font-bold flex items-center gap-2 border-b-2 transition-all cursor-pointer ${
+          className={`pb-2 px-4 text-xs font-bold flex items-center gap-2 border-b-2 transition-colors cursor-pointer ${
             activeTab === 'problems'
-              ? 'border-red-500 text-red-600 dark:text-red-400 shadow-sm'
-              : 'border-transparent text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'
+              ? 'border-[#c51f26] text-[#c51f26] dark:text-red-400'
+              : 'border-transparent text-stone-500 hover:text-stone-900 dark:text-stone-400 dark:hover:text-stone-200'
           }`}
         >
           <BookOpen className="w-4 h-4" />
           <span>Các bài tập</span>
-          <span className="px-2 py-0.5 rounded-full text-[10px] bg-red-500/10 dark:bg-red-500/20 text-red-600 dark:text-red-300 font-mono font-bold">
+          <span className="px-2 py-0.5 rounded-full text-[10px] bg-red-50 dark:bg-red-950/20 text-[#c51f26] dark:text-red-400 font-mono font-bold">
             {problems.length}
           </span>
           {unassignedProblemsCount > 0 && (
             <span
-              className="px-2 py-0.5 rounded-full text-[10px] bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 font-bold"
+              className="px-2 py-0.5 rounded-full text-[10px] bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800 font-bold"
               title={`${unassignedProblemsCount} bài tập chưa phân vào chủ đề`}
             >
               {unassignedProblemsCount} chưa gán
@@ -398,14 +398,14 @@ export const TopicManager: React.FC<TopicManagerProps> = ({ initialClassId }) =>
         <>
 
       {/* Bộ lọc chủ đề theo lớp */}
-      <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xs">
+      <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl">
         <div className="flex items-center gap-2">
-          <Filter className="w-4 h-4 text-red-500 dark:text-red-400" />
-          <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">Lọc chủ đề theo lớp:</span>
+          <Filter className="w-4 h-4 text-[#c51f26] dark:text-red-400" />
+          <span className="text-xs font-semibold text-stone-700 dark:text-stone-300">Lọc chủ đề theo lớp:</span>
           <select
             value={selectedClassFilter}
             onChange={(e) => setSelectedClassFilter(e.target.value)}
-            className="px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-red-500 font-medium cursor-pointer"
+            className="px-3 py-1.5 bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-lg text-xs text-stone-900 dark:text-white focus:outline-none focus:border-[#c51f26] font-medium cursor-pointer"
           >
             <option value="ALL">🌐 Tất cả lớp học ({topics.length} chủ đề)</option>
             {classes.map((cls) => {
@@ -419,8 +419,8 @@ export const TopicManager: React.FC<TopicManagerProps> = ({ initialClassId }) =>
           </select>
         </div>
 
-        <span className="text-xs text-slate-500 dark:text-slate-400">
-          Đang hiển thị <b className="text-slate-900 dark:text-white font-mono">{displayedTopics.length}</b> / <b className="text-slate-700 dark:text-slate-300 font-mono">{topics.length}</b> chủ đề
+        <span className="text-xs text-stone-500 dark:text-stone-400">
+          Đang hiển thị <b className="text-stone-900 dark:text-white font-mono">{displayedTopics.length}</b> / <b className="text-stone-700 dark:text-stone-300 font-mono">{topics.length}</b> chủ đề
         </span>
       </div>
 
@@ -571,20 +571,20 @@ export const TopicManager: React.FC<TopicManagerProps> = ({ initialClassId }) =>
             </div>
           </div>
 
-          <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+          <div className="flex items-center justify-end gap-2 pt-2 border-t border-stone-200 dark:border-stone-800">
             <button
               onClick={handleCancelTopic}
-              className="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-slate-700 text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer"
+              className="px-3 py-1.5 rounded-lg bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-white border border-stone-200 dark:border-stone-700 text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer"
             >
               <X className="w-3.5 h-3.5" /> Hủy
             </button>
             <button
               onClick={handleSaveTopic}
               disabled={!isAllClasses && selectedClassObjects.length === 0}
-              className={`px-4 py-1.5 rounded-xl text-white text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer shadow-lg shadow-red-600/20 ${
+              className={`px-4 py-1.5 rounded-lg text-white text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer ${
                 !isAllClasses && selectedClassObjects.length === 0
-                  ? 'bg-slate-300 dark:bg-slate-700 opacity-50 cursor-not-allowed'
-                  : 'bg-red-600 hover:bg-red-500'
+                  ? 'bg-stone-300 dark:bg-stone-700 opacity-50 cursor-not-allowed'
+                  : 'bg-[#c51f26] hover:bg-[#a8181e]'
               }`}
             >
               <Check className="w-4 h-4" /> Lưu chủ đề
@@ -594,11 +594,11 @@ export const TopicManager: React.FC<TopicManagerProps> = ({ initialClassId }) =>
       )}
 
       {/* Topics List Table & Drill-down Problems */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+      <div className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse text-xs">
             <thead>
-              <tr className="border-b border-slate-200 dark:border-slate-800 text-[11px] font-bold uppercase text-slate-600 dark:text-slate-400 bg-slate-100/90 dark:bg-slate-800/40">
+              <tr className="border-b border-stone-200 dark:border-stone-800 text-[11px] font-bold uppercase text-stone-600 dark:text-stone-400 bg-stone-50 dark:bg-stone-800/50">
                 <th className="py-3 px-4 w-16 text-center" title="Kéo thả hàng để sắp xếp thứ tự">STT</th>
                 <th className="py-3 px-4">Tên chủ đề</th>
                 <th className="py-3 px-4 text-center">Lớp được giao</th>
@@ -607,7 +607,7 @@ export const TopicManager: React.FC<TopicManagerProps> = ({ initialClassId }) =>
                 <th className="py-3 px-4 text-right">Thao tác</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-200 dark:divide-slate-800/60">
+            <tbody className="divide-y divide-stone-200 dark:divide-stone-800">
               {displayedTopics.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="py-12 text-center text-slate-500">
