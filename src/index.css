@@ -773,3 +773,32 @@ html.light .auth-dark h2 {
 html.light .auth-dark .text-emerald-400 {
   color: #34d399 !important;
 }
+
+/* ====================================================
+   HỘP CẢNH BÁO TRÙNG LẶP / GHI CHÚ TRONG LIGHT MODE
+   Đảm bảo chữ vàng/cam/hổ phách luôn đậm, sắc nét, tương phản cao
+   ==================================================== */
+html.light [class*="bg-amber-500"],
+html.light .bg-amber-50,
+html[data-theme="light"] [class*="bg-amber-500"],
+html[data-theme="light"] .bg-amber-50 {
+  color: #78350f !important;
+}
+
+html.light [class*="bg-amber-500"] b,
+html.light [class*="bg-amber-500"] strong,
+html.light .bg-amber-50 b,
+html.light .bg-amber-50 strong,
+html[data-theme="light"] [class*="bg-amber-500"] b,
+html[data-theme="light"] [class*="bg-amber-500"] strong,
+html[data-theme="light"] .bg-amber-50 b,
+html[data-theme="light"] .bg-amber-50 strong {
+  color: #451a03 !important;
+}
+
+html.light [class*="bg-amber-500"] button,
+html.light .bg-amber-50 button,
+html[data-theme="light"] [class*="bg-amber-500"] button,
+html[data-theme="light"] .bg-amber-50 button {
+  color: #451a03 !important;
+}
