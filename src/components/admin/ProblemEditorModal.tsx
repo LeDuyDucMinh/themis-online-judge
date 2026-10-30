@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useJudge } from '../../context/JudgeContext';
 import type { Problem, SampleIO, TestCase } from '../../types/judge';
 import { idbService } from '../../services/db';
@@ -27,6 +27,8 @@ import {
   PenLine,
   GraduationCap,
   Loader2,
+  AlertTriangle,
+  AlertCircle,
 } from 'lucide-react';
 
 interface ProblemEditorModalProps {
@@ -44,6 +46,7 @@ export const ProblemEditorModal: React.FC<ProblemEditorModalProps> = ({
 }) => {
   const { problems, topics, classes, addProblem, updateProblem, showToast, theme } = useJudge();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   const [selectedClassId, setSelectedClassId] = useState<string>(() => {
     if (problem) return problem.classId || 'NONE';
@@ -67,6 +70,40 @@ export const ProblemEditorModal: React.FC<ProblemEditorModalProps> = ({
     if (initialTopicId !== undefined) return initialTopicId;
     return topics[0]?.id || '';
   });
+
+  // Phát hiện trùng mã bài tập theo thời gian thực (giúp giáo viên nhận biết ngay khi đang gõ)
+  const duplicateProblem = useMemo(() => {
+    const clean = code.trim().toUpperCase().replace(/\s+/g, '_');
+    if (!clean) return null;
+    return problems.find((p) => p.code.trim().toUpperCase() === clean && p.id !== problem?.id) || null;
+  }, [code, problems, problem?.id]);
+
+  const duplicateTopic = useMemo(() => {
+    if (!duplicateProblem || !duplicateProblem.topicId) return null;
+    return topics.find((t) => t.id === duplicateProblem.topicId) || null;
+  }, [duplicateProblem, topics]);
+
+  // Gợi ý mã bài tập mới không trùng lặp (ví dụ: CD2_BAI2)
+  const suggestedCode = useMemo(() => {
+    const clean = code.trim().toUpperCase().replace(/\s+/g, '_');
+    if (!clean) return '';
+    const currentTopic = topics.find((t) => t.id === topicId);
+    let prefix = 'CD';
+    if (currentTopic && currentTopic.name) {
+      const match = currentTopic.name.match(/CĐ\s*(\d+)|CD\s*(\d+)/i);
+      if (match) {
+        prefix = `CD${match[1] || match[2]}`;
+      } else {
+        const firstWord = currentTopic.name.split(/[\s-]+/)[0].replace(/[^a-zA-Z0-9]/g, '');
+        if (firstWord) prefix = firstWord.toUpperCase();
+      }
+    }
+    const candidate = `${prefix}_${clean}`;
+    if (problems.some((p) => p.code.trim().toUpperCase() === candidate && p.id !== problem?.id)) {
+      return `${candidate}_NEW`;
+    }
+    return candidate;
+  }, [code, topicId, topics, problems, problem?.id]);
   const [difficulty, setDifficulty] = useState<string>(
     problem?.difficulty || 'Trung bình'
   );
@@ -291,8 +328,12 @@ Cho dãy số nguyên $A = (a_1, a_2, \\dots, a_n)$. Hãy tìm...
 
     if (isSubmitting) return;
 
+    setFormError(null);
+
     if (!code.trim()) {
-      showToast('Thiếu thông tin', 'Vui lòng nhập Mã bài tập', 'warning');
+      const msg = 'Vui lòng nhập Mã bài tập (ví dụ: TONG2SO, BAI_02, XAU)';
+      setFormError(msg);
+      showToast('Thiếu thông tin', msg, 'warning');
       return;
     }
 
@@ -304,11 +345,12 @@ Cho dãy số nguyên $A = (a_1, a_2, \\dots, a_n)$. Hãy tìm...
       (p) => p.code.trim().toUpperCase() === finalCode && p.id !== problem?.id
     );
     if (duplicate) {
-      showToast(
-        'Trùng mã bài tập',
-        `Mã bài tập "${finalCode}" đã tồn tại trên hệ thống. Vui lòng nhập mã bài khác hoặc chỉnh sửa bài tập đã có.`,
-        'warning'
-      );
+      const dupTopic = duplicate.topicId ? topics.find((t) => t.id === duplicate.topicId) : null;
+      const topicInfo = dupTopic ? ` trong chủ đề "${dupTopic.name}"` : '';
+      const suggestion = suggestedCode || `CD2_${finalCode}`;
+      const msg = `Mã bài tập "${finalCode}" đã tồn tại${topicInfo}. Mỗi bài tập trên hệ thống cần có một mã riêng biệt để tránh nhầm lẫn khi chấm bài. Vui lòng đổi mã khác (gợi ý: ${suggestion}).`;
+      setFormError(msg);
+      showToast('Trùng mã bài tập', msg, 'warning');
       return;
     }
 
@@ -370,7 +412,12 @@ Cho dãy số nguyên $A = (a_1, a_2, \\dots, a_n)$. Hãy tìm...
       onClose();
     } catch (err: unknown) {
       console.error('[ProblemEditorModal] Lỗi lưu bài tập:', err);
-      const msg = (err as Error)?.message || 'Không thể lưu bài tập vào cơ sở dữ liệu';
+      let msg = (err as Error)?.message || 'Không thể lưu bài tập vào cơ sở dữ liệu';
+      if (msg.includes('23505') || msg.includes('problems_code_key') || msg.includes('duplicate key')) {
+        const suggestion = suggestedCode || `CD2_${finalCode}`;
+        msg = `Mã bài tập "${finalCode}" đã tồn tại trên hệ thống. Vui lòng đổi sang mã khác (ví dụ: ${suggestion}).`;
+      }
+      setFormError(msg);
       showToast('Lỗi lưu bài tập', msg, 'error');
     } finally {
       setIsSubmitting(false);
@@ -542,17 +589,59 @@ Cho dãy số nguyên $A = (a_1, a_2, \\dots, a_n)$. Hãy tìm...
             {/* Thông tin cơ bản: Mã bài, Tiêu đề */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
-                  Mã bài (Code - Admin tự đặt): *
+                <label className="block text-xs font-semibold text-slate-300 mb-1 flex items-center justify-between">
+                  <span>Mã bài (Code - Admin tự đặt): *</span>
+                  {duplicateProblem && (
+                    <span className="text-[10px] text-amber-400 font-bold flex items-center gap-1">
+                      <AlertTriangle className="w-3 h-3" /> Trùng mã bài
+                    </span>
+                  )}
                 </label>
                 <input
                   type="text"
                   value={code}
-                  onChange={(e) => setCode(e.target.value)}
+                  onChange={(e) => {
+                    setCode(e.target.value);
+                    if (formError) setFormError(null);
+                  }}
                   placeholder="Ví dụ: TONG2SO, BAI_02, XAU"
                   required
-                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white uppercase font-mono placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-red-500"
+                  className={`w-full px-3 py-2 border rounded-xl text-xs uppercase font-mono placeholder-slate-500 focus:outline-none focus:ring-1 transition-all ${
+                    duplicateProblem
+                      ? 'border-amber-500/80 bg-amber-500/10 text-amber-200 focus:ring-amber-500'
+                      : 'bg-slate-800 border-slate-700 text-white focus:ring-red-500'
+                  }`}
                 />
+
+                {/* Cảnh báo trùng lặp trực quan thời gian thực kèm nút đổi nhanh 1-chạm */}
+                {duplicateProblem && (
+                  <div className="mt-2 p-2.5 rounded-xl bg-amber-500/15 border border-amber-500/35 text-[11px] text-amber-200 space-y-1.5 animate-in fade-in">
+                    <div className="flex items-start gap-1.5 font-medium leading-relaxed">
+                      <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
+                      <span>
+                        Mã <b>{code.trim().toUpperCase()}</b> đã được dùng
+                        {duplicateTopic ? ` ở chủ đề "${duplicateTopic.name}"` : ' cho bài tập khác'}
+                        . Mỗi bài tập cần một mã riêng để Themis chấm không bị nhầm lẫn.
+                      </span>
+                    </div>
+                    {suggestedCode && (
+                      <div className="pt-1.5 border-t border-amber-500/20 text-slate-300 flex items-center gap-1.5 flex-wrap">
+                        <span className="text-[10px]">👉 Bấm để đổi nhanh:</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCode(suggestedCode);
+                            if (formError) setFormError(null);
+                          }}
+                          className="px-2 py-0.5 rounded-md bg-amber-500/30 hover:bg-amber-500/50 text-amber-100 font-mono font-bold text-[11px] border border-amber-500/50 transition-all cursor-pointer hover:scale-105 active:scale-95"
+                          title="Bấm để tự động đổi sang mã gợi ý này"
+                        >
+                          {suggestedCode}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="md:col-span-2">
@@ -1087,46 +1176,70 @@ Cho dãy số nguyên $A = (a_1, a_2, \\dots, a_n)$. Hãy tìm...
         </div>
 
         {/* Sticky Footer */}
-        <div className={`shrink-0 p-4 border-t flex items-center justify-between sticky bottom-0 z-10 ${
+        <div className={`shrink-0 p-4 border-t flex flex-col gap-3 sticky bottom-0 z-10 ${
           theme === 'light'
             ? 'bg-white/95 border-slate-200'
             : 'bg-slate-800/90 border-slate-800'
         }`}>
-          <div className={`text-xs flex items-center gap-1.5 hidden sm:flex ${
-            theme === 'light' ? 'text-slate-500' : 'text-slate-400'
-          }`}>
-            <HelpCircle className="w-4 h-4 text-red-500" />
-            <span>
-              {inputMode === 'manual'
-                ? 'Đã tối ưu cho đề thi Tin học. Bạn có thể lưu ngay mà không cần tải file.'
-                : 'Sau khi lưu, bạn có thể nạp thêm bộ file Test chấm tự động Themis.'}
-            </span>
-          </div>
+          {/* Cảnh báo lỗi trực quan ngay bên trong Modal nếu lưu không thành công hoặc trùng lặp */}
+          {formError && (
+            <div className="p-3 rounded-xl bg-rose-500/15 border border-rose-500/40 flex items-center justify-between gap-2 text-xs text-rose-300 animate-in fade-in">
+              <div className="flex items-center gap-2 min-w-0">
+                <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                <span className="font-semibold break-words">{formError}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setFormError(null)}
+                className="text-rose-400 hover:text-white p-1 rounded-lg shrink-0 cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
 
-          <div className="flex items-center gap-2">
-            <button
-              form="problem-form"
-              type="submit"
-              onClick={handleSubmit}
-              disabled={isSubmitting}
-              className={`px-5 py-2 rounded-xl text-white text-xs font-bold flex items-center gap-1.5 shadow-lg transition-all cursor-pointer ${
-                isSubmitting
-                  ? 'bg-red-700 opacity-70 cursor-not-allowed'
-                  : 'bg-red-600 hover:bg-red-500 shadow-red-600/25 active:scale-95'
-              }`}
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>{problem ? 'Đang lưu...' : 'Đang tạo bài tập...'}</span>
-                </>
-              ) : (
-                <>
-                  <Check className="w-4 h-4" />
-                  <span>{problem ? 'Lưu thay đổi' : 'Tạo bài tập'}</span>
-                </>
+          <div className="flex items-center justify-between gap-4">
+            <div className={`text-xs flex items-center gap-1.5 hidden sm:flex ${
+              theme === 'light' ? 'text-slate-500' : 'text-slate-400'
+            }`}>
+              <HelpCircle className="w-4 h-4 text-red-500" />
+              <span>
+                {inputMode === 'manual'
+                  ? 'Đã tối ưu cho đề thi Tin học. Bạn có thể lưu ngay mà không cần tải file.'
+                  : 'Sau khi lưu, bạn có thể nạp thêm bộ file Test chấm tự động Themis.'}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-3 ml-auto">
+              {duplicateProblem && (
+                <span className="text-xs text-amber-400 font-semibold flex items-center gap-1">
+                  <AlertTriangle className="w-3.5 h-3.5" />
+                  Mã bài đã tồn tại
+                </span>
               )}
-            </button>
+              <button
+                form="problem-form"
+                type="submit"
+                disabled={isSubmitting}
+                className={`px-5 py-2 rounded-xl text-white text-xs font-bold flex items-center gap-1.5 shadow-lg transition-all cursor-pointer ${
+                  isSubmitting
+                    ? 'bg-red-700 opacity-70 cursor-not-allowed'
+                    : 'bg-red-600 hover:bg-red-500 shadow-red-600/25 active:scale-95'
+                }`}
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>{problem ? 'Đang lưu...' : 'Đang tạo bài tập...'}</span>
+                  </>
+                ) : (
+                  <>
+                    <Check className="w-4 h-4" />
+                    <span>{problem ? 'Lưu thay đổi' : 'Tạo bài tập'}</span>
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       </div>

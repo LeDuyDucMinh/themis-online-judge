@@ -1706,7 +1706,9 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     const cleanCode = (probData.code || '').trim().toUpperCase().replace(/\s+/g, '_');
     const duplicate = problems.find((p) => (p.code || '').trim().toUpperCase() === cleanCode);
     if (duplicate) {
-      const err = new Error(`Mã bài tập "${cleanCode}" đã tồn tại trên hệ thống. Vui lòng chọn mã khác.`);
+      const dupTopic = duplicate.topicId ? topics.find((t) => t.id === duplicate.topicId) : null;
+      const topicInfo = dupTopic ? ` trong chủ đề "${dupTopic.name}"` : '';
+      const err = new Error(`Mã bài tập "${cleanCode}" đã tồn tại trên hệ thống${topicInfo}. Vui lòng chọn mã khác (ví dụ: CD2_${cleanCode}).`);
       showToast('Trùng mã bài tập', err.message, 'warning');
       throw err;
     }
