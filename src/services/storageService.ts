@@ -1,6 +1,12 @@
-import type { Topic, Problem, Submission, UserStats, StudentUser, Classroom, ClassStudent } from '../types/judge.ts';
-import { isProblemInClass } from '../types/judge.ts';
+import type { Topic, Problem, Submission, UserStats, StudentUser, Classroom, ClassStudent, UserRole, AccountRole } from '../types/judge.ts';
+import { isProblemInClass, normalizeOwnerEmail } from '../types/judge.ts';
 import { idbService } from './db.ts';
+
+export interface ResourceOwnersMap {
+  classes: Record<string, string>;
+  topics: Record<string, string>;
+  problems: Record<string, string>;
+}
 
 const STORAGE_KEYS = {
   TOPICS: 'faminh_judge_topics_v2',
@@ -8,6 +14,9 @@ const STORAGE_KEYS = {
   SUBMISSIONS: 'faminh_judge_submissions_v2',
   ADMIN_PASSWORD: 'faminh_admin_password_v1',
   ADMIN_SESSION: 'faminh_admin_session_active_v1',
+  USER_ROLE: 'faminh_user_role_v1',
+  RESOURCE_OWNERS: 'faminh_resource_owners_v1',
+  USER_ROLES_MAP: 'faminh_user_roles_map_v1',
   STUDENTS: 'faminh_judge_students_v1',
   STUDENT_SESSION: 'faminh_judge_student_session_v1',
   THEME: 'faminh_judge_theme_v1',
@@ -108,6 +117,7 @@ export const storageService = {
           ...t,
           classId,
           classIds,
+          teacherId: normalizeOwnerEmail(t.teacherId),
         };
       });
 
@@ -132,41 +142,46 @@ export const storageService = {
     try {
       const list: Problem[] = JSON.parse(raw);
       const topics = this.getTopics();
+      const classes = this.getClasses();
+      const owners = this.getResourceOwners();
       // Fallback migration: gán classId nếu bài cũ chưa có hoặc tự động đồng bộ theo chủ đề
       let changed = false;
-      const existingClassIds = new Set(this.getClasses().map((c) => c.id));
+      const existingClassIds = new Set(classes.map((c) => c.id));
       const migrated = list.map((p) => {
+        const parentTopic = p.topicId ? topics.find((t) => t.id === p.topicId) : undefined;
+        const resolvedOwner = normalizeOwnerEmail(
+          p.teacherId || p.author || owners.problems[p.id] || parentTopic?.teacherId
+        );
+
         // 1. Nếu bài tập đang trỏ đến ID lớp học đã bị xóa (và không phải NONE)
         if (p.classId && p.classId !== 'ALL' && p.classId !== 'NONE' && !existingClassIds.has(p.classId)) {
           changed = true;
-          if (p.topicId) {
-            const parent = topics.find((t) => t.id === p.topicId);
-            if (parent) {
-              const ids = parent.classIds && parent.classIds.length > 0
-                ? parent.classIds
-                : (parent.classId ? [parent.classId] : ['ALL']);
-              return { ...p, classId: ids[0] || 'ALL' };
-            }
+          if (parentTopic) {
+            const ids = parentTopic.classIds && parentTopic.classIds.length > 0
+              ? parentTopic.classIds
+              : (parentTopic.classId ? [parentTopic.classId] : ['ALL']);
+            return { ...p, classId: ids[0] || 'ALL', teacherId: resolvedOwner, author: resolvedOwner };
           }
-          return { ...p, classId: 'ALL' };
+          return { ...p, classId: 'ALL', teacherId: resolvedOwner, author: resolvedOwner };
         }
 
         // 2. Nếu bài tập chưa có classId
         if (!p.classId) {
           changed = true;
-          if (p.topicId) {
-            const parent = topics.find((t) => t.id === p.topicId);
-            if (parent) {
-              const ids = parent.classIds && parent.classIds.length > 0
-                ? parent.classIds
-                : (parent.classId ? [parent.classId] : ['ALL']);
-              return { ...p, classId: ids[0] || 'ALL' };
-            }
+          if (parentTopic) {
+            const ids = parentTopic.classIds && parentTopic.classIds.length > 0
+              ? parentTopic.classIds
+              : (parentTopic.classId ? [parentTopic.classId] : ['ALL']);
+            return { ...p, classId: ids[0] || 'ALL', teacherId: resolvedOwner, author: resolvedOwner };
           }
-          return { ...p, classId: 'ALL' };
+          return { ...p, classId: 'ALL', teacherId: resolvedOwner, author: resolvedOwner };
         }
 
-        return p;
+        return {
+          ...p,
+          teacherId: resolvedOwner,
+          author: resolvedOwner,
+        };
       });
       if (changed) {
         try {
@@ -176,7 +191,7 @@ export const storageService = {
         }
       }
       if (classId) {
-        return migrated.filter((p) => isProblemInClass(p, classId, topics));
+        return migrated.filter((p) => isProblemInClass(p, classId, topics, classes));
       }
       return migrated;
     } catch {
@@ -340,6 +355,84 @@ export const storageService = {
   // MULTI-CLASSROOM (LỚP HỌC ĐỘC LẬP)
   // ==========================================
 
+  getResourceOwners(): ResourceOwnersMap {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEYS.RESOURCE_OWNERS);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        return {
+          classes: parsed?.classes || {},
+          topics: parsed?.topics || {},
+          problems: parsed?.problems || {},
+        };
+      }
+    } catch {}
+    return { classes: {}, topics: {}, problems: {} };
+  },
+
+  saveResourceOwners(owners: ResourceOwnersMap): void {
+    try {
+      localStorage.setItem(STORAGE_KEYS.RESOURCE_OWNERS, JSON.stringify(owners));
+    } catch {}
+  },
+
+  getUserRolesMap(): Record<string, AccountRole> {
+    const defaultRoles: Record<string, AccountRole> = {
+      'minh.ldd2610979@sis.hust.edu.vn': 'admin',
+      'leduyducminh@gmail.com': 'teacher',
+    };
+    try {
+      const raw = localStorage.getItem(STORAGE_KEYS.USER_ROLES_MAP);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object') {
+          const merged: Record<string, AccountRole> = { ...defaultRoles, ...parsed };
+          // Bảo đảm hệ thống luôn có ít nhất 1 Admin tối cao
+          const hasAnyAdmin = Object.values(merged).some((r) => r === 'admin');
+          if (!hasAnyAdmin) {
+            merged['minh.ldd2610979@sis.hust.edu.vn'] = 'admin';
+          }
+          return merged;
+        }
+      }
+    } catch {}
+    return defaultRoles;
+  },
+
+  saveUserRolesMap(map: Record<string, AccountRole>): void {
+    try {
+      const copy: Record<string, AccountRole> = { ...map };
+      const hasAnyAdmin = Object.values(copy).some((r) => r === 'admin');
+      if (!hasAnyAdmin) {
+        copy['minh.ldd2610979@sis.hust.edu.vn'] = 'admin';
+      }
+      localStorage.setItem(STORAGE_KEYS.USER_ROLES_MAP, JSON.stringify(copy));
+    } catch {}
+  },
+
+  getUserRole(): UserRole {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.USER_ROLE) || sessionStorage.getItem(STORAGE_KEYS.USER_ROLE);
+      if (saved === 'ADMIN' || saved === 'TEACHER' || saved === 'USER') {
+        return saved;
+      }
+      if (this.isAdminSessionActive()) {
+        const email = (this.getAdminEmail() || '').trim().toLowerCase();
+        const roleMap = this.getUserRolesMap();
+        if (email && roleMap[email] === 'admin') return 'ADMIN';
+        return 'TEACHER';
+      }
+    } catch {}
+    return 'USER';
+  },
+
+  setUserRole(role: UserRole): void {
+    try {
+      localStorage.setItem(STORAGE_KEYS.USER_ROLE, role);
+      sessionStorage.setItem(STORAGE_KEYS.USER_ROLE, role);
+    } catch {}
+  },
+
   getClasses(): Classroom[] {
     const raw = localStorage.getItem(STORAGE_KEYS.CLASSES);
     if (raw === null) {
@@ -350,15 +443,21 @@ export const storageService = {
       if (!Array.isArray(list)) {
         return [];
       }
+      const owners = this.getResourceOwners();
       // Loại bỏ các lớp học mặc định hệ thống rác hoặc zombie tự sinh
-      const filtered = list.filter(
-        (c) =>
-          c &&
-          c.id !== 'class_default_faminh' &&
-          c.id !== 'ALL' &&
-          c.joinCode !== 'OXYZ' &&
-          c.className !== 'Lớp Học FAMINH'
-      );
+      const filtered = list
+        .filter(
+          (c) =>
+            c &&
+            c.id !== 'class_default_faminh' &&
+            c.id !== 'ALL' &&
+            c.joinCode !== 'OXYZ' &&
+            c.className !== 'Lớp Học FAMINH'
+        )
+        .map((c) => ({
+          ...c,
+          teacherId: normalizeOwnerEmail(owners.classes[c.id] || c.teacherId),
+        }));
       if (filtered.length !== list.length) {
         this.saveClasses(filtered);
       }
@@ -374,14 +473,18 @@ export const storageService = {
 
   addClass(data: { className: string; description: string; teacherId?: string; joinCode?: string }): Classroom {
     const classes = this.getClasses();
+    const ownerEmail = normalizeOwnerEmail(data.teacherId || this.getAdminEmail());
     const newClass: Classroom = {
       id: `class_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
       className: data.className.trim(),
       description: data.description.trim(),
-      teacherId: data.teacherId || 'admin',
+      teacherId: ownerEmail,
       joinCode: (data.joinCode || generateJoinCode()).toUpperCase().trim(),
       createdAt: new Date().toISOString(),
     };
+    const owners = this.getResourceOwners();
+    owners.classes[newClass.id] = ownerEmail;
+    this.saveResourceOwners(owners);
     this.saveClasses([newClass, ...classes]);
     return newClass;
   },
@@ -434,17 +537,7 @@ export const storageService = {
     try {
       const list: ClassStudent[] = JSON.parse(raw);
       if (!Array.isArray(list)) return [];
-      const filtered = list.filter((rel) => rel.classId !== 'class_default_faminh');
-      return filtered.map((rel) => {
-        if (rel.studentEmail === 'leduyducminh@gmail.com' || rel.studentUsername === 'leduyducminh@gmail.com') {
-          return {
-            ...rel,
-            studentEmail: 'minh.ldd2610979@sis.hust.edu.vn',
-            studentUsername: 'minh.ldd2610979@sis.hust.edu.vn',
-          };
-        }
-        return rel;
-      });
+      return list.filter((rel) => rel.classId !== 'class_default_faminh');
     } catch {
       return [];
     }
@@ -612,8 +705,7 @@ export const storageService = {
         (rel.studentUsername ? studentMap.get(rel.studentUsername.toLowerCase()) : undefined) ||
         (rel.studentName ? studentMap.get(rel.studentName.toLowerCase()) : undefined);
       if (found) {
-        const rawEmail = found.email || rel.studentEmail || (found.username?.includes('@') ? found.username : rel.studentUsername?.includes('@') ? rel.studentUsername : undefined);
-        const studentEmail = rawEmail === 'leduyducminh@gmail.com' ? 'minh.ldd2610979@sis.hust.edu.vn' : rawEmail;
+        const studentEmail = found.email || rel.studentEmail || (found.username?.includes('@') ? found.username : rel.studentUsername?.includes('@') ? rel.studentUsername : undefined);
         return {
           ...found,
           fullName: found.fullName && found.fullName !== 'Học sinh' ? found.fullName : (rel.studentName || found.fullName || 'Học sinh'),
@@ -621,8 +713,7 @@ export const storageService = {
           username: studentEmail || found.username,
         };
       }
-      const rawEmail = rel.studentEmail || (rel.studentUsername?.includes('@') ? rel.studentUsername : undefined);
-      const studentEmail = rawEmail === 'leduyducminh@gmail.com' ? 'minh.ldd2610979@sis.hust.edu.vn' : rawEmail;
+      const studentEmail = rel.studentEmail || (rel.studentUsername?.includes('@') ? rel.studentUsername : undefined);
       return {
         id: rel.studentId,
         fullName: rel.studentName || 'Học sinh',
@@ -651,8 +742,7 @@ export const storageService = {
         (rel.studentEmail ? studentMap.get(rel.studentEmail.toLowerCase()) : undefined) ||
         (rel.studentUsername ? studentMap.get(rel.studentUsername.toLowerCase()) : undefined) ||
         (rel.studentName ? studentMap.get(rel.studentName.toLowerCase()) : undefined);
-      const rawEmail = (found?.email) || rel.studentEmail || (found?.username?.includes('@') ? found.username : rel.studentUsername?.includes('@') ? rel.studentUsername : undefined);
-      const studentEmail = rawEmail === 'leduyducminh@gmail.com' ? 'minh.ldd2610979@sis.hust.edu.vn' : rawEmail;
+      const studentEmail = (found?.email) || rel.studentEmail || (found?.username?.includes('@') ? found.username : rel.studentUsername?.includes('@') ? rel.studentUsername : undefined);
       const stu: StudentUser = found ? {
         ...found,
         fullName: found.fullName && found.fullName !== 'Học sinh' ? found.fullName : (rel.studentName || found.fullName || 'Học sinh'),
@@ -1061,15 +1151,14 @@ export const storageService = {
         } catch {}
       }
 
+      const rolesMap = this.getUserRolesMap();
       return uniqueList.map((s) => {
-        if (s.email === 'leduyducminh@gmail.com' || s.username === 'leduyducminh@gmail.com') {
-          return {
-            ...s,
-            email: 'minh.ldd2610979@sis.hust.edu.vn',
-            username: 'minh.ldd2610979@sis.hust.edu.vn',
-          };
-        }
-        return s;
+        const cleanEmail = (s.email || (s.username && s.username.includes('@') ? s.username : '')).trim().toLowerCase();
+        const role = (cleanEmail && rolesMap[cleanEmail]) || s.role || 'student';
+        return {
+          ...s,
+          role,
+        };
       });
     } catch {
       return [];

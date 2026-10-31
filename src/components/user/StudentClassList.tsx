@@ -17,6 +17,7 @@ import {
 
 export const StudentClassList: React.FC = () => {
   const {
+    classes,
     studentClasses,
     pendingClasses,
     setActiveClassId,
@@ -63,7 +64,7 @@ export const StudentClassList: React.FC = () => {
     if (studentClasses.length > 0) {
       studentClasses.forEach((cls) => {
         problems.forEach((p) => {
-          if (isProblemInClass(p, cls.id, topics)) {
+          if (isProblemInClass(p, cls.id, topics, classes)) {
             candidateProblemIds.add(p.id);
           }
         });
@@ -259,7 +260,7 @@ export const StudentClassList: React.FC = () => {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {studentClasses.map((cls: Classroom) => {
-            const classProblems = problems.filter((p) => isProblemInClass(p, cls.id, topics));
+            const classProblems = problems.filter((p) => isProblemInClass(p, cls.id, topics, classes));
             const totalProblems = classProblems.length;
             const solvedInClass = classProblems.filter((p) => getProblemStatus(p.id) === 'SOLVED').length;
             const percent = totalProblems > 0 ? Math.round((solvedInClass / totalProblems) * 100) : 0;

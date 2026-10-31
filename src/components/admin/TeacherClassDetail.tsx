@@ -65,7 +65,7 @@ export const TeacherClassDetail: React.FC<TeacherClassDetailProps> = ({ classId 
   const currentClass = classes.find((c) => c.id === classId);
   const classStudents = getStudentsInClass(classId);
   const pendingStudents = getPendingStudentsInClass(classId);
-  const classProblems = problems.filter((p) => isProblemInClass(p, classId, topics));
+  const classProblems = problems.filter((p) => isProblemInClass(p, classId, topics, classes));
 
   if (!currentClass) {
     if (classes.length === 0) {
@@ -122,7 +122,6 @@ export const TeacherClassDetail: React.FC<TeacherClassDetailProps> = ({ classId 
 
   const getDisplayEmail = (stu: { email?: string; username?: string }) => {
     const raw = stu.email || (stu.username && stu.username.includes('@') ? stu.username : null);
-    if (raw === 'leduyducminh@gmail.com') return 'minh.ldd2610979@sis.hust.edu.vn';
     return raw;
   };
 

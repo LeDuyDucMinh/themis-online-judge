@@ -20,6 +20,8 @@ import {
 export const TeacherClassList: React.FC = () => {
   const {
     classes,
+    allClasses,
+    isSuperAdmin,
     createClass,
     updateClass,
     deleteClass,
@@ -44,7 +46,17 @@ export const TeacherClassList: React.FC = () => {
   }, []);
 
   const [searchTerm, setSearchTerm] = useState('');
+  const [teacherFilter, setTeacherFilter] = useState<string>('ALL');
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
+
+  const uniqueTeachers = React.useMemo(() => {
+    const set = new Set<string>();
+    allClasses.forEach((c) => {
+      const owner = (c.teacherId || 'leduyducminh@gmail.com').trim().toLowerCase();
+      if (owner) set.add(owner);
+    });
+    return Array.from(set);
+  }, [allClasses]);
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -107,34 +119,47 @@ export const TeacherClassList: React.FC = () => {
   };
 
   const filteredClasses = classes.filter((c) => {
+    const owner = (c.teacherId || 'leduyducminh@gmail.com').trim().toLowerCase();
+    if (isSuperAdmin && teacherFilter !== 'ALL' && owner !== teacherFilter) {
+      return false;
+    }
     const q = searchTerm.toLowerCase();
     return (
       c.className.toLowerCase().includes(q) ||
       c.joinCode.toLowerCase().includes(q) ||
-      c.description.toLowerCase().includes(q)
+      c.description.toLowerCase().includes(q) ||
+      owner.includes(q)
     );
   });
 
   return (
     <div className="max-w-7xl mx-auto space-y-6 animate-in fade-in duration-200">
-      {/* Top Header REX Admin style */}
+      {/* Top Header: Tách biệt giữa Giám sát Tối cao (Super Admin) và Lớp học của Giáo viên */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <span className="text-[11px] font-black uppercase tracking-wider text-[#c51f26]">
-            LỚP HỌC & KHÓA LUYỆN THI
+          <span className={`text-[11px] font-black uppercase tracking-wider ${
+            isSuperAdmin ? 'text-amber-600 dark:text-amber-400' : 'text-[#c51f26]'
+          }`}>
+            {isSuperAdmin ? '👑 GIÁM SÁT LỚP HỌC TOÀN HỆ THỐNG (ADMIN TỐI CAO)' : 'LỚP HỌC & KHÓA LUYỆN THI'}
           </span>
           <h2 className="text-2xl sm:text-3xl font-black text-stone-900 dark:text-white tracking-tight mt-0.5">
-            Quản lý lớp học
+            {isSuperAdmin ? 'Giám sát & Can thiệp Lớp học' : 'Lớp học của tôi'}
           </h2>
           <p className="text-xs text-stone-500 dark:text-slate-400 mt-1 max-w-2xl leading-relaxed">
-            Mỗi lớp học là một không gian độc lập với đề bài, học sinh và bảng điểm riêng biệt chuẩn FAMINH.
+            {isSuperAdmin
+              ? 'Admin tối cao có quyền xem, kiểm tra đề bài, học sinh và bảng điểm của tất cả lớp học do mọi Giáo viên quản lý.'
+              : 'Mỗi lớp học là một không gian độc lập với đề bài, học sinh và bảng điểm riêng biệt chuẩn FAMINH.'}
           </p>
         </div>
 
         <div className="flex items-center gap-2.5">
           <button
             onClick={handleOpenCreateModal}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-[#c51f26] hover:bg-[#a8181e] text-white text-xs font-bold transition-colors cursor-pointer"
+            className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
+              isSuperAdmin
+                ? 'bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-stone-950 font-black shadow-sm'
+                : 'bg-[#c51f26] hover:bg-[#a8181e] text-white'
+            }`}
           >
             <Plus className="w-4 h-4" />
             <span>Tạo lớp học mới</span>
@@ -142,21 +167,43 @@ export const TeacherClassList: React.FC = () => {
         </div>
       </div>
 
-      {/* Filter Bar REX Admin style */}
-      <div className="p-3.5 rounded-xl border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 flex flex-wrap items-center justify-between gap-4">
+      {/* Filter Bar */}
+      <div className="p-3.5 rounded-xl border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 flex flex-wrap items-center justify-between gap-3">
         <div className="flex-1 min-w-[240px] relative">
           <Search className="w-4 h-4 text-stone-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
           <input
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Tìm theo tên lớp học, mã tham gia (Join Code)..."
+            placeholder={
+              isSuperAdmin
+                ? 'Tìm theo tên lớp, mã lớp (Join Code) hoặc email Giáo viên...'
+                : 'Tìm theo tên lớp học, mã tham gia (Join Code)...'
+            }
             className="w-full pl-10 pr-4 py-2 bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-lg text-xs text-stone-900 dark:text-white placeholder-stone-400 focus:outline-none focus:border-[#c51f26]"
           />
         </div>
 
+        {isSuperAdmin && uniqueTeachers.length > 0 && (
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-stone-500 dark:text-stone-400">Giáo viên:</span>
+            <select
+              value={teacherFilter}
+              onChange={(e) => setTeacherFilter(e.target.value)}
+              className="px-3 py-2 rounded-lg text-xs font-bold bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-800 dark:text-stone-200 focus:outline-none focus:border-amber-500 cursor-pointer"
+            >
+              <option value="ALL">Tất cả Giáo viên ({allClasses.length} lớp)</option>
+              {uniqueTeachers.map((tEmail) => (
+                <option key={tEmail} value={tEmail}>
+                  {tEmail}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
         <div className="text-xs font-semibold text-stone-500 dark:text-stone-400">
-          Tổng cộng: <b className="text-[#c51f26] font-bold">{filteredClasses.length}</b> lớp học
+          Tổng cộng: <b className={isSuperAdmin ? 'text-amber-500 font-black' : 'text-[#c51f26] font-bold'}>{filteredClasses.length}</b> lớp học
         </div>
       </div>
 
@@ -184,7 +231,7 @@ export const TeacherClassList: React.FC = () => {
           {filteredClasses.map((cls) => {
             const studentCount = getStudentsInClass(cls.id).length;
             const pendingCount = getPendingStudentsInClass(cls.id).length;
-            const classProblems = problems.filter((p) => isProblemInClass(p, cls.id, topics));
+            const classProblems = problems.filter((p) => isProblemInClass(p, cls.id, topics, allClasses));
             const problemCount = classProblems.length;
 
             return (
@@ -211,9 +258,16 @@ export const TeacherClassList: React.FC = () => {
                             </span>
                           )}
                         </div>
-                        <span className="text-[11px] text-stone-400 dark:text-stone-500 font-medium">
-                          Tạo ngày {new Date(cls.createdAt).toLocaleDateString('vi-VN')}
-                        </span>
+                        <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                          <span className="text-[11px] text-stone-400 dark:text-stone-500 font-medium">
+                            Tạo ngày {new Date(cls.createdAt).toLocaleDateString('vi-VN')}
+                          </span>
+                          {isSuperAdmin && cls.teacherId && (
+                            <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-semibold bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/50 truncate max-w-[190px]" title={`Giáo viên phụ trách: ${cls.teacherId}`}>
+                              GV: {cls.teacherId}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
 

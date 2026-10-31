@@ -1,5 +1,18 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useRef, type ReactNode } from 'react';
-import type { UserRole, Topic, Problem, Submission, UserStats, StudentUser, Classroom, ClassStudent, TestCase, TestResult } from '../types/judge';
+import {
+  type UserRole,
+  type Topic,
+  type Problem,
+  type Submission,
+  type UserStats,
+  type StudentUser,
+  type Classroom,
+  type ClassStudent,
+  type TestCase,
+  type TestResult,
+  normalizeOwnerEmail,
+  isResourceOwnedByTeacher,
+} from '../types/judge';
 import { storageService, resolveStudentFullName } from '../services/storageService';
 import { apiService } from '../services/apiService';
 import { idbService } from '../services/db';
@@ -25,6 +38,8 @@ interface ConfirmModalState {
 interface JudgeContextType {
   role: UserRole;
   setRole: (role: UserRole) => void;
+  isSuperAdmin: boolean;
+  isTeacher: boolean;
   isAdminAuthenticated: boolean;
   setIsAdminAuthenticated: (auth: boolean) => void;
   adminEmail: string | null;
@@ -32,6 +47,7 @@ interface JudgeContextType {
   currentStudent: StudentUser | null;
   setCurrentStudent: (student: StudentUser | null) => void;
   students: StudentUser[];
+  updateUserRole: (userId: string, email: string, newRole: 'teacher' | 'student') => Promise<void>;
   isAuthLoading: boolean;
   isAuthModalOpen: boolean;
   setIsAuthModalOpen: (open: boolean) => void;
@@ -86,6 +102,7 @@ interface JudgeContextType {
 
   // Multi-Classroom (Nhiều lớp học độc lập)
   classes: Classroom[];
+  allClasses: Classroom[];
   activeClassId: string | null;
   setActiveClassId: (id: string | null) => void;
   activeClass: Classroom | null;
@@ -105,7 +122,9 @@ interface JudgeContextType {
 
   // Data
   topics: Topic[];
+  allTopics: Topic[];
   problems: Problem[];
+  allProblems: Problem[];
   submissions: Submission[];
   activeProblem: Problem | null;
   setActiveProblem: (problem: Problem | null) => void;
@@ -209,9 +228,23 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const [students, setStudents] = useState<StudentUser[]>(() => {
     return storageService.getStudents();
   });
-  const [role, setRole] = useState<UserRole>(() => {
-    return storageService.isAdminSessionActive() ? 'ADMIN' : 'USER';
+  const [role, setRoleState] = useState<UserRole>(() => {
+    if (!storageService.isAdminSessionActive()) return 'USER';
+    const savedEmail = (storageService.getAdminEmail() || '').trim().toLowerCase();
+    const rolesMap = storageService.getUserRolesMap();
+    if (savedEmail === 'minh.ldd2610979@sis.hust.edu.vn' || rolesMap[savedEmail] === 'admin') {
+      return 'ADMIN';
+    }
+    return 'TEACHER';
   });
+
+  const setRole = (newRole: UserRole) => {
+    setRoleState(newRole);
+    storageService.setUserRole(newRole);
+  };
+
+  const isSuperAdmin = isAdminAuthenticated && role === 'ADMIN';
+  const isTeacher = isAdminAuthenticated && role === 'TEACHER';
 
   // Bắt buộc Đăng nhập khi vào web: Tuyệt đối KHÔNG mở modal khi hệ thống đang trong quá trình tải và đọc session
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
@@ -224,8 +257,8 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   // Cơ chế "Lưới điện" (Action-Triggered Logout) - Modal cảnh báo phiên làm việc bị thu hồi
   const [isSessionRevokedModalOpen, setIsSessionRevokedModalOpen] = useState(false);
 
-  // Multi-Classroom State
-  const [classes, setClasses] = useState<Classroom[]>(() => storageService.getClasses());
+  // Multi-Classroom State (allClasses lưu toàn bộ lớp trên hệ thống; classes đã lọc theo giáo viên nếu role === 'TEACHER')
+  const [allClasses, setAllClasses] = useState<Classroom[]>(() => storageService.getClasses());
   const [classStudents, setClassStudents] = useState<ClassStudent[]>(() => storageService.getClassStudents());
   const [activeClassId, setActiveClassIdState] = useState<string | null>(() => {
     if (typeof window !== 'undefined' && window.location.hash) {
@@ -237,6 +270,14 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     }
     return storageService.getActiveClassId();
   });
+
+  const classes = useMemo(() => {
+    if (isAdminAuthenticated && role === 'TEACHER') {
+      const activeTeacherEmail = adminEmail || storageService.getAdminEmail();
+      return allClasses.filter((c) => isResourceOwnedByTeacher(c.teacherId, activeTeacherEmail));
+    }
+    return allClasses;
+  }, [allClasses, isAdminAuthenticated, role, adminEmail]);
 
   const setActiveClassId = (id: string | null) => {
     setActiveClassIdState(id);
@@ -250,21 +291,22 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const studentClasses = useMemo(() => {
     if (!currentStudent) return [];
     return storageService.getClassesForStudent(currentStudent.id, currentStudent.username, currentStudent.email);
-  }, [currentStudent, classStudents, classes]);
+  }, [currentStudent, classStudents, allClasses]);
 
   const pendingClasses = useMemo(() => {
     if (!currentStudent) return [];
     return storageService.getPendingClassesForStudent(currentStudent.id, currentStudent.username, currentStudent.email);
-  }, [currentStudent, classStudents, classes]);
+  }, [currentStudent, classStudents, allClasses]);
 
   const createClass = async (className: string, description: string): Promise<Classroom> => {
-    const newClass = storageService.addClass({ className, description });
+    const ownerEmail = normalizeOwnerEmail(adminEmail || storageService.getAdminEmail());
+    const newClass = storageService.addClass({ className, description, teacherId: ownerEmail });
     try {
       await apiService.saveClassroom(newClass);
     } catch (e) {
       console.warn('Lỗi lưu lớp học lên Cloud:', e);
     }
-    setClasses(storageService.getClasses());
+    setAllClasses(storageService.getClasses());
     showToast('Tạo lớp thành công', `Đã tạo lớp "${newClass.className}" - Mã tham gia: ${newClass.joinCode}`, 'success');
     return newClass;
   };
@@ -279,7 +321,7 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         console.warn('Lỗi cập nhật lớp học lên Cloud:', e);
       }
     }
-    setClasses(storageService.getClasses());
+    setAllClasses(storageService.getClasses());
     showToast('Cập nhật thành công', 'Đã lưu thay đổi thông tin lớp học', 'success');
   };
 
@@ -290,10 +332,10 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     } catch (e) {
       console.warn('Lỗi xóa lớp học trên Cloud:', e);
     }
-    setClasses(storageService.getClasses());
+    setAllClasses(storageService.getClasses());
     setClassStudents(storageService.getClassStudents());
-    setTopics(storageService.getTopics());
-    setProblems(storageService.getProblems());
+    setAllTopics(storageService.getTopics());
+    setAllProblems(storageService.getProblems());
     if (activeClassId === id) {
       setActiveClassId(null);
     }
@@ -355,7 +397,7 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     if (!latestClasses || latestClasses.length === 0) {
       latestClasses = storageService.getClasses();
     }
-    setClasses(latestClasses);
+    setAllClasses(latestClasses);
 
     // 2. Tìm lớp học theo mã tham gia (không phân biệt hoa/thường)
     const targetClass = latestClasses.find((c) => c.joinCode && c.joinCode.trim().toUpperCase() === cleanCode);
@@ -500,7 +542,7 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         (rel.studentUsername ? studentMap.get(rel.studentUsername.toLowerCase()) : undefined) ||
         (rel.studentName ? studentMap.get(rel.studentName.toLowerCase()) : undefined);
       const rawEmail = found?.email || rel.studentEmail || (found?.username?.includes('@') ? found.username : rel.studentUsername?.includes('@') ? rel.studentUsername : undefined);
-      const studentEmail = rawEmail === 'leduyducminh@gmail.com' ? 'minh.ldd2610979@sis.hust.edu.vn' : rawEmail;
+      const studentEmail = rawEmail;
       const stu: StudentUser = found ? {
         ...found,
         fullName: found.fullName && found.fullName !== 'Học sinh' ? found.fullName : (rel.studentName || found.fullName || 'Học sinh'),
@@ -539,7 +581,7 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         (rel.studentName ? studentMap.get(rel.studentName.toLowerCase()) : undefined);
       if (found) {
         const rawEmail = found.email || rel.studentEmail || (found.username?.includes('@') ? found.username : rel.studentUsername?.includes('@') ? rel.studentUsername : undefined);
-        const studentEmail = rawEmail === 'leduyducminh@gmail.com' ? 'minh.ldd2610979@sis.hust.edu.vn' : rawEmail;
+        const studentEmail = rawEmail;
         return {
           ...found,
           fullName: found.fullName && found.fullName !== 'Học sinh' ? found.fullName : (rel.studentName || found.fullName || 'Học sinh'),
@@ -548,7 +590,7 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         };
       }
       const rawEmail = rel.studentEmail || (rel.studentUsername?.includes('@') ? rel.studentUsername : undefined);
-      const studentEmail = rawEmail === 'leduyducminh@gmail.com' ? 'minh.ldd2610979@sis.hust.edu.vn' : rawEmail;
+      const studentEmail = rawEmail;
       return {
         id: rel.studentId,
         fullName: rel.studentName || 'Học sinh',
@@ -605,9 +647,41 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     showToast('Đã rời khỏi lớp', 'Em đã rời khỏi lớp học thành công.', 'info');
   };
 
-  const [topics, setTopics] = useState<Topic[]>(() => storageService.getTopics());
-  const [problems, setProblems] = useState<Problem[]>(() => storageService.getProblems());
-  const [submissions, setSubmissions] = useState<Submission[]>(() => storageService.getSubmissions());
+  const [allTopics, setAllTopics] = useState<Topic[]>(() => storageService.getTopics());
+  const [allProblems, setAllProblems] = useState<Problem[]>(() => storageService.getProblems());
+  const [allSubmissions, setAllSubmissions] = useState<Submission[]>(() => storageService.getSubmissions());
+
+  const topics = useMemo(() => {
+    if (isAdminAuthenticated && role === 'TEACHER') {
+      const activeTeacherEmail = adminEmail || storageService.getAdminEmail();
+      return allTopics.filter((t) => isResourceOwnedByTeacher(t.teacherId, activeTeacherEmail));
+    }
+    return allTopics;
+  }, [allTopics, isAdminAuthenticated, role, adminEmail]);
+
+  const problems = useMemo(() => {
+    if (isAdminAuthenticated && role === 'TEACHER') {
+      const activeTeacherEmail = adminEmail || storageService.getAdminEmail();
+      return allProblems.filter((p) => isResourceOwnedByTeacher(p.teacherId || p.author, activeTeacherEmail));
+    }
+    return allProblems;
+  }, [allProblems, isAdminAuthenticated, role, adminEmail]);
+
+  const submissions = useMemo(() => {
+    if (isAdminAuthenticated && role === 'TEACHER') {
+      const teacherClassIds = new Set(classes.map((c) => c.id));
+      const teacherProblemIds = new Set(problems.map((p) => p.id));
+      const teacherProblemCodes = new Set(problems.map((p) => (p.code || '').trim().toUpperCase()));
+      return allSubmissions.filter((sub) => {
+        if (sub.classId && teacherClassIds.has(sub.classId)) return true;
+        if (sub.problemId && teacherProblemIds.has(sub.problemId)) return true;
+        if (sub.problemCode && teacherProblemCodes.has(sub.problemCode.trim().toUpperCase())) return true;
+        return false;
+      });
+    }
+    return allSubmissions;
+  }, [allSubmissions, isAdminAuthenticated, role, classes, problems]);
+
   const [activeProblem, setActiveProblem] = useState<Problem | null>(() => {
     const list = storageService.getProblems();
     return list.length > 0 ? list[0] : null;
@@ -650,7 +724,7 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         ]);
 
       if (cloudClasses) {
-        setClasses(cloudClasses);
+        setAllClasses(cloudClasses);
         storageService.saveClasses(cloudClasses);
       }
       if (cloudRelations) {
@@ -671,7 +745,7 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
         const upsertStudent = (s: StudentUser) => {
           const key = getEmailKey(s);
-          if (!key || s.username === 'leduyducminh@gmail.com') return;
+          if (!key) return;
           const existing = studentMap.get(key);
           if (!existing) {
             studentMap.set(key, s);
@@ -679,10 +753,13 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
             // Ưu tiên tài khoản Supabase Auth (UUID) hơn ID mock cũ "student_..."
             const isExistingUUID = existing.id && !existing.id.startsWith('student_');
             const isNewUUID = s.id && !s.id.startsWith('student_');
+            const mergedRole = s.role || existing.role;
             if (isNewUUID && !isExistingUUID) {
-              studentMap.set(key, s);
+              studentMap.set(key, { ...s, role: mergedRole });
             } else if (new Date(s.createdAt || 0).getTime() >= new Date(existing.createdAt || 0).getTime()) {
-              studentMap.set(key, s);
+              studentMap.set(key, { ...s, role: mergedRole });
+            } else {
+              studentMap.set(key, { ...existing, role: mergedRole });
             }
           }
         };
@@ -693,7 +770,7 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         local.forEach(upsertStudent);
 
         const mergedStudents = Array.from(studentMap.values()).filter((s) => {
-          if (!s.username || s.username === 'leduyducminh@gmail.com') return false;
+          if (!s.username) return false;
           return Boolean((s.email && s.email.includes('@')) || (s.username && s.username.includes('@')));
         });
         setStudents(mergedStudents);
@@ -717,19 +794,19 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         }
       }
       if (cloudTopics) {
-        setTopics(cloudTopics);
+        setAllTopics(cloudTopics);
         storageService.saveTopics(cloudTopics);
       }
       if (cloudProblems) {
         const enrichedProblems = cloudProblems.map((cp) => {
           if (cp.testCases && cp.testCases.length > 0) return cp;
-          const current = problems.find((p) => p.id === cp.id);
+          const current = allProblems.find((p) => p.id === cp.id);
           if (current?.testCases && current.testCases.length > 0) {
             return { ...cp, testCases: current.testCases };
           }
           return cp;
         });
-        setProblems(enrichedProblems);
+        setAllProblems(enrichedProblems);
         setActiveProblem((curr) => {
           if (!curr) return enrichedProblems[0] || null;
           const updated = enrichedProblems.find((p) => p.id === curr.id);
@@ -753,7 +830,7 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         }
 
         const activeSubs = cloudSubs.filter((sub) => {
-          if (sub.userId === 'admin_faminh' || sub.userName === 'Giáo viên FAMINH') return true;
+          if (sub.userId === 'admin_faminh' || sub.userName === 'Giáo viên FAMINH' || sub.userName?.startsWith('Giáo viên')) return true;
           const subUser = (sub.userId || '').trim().toLowerCase();
           const subName = (sub.userName || '').trim().toLowerCase();
           const matchId = Boolean(subUser && validStudentIds.has(subUser));
@@ -763,7 +840,7 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
           return matchId || matchUser || matchEmail || matchName;
         });
 
-        const currentSubMap = new Map(submissions.map((s) => [s.id, s]));
+        const currentSubMap = new Map(allSubmissions.map((s) => [s.id, s]));
         const enrichedSubs = activeSubs.map((sub) => {
           let updatedUserName = sub.userName;
           // Đồng bộ với tên mới nhất của học sinh hiện tại nếu bài nộp thuộc học sinh này
@@ -786,7 +863,7 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
           return res;
         });
 
-        setSubmissions(enrichedSubs);
+        setAllSubmissions(enrichedSubs);
         storageService.saveSubmissions(enrichedSubs);
       }
     } catch (err) {
@@ -878,7 +955,9 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
         // Truy vấn vai trò (Role) trực tiếp từ Supabase Database
         const roleRes = await fetchUserRoleFromSupabase(u.id, u.email);
-        const isAdmin = roleRes.role === 'admin' || (roleRes.source === 'default' && storageService.isAdminSessionActive());
+        const isSuperAdminRole = roleRes.role === 'admin';
+        const isTeacherRole = roleRes.role === 'teacher';
+        const isStaff = isSuperAdminRole || isTeacherRole || (roleRes.source === 'default' && storageService.isAdminSessionActive());
 
         // Kiểm tra xem người dùng có phải vừa đăng nhập qua Google OAuth hay không
         const isGoogleLogin = typeof window !== 'undefined' && (
@@ -890,10 +969,10 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
           localStorage.removeItem('faminh_pending_google_oauth_login');
         }
 
-        if (isAdmin) {
-          // Người dùng là QUẢN TRỊ VIÊN (Admin)
+        if (isStaff) {
+          const targetRole: UserRole = isSuperAdminRole ? 'ADMIN' : 'TEACHER';
           setIsAdminAuthenticated(true);
-          setRole('ADMIN');
+          setRole(targetRole);
           if (u?.email) {
             setAdminEmail(u.email);
             storageService.setAdminEmail(u.email);
@@ -902,19 +981,34 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
           setCurrentStudent(null);
           setIsAuthModalOpen(false);
 
-          // CHỈ TỰ ĐỘNG CHUYỂN HƯỚNG VÀ THÔNG BÁO KHI VỪA ĐĂNG NHẬP GOOGLE OAUTH THÀNH CÔNG
-          // Tuyệt đối không can thiệp vào hash/URL khi người dùng đổi tab, đổi app hay làm mới token chạy ngầm
+          const staffRecord: StudentUser = {
+            id: u.id,
+            fullName,
+            username: u.email || u.id,
+            email: u.email,
+            password: '',
+            createdAt: u.created_at || new Date().toISOString(),
+            role: isSuperAdminRole ? 'admin' : 'teacher',
+          };
+          apiService.saveStudents([staffRecord]).catch(() => {});
+
           if (isGoogleLogin) {
             if (typeof window !== 'undefined') {
               const cleanHash = window.location.hash.replace(/^#\/?/, '');
               if (!cleanHash.startsWith('admin') && cleanHash !== 'submissions') {
-                window.location.hash = '#admin/classes';
+                window.location.hash = isSuperAdminRole ? '#admin/dashboard' : '#admin/classes';
               }
             }
-            showToast('Quản trị viên', `Chào mừng ${fullName}! Đã kích hoạt quyền Quản trị viên hệ thống.`, 'success');
+            showToast(
+              isSuperAdminRole ? 'Admin tối cao' : 'Giáo viên',
+              isSuperAdminRole
+                ? `Chào mừng ${fullName}! Đã mở Bảng Điều Khiển Tối Cao.`
+                : `Chào mừng Giáo viên ${fullName}! Đã mở không gian quản lý lớp học của Thầy/Cô.`,
+              'success'
+            );
           }
         } else {
-          // Người dùng là HỌC SINH (Student) hoặc các vai trò khác
+          // Người dùng là HỌC SINH (Student)
           const studentUser: StudentUser = {
             id: u.id,
             fullName,
@@ -922,6 +1016,7 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
             email: u.email,
             password: '',
             createdAt: u.created_at || new Date().toISOString(),
+            role: 'student',
           };
           setCurrentStudent(studentUser);
           storageService.setStudentSession(studentUser);
@@ -930,11 +1025,9 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
           storageService.setAdminSessionActive(false);
           setIsAuthModalOpen(false);
 
-          // Tự động lưu học sinh lên Cloud để Giáo viên có thể nhìn thấy trong lớp
+          // Tự động lưu học sinh lên Cloud để Giáo viên & Admin có thể nhìn thấy
           apiService.saveStudents([studentUser]).catch(() => {});
 
-          // CHỈ TỰ ĐỘNG CHUYỂN HƯỚNG VÀ THÔNG BÁO KHI VỪA ĐĂNG NHẬP GOOGLE OAUTH THÀNH CÔNG
-          // Tuyệt đối không can thiệp vào hash/URL khi người dùng đổi tab, đổi app hay làm mới token chạy ngầm
           if (isGoogleLogin) {
             if (typeof window !== 'undefined') {
               const cleanHash = window.location.hash.replace(/^#\/?/, '');
@@ -999,12 +1092,15 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
             // Kiểm tra vai trò từ Supabase Database
             const roleRes = await fetchUserRoleFromSupabase(u.id, u.email);
-            const isAdmin = roleRes.role === 'admin' || (roleRes.source === 'default' && storageService.isAdminSessionActive());
+            const isSuperAdminRole = roleRes.role === 'admin';
+            const isTeacherRole = roleRes.role === 'teacher';
+            const isStaff = isSuperAdminRole || isTeacherRole || (roleRes.source === 'default' && storageService.isAdminSessionActive());
 
-            if (isAdmin) {
+            if (isStaff) {
+              const targetRole: UserRole = isSuperAdminRole ? 'ADMIN' : 'TEACHER';
               if (isMounted) {
                 setIsAdminAuthenticated(true);
-                setRole('ADMIN');
+                setRole(targetRole);
                 if (u?.email) {
                   setAdminEmail(u.email);
                   storageService.setAdminEmail(u.email);
@@ -1013,14 +1109,25 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
                 setCurrentStudent(null);
                 setIsAuthModalOpen(false);
               }
-            } else {
-              const student = {
+              const staffRecord: StudentUser = {
                 id: u.id,
                 fullName,
                 username: u.email || u.id,
                 email: u.email,
                 password: '',
                 createdAt: u.created_at || new Date().toISOString(),
+                role: isSuperAdminRole ? 'admin' : 'teacher',
+              };
+              apiService.saveStudents([staffRecord]).catch(() => {});
+            } else {
+              const student: StudentUser = {
+                id: u.id,
+                fullName,
+                username: u.email || u.id,
+                email: u.email,
+                password: '',
+                createdAt: u.created_at || new Date().toISOString(),
+                role: 'student',
               };
               if (isMounted) {
                 storageService.setStudentSession(student);
@@ -1036,9 +1143,6 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
             // Không có session Supabase Auth hợp lệ
             const localStudent = storageService.getStudentSession();
             if (localStudent) {
-              // NẾU LÀ TÀI KHOẢN OAUTH/EMAIL ĐƯỢC XÁC THỰC QUA SUPABASE AUTH:
-              // Khi Supabase Auth không có session hợp lệ (đã bị xóa trên Dashboard hoặc đăng xuất),
-              // Tuyệt đối không khôi phục phiên tự động để tránh tài khoản zombie vẫn tiếp tục hoạt động!
               const isOAuthOrSupabase = Boolean(localStudent.email || localStudent.username?.includes('@'));
               if (isOAuthOrSupabase && apiService.isConfigured()) {
                 console.warn('[JudgeContext] Tài khoản OAuth/Email không còn phiên Supabase hợp lệ. Hủy phiên cục bộ.');
@@ -1158,13 +1262,13 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
   useEffect(() => {
     if (!isHydratedRef.current) return;
-    storageService.saveTopics(topics);
-  }, [topics]);
+    storageService.saveTopics(allTopics);
+  }, [allTopics]);
 
   useEffect(() => {
     if (!isHydratedRef.current) return;
-    storageService.saveProblems(problems);
-  }, [problems]);
+    storageService.saveProblems(allProblems);
+  }, [allProblems]);
 
   useEffect(() => {
     setStats(storageService.getUserStats(isAdminAuthenticated ? null : currentStudent, activeClassId, submissions));
@@ -1306,7 +1410,7 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     storageService.saveClassStudents(updatedClassStudents);
 
     // 4. Cập nhật tên trong các bài nộp (submissions) của học sinh
-    setSubmissions((prevSubs) => {
+    setAllSubmissions((prevSubs) => {
       const sId = (student.id || '').trim().toLowerCase();
       const sUser = (student.username || '').trim().toLowerCase();
       const sEmail = (student.email || '').trim().toLowerCase();
@@ -1388,6 +1492,7 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       email: cleanUsername,
       password: password.trim(),
       createdAt: new Date().toISOString(),
+      role: 'student',
     };
 
     studentMap.set(cleanUsername, newStudent);
@@ -1433,13 +1538,59 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     return { success: true, message: 'Đổi mật khẩu thành công' };
   };
 
-  // Giáo viên xóa tài khoản Học sinh (Xoá vĩnh viễn khỏi toàn bộ hệ thống)
+  // Admin tối cao phân quyền Giáo viên / Học sinh
+  const updateUserRole = async (userId: string, email: string, newRole: 'teacher' | 'student'): Promise<void> => {
+    if (!isAdminAuthenticated || role !== 'ADMIN') {
+      showToast('Từ chối truy cập', 'Chỉ Admin tối cao mới có quyền phân quyền Giáo viên / Học sinh!', 'error');
+      return;
+    }
+    const cleanEmail = (email || '').trim().toLowerCase();
+    const targetUser = students.find(
+      (s) => (userId && s.id === userId) || (cleanEmail && (s.email?.toLowerCase() === cleanEmail || s.username?.toLowerCase() === cleanEmail))
+    );
+    if (cleanEmail === 'minh.ldd2610979@sis.hust.edu.vn' || targetUser?.role === 'admin') {
+      showToast('Được bảo vệ cấp hệ thống', 'Không thể thay đổi quyền của Admin tối cao trên giao diện web. Vui lòng chỉnh sửa trực tiếp trong Supabase nếu cần.', 'warning');
+      return;
+    }
+
+    await apiService.updateUserRoleOnCloud(userId, cleanEmail, newRole);
+    setStudents((prev) => {
+      const next = prev.map((s) => {
+        const sEmail = (s.email || s.username || '').trim().toLowerCase();
+        if ((userId && s.id === userId) || (cleanEmail && sEmail === cleanEmail)) {
+          return { ...s, role: newRole };
+        }
+        return s;
+      });
+      storageService.saveStudents(next);
+      return next;
+    });
+
+    showToast(
+      newRole === 'teacher' ? 'Đã cấp quyền Giáo viên' : 'Đã thu hồi quyền Giáo viên',
+      newRole === 'teacher'
+        ? `Tài khoản "${cleanEmail}" đã trở thành Giáo viên chính thức!`
+        : `Tài khoản "${cleanEmail}" đã được chuyển về vai trò Học sinh.`,
+      'success'
+    );
+  };
+
+  // Admin xóa tài khoản người dùng (Xoá vĩnh viễn khỏi toàn bộ hệ thống; bảo vệ tài khoản Admin tối cao)
   const deleteStudent = async (id: string) => {
     const cleanTarget = (id || '').trim().toLowerCase();
     const studentToDelete =
       students.find((s) => (s.id && s.id.toLowerCase() === cleanTarget) || (s.username && s.username.toLowerCase() === cleanTarget) || (s.email && s.email.toLowerCase() === cleanTarget)) ||
       storageService.getStudents().find((s) => (s.id && s.id.toLowerCase() === cleanTarget) || (s.username && s.username.toLowerCase() === cleanTarget) || (s.email && s.email.toLowerCase() === cleanTarget));
-    
+
+    if (
+      studentToDelete?.role === 'admin' ||
+      studentToDelete?.email?.toLowerCase() === 'minh.ldd2610979@sis.hust.edu.vn' ||
+      studentToDelete?.username?.toLowerCase() === 'minh.ldd2610979@sis.hust.edu.vn'
+    ) {
+      showToast('Được bảo vệ cấp hệ thống', 'Không thể xóa tài khoản Admin tối cao trên web!', 'error');
+      return;
+    }
+
     const stuId = studentToDelete?.id || id;
     const stuUsername = studentToDelete?.username;
     const stuFullName = studentToDelete?.fullName;
@@ -1469,7 +1620,7 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     // 3. XÓA TOÀN BỘ LỊCH SỬ NỘP BÀI CỦA HỌC SINH NÀY (LocalStorage, IndexedDB, Supabase Cloud, React State)
     storageService.deleteSubmissionsForStudent(stuId, stuUsername, stuFullName, stuEmail);
     await apiService.deleteSubmissionsForStudent(stuId, stuUsername, stuFullName, stuEmail);
-    setSubmissions((prev) =>
+    setAllSubmissions((prev) =>
       prev.filter((sub) => {
         const subUid = (sub.userId || '').trim().toLowerCase();
         const subName = (sub.userName || '').trim().toLowerCase();
@@ -1540,7 +1691,7 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
       showToast(
         'Xác thực thành công',
-        'Chào mừng Giáo viên FAMINH! Hệ thống đã tự động bật đồng bộ toàn diện trên Cloud.',
+        'Chào mừng Quản trị viên! Hệ thống đã tự động bật đồng bộ toàn diện trên Cloud.',
         'success'
       );
       return { success: true, message: 'Đăng nhập thành công' };
@@ -1560,7 +1711,7 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     }
   };
 
-  // Quản trị viên Đăng xuất - Chỉ giải phóng quyền Admin, tuyệt đối không xóa dữ liệu lớp, bài tập hay học sinh
+  // Quản trị viên / Giáo viên Đăng xuất - Chỉ giải phóng phiên, tuyệt đối không xóa dữ liệu lớp, bài tập hay học sinh
   const logoutAdmin = () => {
     supabase.auth.signOut().catch(() => {});
     storageService.setAdminSessionActive(false);
@@ -1579,8 +1730,8 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     setIsAuthModalOpen(true);
     setAuthModalTab('student');
     showToast(
-      'Đã đăng xuất Admin',
-      'Đã đăng xuất phiên làm việc của Quản trị viên an toàn.',
+      'Đã đăng xuất',
+      'Đã đăng xuất phiên làm việc an toàn.',
       'info'
     );
   };
@@ -1620,33 +1771,35 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
   const addTopic = async (topicData: Omit<Topic, 'id'>): Promise<Topic> => {
     if (!isAdminAuthenticated) {
-      showToast('Không có quyền', 'Chỉ quản trị viên mới được tạo chủ đề', 'error');
-      throw new Error('Chỉ quản trị viên mới được tạo chủ đề');
+      showToast('Không có quyền', 'Chỉ giáo viên hoặc quản trị viên mới được tạo chủ đề', 'error');
+      throw new Error('Chỉ giáo viên hoặc quản trị viên mới được tạo chủ đề');
     }
     const classIds = topicData.classIds && topicData.classIds.length > 0
       ? topicData.classIds
       : (topicData.classId ? [topicData.classId] : ['ALL']);
+    const ownerEmail = normalizeOwnerEmail(topicData.teacherId || adminEmail || storageService.getAdminEmail());
 
     const newTopic: Topic = {
       ...topicData,
       id: `topic_${Date.now()}`,
       classId: topicData.classId || classIds[0] || 'ALL',
       classIds,
+      teacherId: ownerEmail,
     };
-    const nextTopics = [...topics, newTopic];
+    const nextAllTopics = [...allTopics, newTopic];
     try {
-      await apiService.saveTopics(nextTopics);
+      await apiService.saveTopics(nextAllTopics);
     } catch (e) {
       console.warn('Lỗi lưu chủ đề lên Cloud:', e);
     }
-    setTopics(nextTopics);
+    setAllTopics(nextAllTopics);
     showToast('Thành công', `Đã tạo chủ đề "${newTopic.name}"`, 'success');
     return newTopic;
   };
 
   const updateTopic = async (id: string, updated: Partial<Topic>): Promise<void> => {
     if (!isAdminAuthenticated) return;
-    const nextTopics = topics.map((t) => {
+    const nextAllTopics = allTopics.map((t) => {
       if (t.id !== id) return t;
       const classIds = updated.classIds !== undefined
         ? updated.classIds
@@ -1657,56 +1810,54 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         ...updated,
         classId,
         classIds,
+        teacherId: normalizeOwnerEmail(updated.teacherId || t.teacherId || adminEmail || storageService.getAdminEmail()),
       };
     });
     try {
-      await apiService.saveTopics(nextTopics);
+      await apiService.saveTopics(nextAllTopics);
     } catch (e) {
       console.warn('Lỗi cập nhật chủ đề lên Cloud:', e);
     }
-    setTopics(nextTopics);
+    setAllTopics(nextAllTopics);
     showToast('Thành công', 'Đã cập nhật chủ đề', 'success');
   };
 
   const deleteTopic = async (id: string): Promise<void> => {
     if (!isAdminAuthenticated) return;
-    const nextTopics = topics.filter((t) => t.id !== id);
+    const nextAllTopics = allTopics.filter((t) => t.id !== id);
     try {
-      await apiService.saveTopics(nextTopics);
+      await apiService.saveTopics(nextAllTopics);
     } catch (e) {
       console.warn('Lỗi xóa chủ đề trên Cloud:', e);
     }
-    setTopics(nextTopics);
+    setAllTopics(nextAllTopics);
     showToast('Đã xóa', 'Đã xóa chủ đề được chọn', 'info');
   };
 
   const reorderTopics = async (topicIds: string[]): Promise<void> => {
     if (!isAdminAuthenticated) return;
-    const topicMap = new Map(topics.map((t) => [t.id, t]));
-    const reordered: Topic[] = [];
-    topicIds.forEach((id, idx) => {
-      const item = topicMap.get(id);
-      if (item) {
-        reordered.push({ ...item, order: idx + 1 });
-      }
-    });
+    const orderMap = new Map<string, number>();
+    topicIds.forEach((id, idx) => orderMap.set(id, idx + 1));
+    const nextAllTopics = allTopics.map((t) =>
+      orderMap.has(t.id) ? { ...t, order: orderMap.get(t.id)! } : t
+    );
     try {
-      await apiService.saveTopics(reordered);
+      await apiService.saveTopics(nextAllTopics);
     } catch (e) {
       console.warn('Lỗi lưu thứ tự chủ đề lên Cloud:', e);
     }
-    setTopics(reordered);
+    setAllTopics(nextAllTopics);
   };
 
   const addProblem = async (probData: Omit<Problem, 'id' | 'createdAt' | 'updatedAt'>): Promise<Problem> => {
     if (!isAdminAuthenticated) {
-      throw new Error('Chỉ quản trị viên mới có quyền tạo đề bài');
+      throw new Error('Chỉ giáo viên hoặc quản trị viên mới có quyền tạo đề bài');
     }
 
     const cleanCode = (probData.code || '').trim().toUpperCase().replace(/\s+/g, '_');
-    const duplicate = problems.find((p) => (p.code || '').trim().toUpperCase() === cleanCode);
+    const duplicate = allProblems.find((p) => (p.code || '').trim().toUpperCase() === cleanCode);
     if (duplicate) {
-      const dupTopic = duplicate.topicId ? topics.find((t) => t.id === duplicate.topicId) : null;
+      const dupTopic = duplicate.topicId ? allTopics.find((t) => t.id === duplicate.topicId) : null;
       const topicInfo = dupTopic ? ` trong chủ đề "${dupTopic.name}"` : '';
       const err = new Error(`Mã bài tập "${cleanCode}" đã tồn tại trên hệ thống${topicInfo}. Vui lòng chọn mã khác (ví dụ: CD2_${cleanCode}).`);
       showToast('Trùng mã bài tập', err.message, 'warning');
@@ -1718,7 +1869,7 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       if (activeClassId) {
         targetClassId = activeClassId;
       } else if (probData.topicId) {
-        const parentTopic = topics.find((t) => t.id === probData.topicId);
+        const parentTopic = allTopics.find((t) => t.id === probData.topicId);
         if (parentTopic) {
           const ids = parentTopic.classIds && parentTopic.classIds.length > 0
             ? parentTopic.classIds
@@ -1731,10 +1882,13 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     }
     if (!targetClassId || targetClassId === 'class_default_faminh') targetClassId = 'ALL';
 
+    const ownerEmail = normalizeOwnerEmail(probData.teacherId || adminEmail || storageService.getAdminEmail());
     const newProblem: Problem = {
       ...probData,
       code: cleanCode,
       classId: targetClassId,
+      teacherId: ownerEmail,
+      author: probData.author || ownerEmail,
       id: `prob_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -1746,10 +1900,10 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       if (newProblem.testCases && newProblem.testCases.length > 0) {
         await apiService.saveTestCases(newProblem.id, newProblem.testCases);
       }
-      await storageService.saveProblems([newProblem, ...problems]);
+      await storageService.saveProblems([newProblem, ...allProblems]);
 
       // 2. SAU KHI DATABASE LƯU XONG THÌ MỚI UPDATE STATE TRÊN GIAO DIỆN
-      setProblems((prev) => [newProblem, ...prev]);
+      setAllProblems((prev) => [newProblem, ...prev]);
       showToast('Đã thêm bài tập', `Đã tạo thành công bài [${newProblem.code}] ${newProblem.title}`, 'success');
       return newProblem;
     } catch (err: unknown) {
@@ -1765,12 +1919,12 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const updateProblem = async (id: string, updated: Partial<Problem>): Promise<void> => {
     if (!isAdminAuthenticated) return;
 
-    const existing = problems.find((p) => p.id === id);
+    const existing = allProblems.find((p) => p.id === id);
     if (!existing) return;
 
     if (updated.code) {
       const cleanCode = updated.code.trim().toUpperCase().replace(/\s+/g, '_');
-      const duplicate = problems.find(
+      const duplicate = allProblems.find(
         (p) => p.id !== id && (p.code || '').trim().toUpperCase() === cleanCode
       );
       if (duplicate) {
@@ -1800,6 +1954,7 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     const updatedProblem: Problem = {
       ...existing,
       ...updated,
+      teacherId: normalizeOwnerEmail(updated.teacherId || existing.teacherId || existing.author || adminEmail || storageService.getAdminEmail()),
       testCases: mergedTestCases,
       updatedAt: new Date().toISOString(),
     };
@@ -1812,11 +1967,11 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         await apiService.saveTestCases(id, updated.testCases);
       }
 
-      const nextList = problems.map((p) => (p.id === id ? updatedProblem : p));
+      const nextList = allProblems.map((p) => (p.id === id ? updatedProblem : p));
       await storageService.saveProblems(nextList);
 
       // 2. SAU ĐÓ MỚI CẬP NHẬT STATE TRÊN GIAO DIỆN
-      setProblems(nextList);
+      setAllProblems(nextList);
       if (activeProblem?.id === id) {
         setActiveProblem(updatedProblem);
       }
@@ -1837,11 +1992,11 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     try {
       // 1. BẮT BUỘC AWAIT XÓA TRONG DATABASE THỰC TẾ TRƯỚC
       await apiService.deleteProblem(id);
-      const nextList = problems.filter((p) => p.id !== id);
+      const nextList = allProblems.filter((p) => p.id !== id);
       await storageService.saveProblems(nextList);
 
       // 2. UPDATE STATE TRÊN GIAO DIỆN
-      setProblems(nextList);
+      setAllProblems(nextList);
       if (activeProblem?.id === id) {
         setActiveProblem(nextList[0] || null);
       }
@@ -1865,7 +2020,7 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       throw new Error('Phiên đăng nhập đã hết hạn hoặc tài khoản đã được thu hồi. Vui lòng liên hệ Giáo viên để biết thêm chi tiết.');
     }
 
-    let problem = problems.find((p) => p.id === problemId);
+    let problem = allProblems.find((p) => p.id === problemId);
     if (!problem) {
       throw new Error('Không tìm thấy bài tập để chấm');
     }
@@ -1965,7 +2120,7 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         }
         if (hasRealContent(savedTests)) {
           problem = { ...problem, testCases: savedTests! };
-          setProblems((prev) =>
+          setAllProblems((prev) =>
             prev.map((p) => (p.id === problemId ? { ...p, testCases: savedTests! } : p))
           );
         }
@@ -2003,7 +2158,7 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     await storageService.saveSubmission(submission);
 
     // CẬP NHẬT STATE SUBMISSIONS VÀO REACT
-    setSubmissions((prev) => [submission!, ...prev]);
+    setAllSubmissions((prev) => [submission!, ...prev]);
 
 
     if (submission.passedCount === submission.totalTests && submission.totalTests > 0) {
@@ -2088,7 +2243,7 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       );
       const cloudProbs = await apiService.fetchProblems();
       if (cloudProbs && cloudProbs.length > 0) {
-        setProblems(cloudProbs);
+        setAllProblems(cloudProbs);
       }
       return { success: true, message: 'Đồng bộ thành công', problemsCount: res.problemsCount };
     } catch (err: unknown) {
@@ -2099,15 +2254,15 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   };
 
   const resetAllData = () => {
-    if (!isAdminAuthenticated) {
-      showToast('Từ chối', 'Chỉ quản trị viên mới có quyền khôi phục dữ liệu hệ thống!', 'error');
+    if (!isAdminAuthenticated || role !== 'ADMIN') {
+      showToast('Từ chối', 'Chỉ Admin tối cao mới có quyền khôi phục dữ liệu hệ thống!', 'error');
       return;
     }
     storageService.resetToDefault();
-    setTopics([]);
-    setProblems([]);
-    setSubmissions([]);
-    setClasses(storageService.getClasses());
+    setAllTopics([]);
+    setAllProblems([]);
+    setAllSubmissions([]);
+    setAllClasses(storageService.getClasses());
     setClassStudents(storageService.getClassStudents());
     setActiveClassId(null);
     setStudents(storageService.getStudents());
@@ -2121,6 +2276,8 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       value={{
         role,
         setRole,
+        isSuperAdmin,
+        isTeacher,
         isAdminAuthenticated,
         setIsAdminAuthenticated,
         adminEmail,
@@ -2128,6 +2285,7 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         currentStudent,
         setCurrentStudent,
         students,
+        updateUserRole,
         isAuthLoading,
         isAuthModalOpen,
         setIsAuthModalOpen,
@@ -2163,6 +2321,7 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         refreshStudents,
         isRefreshing,
         classes,
+        allClasses,
         activeClassId,
         setActiveClassId,
         activeClass,
@@ -2180,7 +2339,9 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         removeStudentFromClass,
         leaveClass,
         topics,
+        allTopics,
         problems,
+        allProblems,
         submissions,
         activeProblem,
         setActiveProblem,

@@ -26,7 +26,7 @@ interface AdminDashboardProps {
 }
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({ classId, hideHeader = false }) => {
-  const { problems, topics, deleteProblem, openConfirmModal, activeClassId } = useJudge();
+  const { classes, problems, topics, deleteProblem, openConfirmModal, activeClassId } = useJudge();
   const currentClassId = classId || activeClassId;
 
   const [searchTerm, setSearchTerm] = useState('');
@@ -63,7 +63,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ classId, hideHea
 
   // Filter problems scoped by classId
   const scopedProblems = currentClassId
-    ? problems.filter((prob) => isProblemInClass(prob, currentClassId, topics))
+    ? problems.filter((prob) => isProblemInClass(prob, currentClassId, topics, classes))
     : problems;
 
   const filteredProblems = scopedProblems.filter((prob) => {

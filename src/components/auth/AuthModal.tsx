@@ -207,9 +207,21 @@ export const AuthModal: React.FC = () => {
         if (data.session) {
           const roleRes = await fetchUserRoleFromSupabase(data.user.id, cleanEmail);
 
-          if (roleRes.role === 'admin') {
+          if (roleRes.role === 'admin' || roleRes.role === 'teacher') {
+            const isSuperAdmin = roleRes.role === 'admin';
+            const staffUser = {
+              id: data.user.id,
+              fullName: cleanName,
+              username: cleanEmail,
+              email: cleanEmail,
+              password: '',
+              createdAt: data.user.created_at || new Date().toISOString(),
+              role: roleRes.role,
+            };
+            apiService.saveStudents([staffUser]).catch(() => {});
+
             setIsAdminAuthenticated(true);
-            setRole('ADMIN');
+            setRole(isSuperAdmin ? 'ADMIN' : 'TEACHER');
             setAdminEmail(cleanEmail);
             storageService.setAdminEmail(cleanEmail);
             storageService.setAdminSessionActive(true);
@@ -219,13 +231,17 @@ export const AuthModal: React.FC = () => {
             setErrorMessage('');
 
             if (typeof window !== 'undefined') {
-              window.location.hash = '#admin/classes';
-              window.history.pushState({}, '', '/#admin/classes');
+              const targetHash = isSuperAdmin ? '#admin/dashboard' : '#admin/classes';
+              storageService.setCurrentTab(isSuperAdmin ? 'admin_dashboard' : 'admin_classes');
+              window.location.hash = targetHash;
+              window.history.pushState({}, '', `/${targetHash}`);
             }
 
             showToast(
-              'Đăng ký Quản trị viên',
-              `Chào mừng Quản trị viên ${cleanName}! Đã chuyển đến Dashboard Quản trị.`,
+              isSuperAdmin ? 'Đăng ký Admin tối cao' : 'Đăng ký Giáo viên',
+              isSuperAdmin
+                ? `Chào mừng Quản trị viên tối cao ${cleanName}! Đã chuyển đến Bảng Điều Khiển Tối Cao.`
+                : `Chào mừng Giáo viên ${cleanName}! Đã chuyển đến không gian quản lý lớp học.`,
               'success'
             );
           } else {
@@ -236,6 +252,7 @@ export const AuthModal: React.FC = () => {
               email: cleanEmail,
               password: '',
               createdAt: data.user.created_at || new Date().toISOString(),
+              role: 'student' as const,
             };
             apiService.saveStudents([student]).catch(() => {});
             setCurrentStudent(student);
@@ -360,12 +377,24 @@ export const AuthModal: React.FC = () => {
         // Lấy user.id để query vào bảng chứa thông tin người dùng (profiles / users) lấy giá trị của cột role
         const roleRes = await fetchUserRoleFromSupabase(data.user.id, cleanEmail);
 
-        if (roleRes.role === 'admin') {
+        if (roleRes.role === 'admin' || roleRes.role === 'teacher') {
           // =========================================================================
-          // NẾU ROLE === 'ADMIN': Router.push thẳng vào giao diện Quản trị viên
+          // NẾU ROLE === 'ADMIN' HOẶC 'TEACHER': Chuyển thẳng vào giao diện Quản lý lớp
           // =========================================================================
+          const isSuperAdmin = roleRes.role === 'admin';
+          const staffUser = {
+            id: data.user.id,
+            fullName: userFullName,
+            username: cleanEmail,
+            email: cleanEmail,
+            password: '',
+            createdAt: data.user.created_at || new Date().toISOString(),
+            role: roleRes.role,
+          };
+          apiService.saveStudents([staffUser]).catch(() => {});
+
           setIsAdminAuthenticated(true);
-          setRole('ADMIN');
+          setRole(isSuperAdmin ? 'ADMIN' : 'TEACHER');
           setAdminEmail(cleanEmail);
           storageService.setAdminEmail(cleanEmail);
           storageService.setAdminSessionActive(true);
@@ -375,13 +404,17 @@ export const AuthModal: React.FC = () => {
           setErrorMessage('');
 
           if (typeof window !== 'undefined') {
-            window.location.hash = '#admin/classes';
-            window.history.pushState({}, '', '/#admin/classes');
+            const targetHash = isSuperAdmin ? '#admin/dashboard' : '#admin/classes';
+            storageService.setCurrentTab(isSuperAdmin ? 'admin_dashboard' : 'admin_classes');
+            window.location.hash = targetHash;
+            window.history.pushState({}, '', `/${targetHash}`);
           }
 
           showToast(
-            'Quản trị viên',
-            `Chào mừng Quản trị viên ${userFullName}! Đã chuyển đến Dashboard Quản trị.`,
+            isSuperAdmin ? 'Admin tối cao' : 'Giáo viên',
+            isSuperAdmin
+              ? `Chào mừng Quản trị viên tối cao ${userFullName}! Đã chuyển đến Bảng Điều Khiển Tối Cao.`
+              : `Chào mừng Giáo viên ${userFullName}! Đã chuyển đến không gian quản lý lớp học của Thầy/Cô.`,
             'success'
           );
         } else {
@@ -395,6 +428,7 @@ export const AuthModal: React.FC = () => {
             email: cleanEmail,
             password: '',
             createdAt: data.user.created_at || new Date().toISOString(),
+            role: 'student' as const,
           };
 
           apiService.saveStudents([student]).catch(() => {});

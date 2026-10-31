@@ -100,69 +100,137 @@ export function translateAuthError(rawError?: string | null): string {
   return rawError;
 }
 
-export type AppUserRole = 'admin' | 'student';
+export type AppUserRole = 'admin' | 'teacher' | 'student';
 
 export interface UserRoleResult {
   role: AppUserRole;
   rawRole?: string;
-  source: 'profiles' | 'users' | 'metadata' | 'default';
+  source: 'profiles' | 'system_roles' | 'users' | 'metadata' | 'default';
+}
+
+function normalizeRoleValue(raw?: string | null): AppUserRole {
+  const clean = String(raw || '').trim().toLowerCase();
+  if (clean === 'admin' || clean === 'super_admin' || clean === 'superadmin') {
+    return 'admin';
+  }
+  if (clean === 'teacher' || clean === 'giao_vien' || clean === 'giaovien') {
+    return 'teacher';
+  }
+  return 'student';
 }
 
 /**
- * Lấy vai trò (role) của người dùng từ cơ sở dữ liệu Supabase sau khi đăng nhập thành công
- * 1. Truy vấn bảng `profiles` theo `id = user.id` (Cột `role`)
- * 2. Dự phòng: Truy vấn bảng `users` theo `id = user.id` (Cột `role`)
- * 3. Dự phòng: Kiểm tra `app_metadata` hoặc `user_metadata` của Supabase Auth
+ * Lấy vai trò (role: 'admin' | 'teacher' | 'student') của người dùng từ Supabase Database.
+ * - Bảng `public.profiles` trên Supabase là nguồn chân lý tối cao (cho phép thêm/bỏ Admin trực tiếp trên Supabase).
+ * - Đảm bảo nguyên tắc bất biến: Hệ thống luôn duy trì ít nhất 1 Admin tối cao (mặc định: minh.ldd2610979@sis.hust.edu.vn).
  */
 export async function fetchUserRoleFromSupabase(
   userId: string,
-  _userEmail?: string
+  userEmail?: string
 ): Promise<UserRoleResult> {
-  if (!userId) {
+  const cleanEmail = (userEmail || '').trim().toLowerCase();
+  if (!userId && !cleanEmail) {
     return { role: 'student', source: 'default' };
   }
 
   try {
-    // 1. Kiểm tra bảng 'profiles' (Chuẩn Supabase)
-    const { data: profileData, error: profileErr } = await supabase
+    // 1. Truy vấn bảng 'profiles' trên Supabase
+    const { data: allProfiles, error: profileErr } = await supabase
       .from('profiles')
-      .select('role')
-      .eq('id', userId)
-      .maybeSingle();
+      .select('id, email, role');
 
-    if (!profileErr && profileData && profileData.role) {
-      const cleanRole = String(profileData.role).trim().toLowerCase();
-      if (cleanRole === 'admin' || cleanRole === 'teacher' || cleanRole === 'giao_vien') {
-        return { role: 'admin', rawRole: profileData.role, source: 'profiles' };
+    // 2. Truy vấn bảng cấu hình vai trò đồng bộ '__system_user_roles__'
+    let sysRolesMap: Record<string, string> = {};
+    try {
+      const { data: sysRow } = await supabase
+        .from('classrooms')
+        .select('description')
+        .eq('id', '__system_user_roles__')
+        .maybeSingle();
+      if (sysRow?.description) {
+        const parsed = JSON.parse(sysRow.description);
+        if (parsed && typeof parsed === 'object') {
+          sysRolesMap = parsed;
+        }
       }
-      return { role: 'student', rawRole: profileData.role, source: 'profiles' };
+    } catch {}
+
+    if (!profileErr && Array.isArray(allProfiles)) {
+      const matchedProfile = allProfiles.find(
+        (p) =>
+          (userId && p.id === userId) ||
+          (cleanEmail && p.email && String(p.email).trim().toLowerCase() === cleanEmail)
+      );
+
+      // Kiểm tra xem trên bảng profiles đã có ít nhất 1 tài khoản role = 'admin' nào chưa
+      const hasAdminInProfiles = allProfiles.some(
+        (p) => normalizeRoleValue(p.role) === 'admin'
+      );
+
+      if (matchedProfile && matchedProfile.role) {
+        let resolvedRole = normalizeRoleValue(matchedProfile.role);
+
+        // Nếu trong bảng profiles chưa có bất kỳ admin nào (ví dụ admin gốc chưa được đồng bộ dòng vào profiles
+        // hoặc người dùng vô tình xóa hết admin khiến hệ thống mất admin duy nhất),
+        // tự động bảo vệ quyền admin cho minh.ldd2610979@sis.hust.edu.vn
+        if (!hasAdminInProfiles && cleanEmail === 'minh.ldd2610979@sis.hust.edu.vn') {
+          resolvedRole = 'admin';
+          supabase
+            .from('profiles')
+            .update({ role: 'admin' })
+            .eq('id', matchedProfile.id)
+            .then(() => {});
+        }
+
+        return {
+          role: resolvedRole,
+          rawRole: matchedProfile.role,
+          source: 'profiles',
+        };
+      }
+
+      // Nếu tài khoản chưa có dòng trong bảng `profiles` (ví dụ minh.ldd2610979@sis.hust.edu.vn đăng nhập lần đầu)
+      let fallbackRole: AppUserRole = 'student';
+      if (cleanEmail && sysRolesMap[cleanEmail]) {
+        fallbackRole = normalizeRoleValue(sysRolesMap[cleanEmail]);
+      } else if (cleanEmail === 'minh.ldd2610979@sis.hust.edu.vn') {
+        fallbackRole = 'admin';
+      } else if (cleanEmail === 'leduyducminh@gmail.com') {
+        fallbackRole = 'teacher';
+      }
+
+      // Tự động khởi tạo dòng trong bảng `profiles` theo UUID thực của Supabase Auth để hiển thị trên Supabase Dashboard
+      if (userId && !userId.startsWith('student_')) {
+        supabase
+          .from('profiles')
+          .upsert(
+            {
+              id: userId,
+              email: cleanEmail || undefined,
+              role: fallbackRole,
+            },
+            { onConflict: 'id' }
+          )
+          .then(() => {});
+      }
+
+      return {
+        role: fallbackRole,
+        rawRole: fallbackRole,
+        source: 'system_roles',
+      };
     }
 
-    // 2. Dự phòng: Kiểm tra bảng 'users' (Nếu người dùng đặt tên bảng là users)
-    const { data: userData, error: userErr } = await supabase
-      .from('users')
-      .select('role')
-      .eq('id', userId)
-      .maybeSingle();
-
-    if (!userErr && userData && userData.role) {
-      const cleanRole = String(userData.role).trim().toLowerCase();
-      if (cleanRole === 'admin' || cleanRole === 'teacher' || cleanRole === 'giao_vien') {
-        return { role: 'admin', rawRole: userData.role, source: 'users' };
-      }
-      return { role: 'student', rawRole: userData.role, source: 'users' };
+    // Dự phòng nếu bảng profiles chưa truy cập được: dùng __system_user_roles__
+    if (cleanEmail && sysRolesMap[cleanEmail]) {
+      const r = normalizeRoleValue(sysRolesMap[cleanEmail]);
+      return { role: r, rawRole: sysRolesMap[cleanEmail], source: 'system_roles' };
     }
-
-    // 3. Dự phòng: Kiểm tra user metadata trong Supabase Auth
-    const { data: authData } = await supabase.auth.getUser();
-    const currentUser = authData?.user;
-    if (currentUser && currentUser.id === userId) {
-      const metaRole = String(
-        currentUser.app_metadata?.role || currentUser.user_metadata?.role || ''
-      ).trim().toLowerCase();
-      if (metaRole === 'admin' || metaRole === 'teacher') {
-        return { role: 'admin', rawRole: metaRole, source: 'metadata' };
-      }
+    if (cleanEmail === 'minh.ldd2610979@sis.hust.edu.vn') {
+      return { role: 'admin', rawRole: 'admin', source: 'system_roles' };
+    }
+    if (cleanEmail === 'leduyducminh@gmail.com') {
+      return { role: 'teacher', rawRole: 'teacher', source: 'system_roles' };
     }
   } catch (err) {
     console.warn('[supabaseClient] Lỗi khi truy vấn vai trò (role) từ Supabase:', err);

@@ -1,6 +1,7 @@
-import type { Problem, TestCase, Submission, Classroom, ClassStudent, StudentUser, Topic, TestResult } from '../types/judge';
+import type { Problem, TestCase, Submission, Classroom, ClassStudent, StudentUser, Topic, TestResult, AccountRole } from '../types/judge';
+import { normalizeOwnerEmail } from '../types/judge';
 import { idbService } from './db';
-import { storageService, DEFAULT_ADMIN_PASSWORD } from './storageService';
+import { storageService, DEFAULT_ADMIN_PASSWORD, type ResourceOwnersMap } from './storageService';
 
 /**
  * Hàm làm sạch chuỗi cấu hình (loại bỏ khoảng trắng, dấu xuống dòng \r, \n vô tình dính vào khi copy-paste trên Vercel)
@@ -104,11 +105,232 @@ export const apiService = {
   },
 
   /**
+   * Lấy bản đồ chủ sở hữu tài nguyên (Lớp học, Chủ đề, Bài tập của từng Giáo viên) từ Supabase Cloud
+   */
+  async fetchResourceOwners(): Promise<ResourceOwnersMap> {
+    const localOwners = storageService.getResourceOwners();
+    if (isSupabaseConfigured()) {
+      try {
+        const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/classrooms?id=eq.__system_resource_owners__&select=description`;
+        const res = await fetch(targetUrl, {
+          headers: this.getAntiCacheHeaders(),
+          cache: 'no-store',
+        });
+        if (res.ok) {
+          const rows = await res.json();
+          if (Array.isArray(rows) && rows.length > 0 && rows[0].description) {
+            const parsed = JSON.parse(rows[0].description);
+            if (parsed && typeof parsed === 'object') {
+              const merged: ResourceOwnersMap = {
+                classes: { ...localOwners.classes, ...(parsed.classes || {}) },
+                topics: { ...localOwners.topics, ...(parsed.topics || {}) },
+                problems: { ...localOwners.problems, ...(parsed.problems || {}) },
+              };
+              storageService.saveResourceOwners(merged);
+              return merged;
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('[apiService] fetchResourceOwners warn:', e);
+      }
+    }
+    return localOwners;
+  },
+
+  /**
+   * Lưu bản đồ chủ sở hữu tài nguyên (Lớp học, Chủ đề, Bài tập) lên Supabase Cloud
+   */
+  async saveResourceOwners(owners: ResourceOwnersMap): Promise<void> {
+    storageService.saveResourceOwners(owners);
+    if (!isSupabaseConfigured()) return;
+    try {
+      const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/classrooms?on_conflict=id`;
+      await fetch(targetUrl, {
+        method: 'POST',
+        headers: {
+          ...this.getAntiCacheHeaders(),
+          'Content-Type': 'application/json',
+          Prefer: 'resolution=merge-duplicates',
+        },
+        body: JSON.stringify({
+          id: '__system_resource_owners__',
+          class_name: 'RESOURCE_OWNERS',
+          description: JSON.stringify(owners),
+          join_code: 'OWN',
+          updated_at: new Date().toISOString(),
+        }),
+      });
+    } catch (e) {
+      console.warn('[apiService] saveResourceOwners warn:', e);
+    }
+  },
+
+  /**
+   * Lấy danh sách phân quyền người dùng (admin | teacher | student) kết hợp từ bảng `profiles` và `__system_user_roles__`
+   */
+  async fetchUserRolesMap(): Promise<Record<string, AccountRole>> {
+    const localMap = storageService.getUserRolesMap();
+    if (!isSupabaseConfigured()) return localMap;
+
+    const normalizeRole = (raw?: string | null): AccountRole => {
+      const clean = String(raw || '').trim().toLowerCase();
+      if (clean === 'admin' || clean === 'super_admin' || clean === 'superadmin') return 'admin';
+      if (clean === 'teacher' || clean === 'giao_vien' || clean === 'giaovien') return 'teacher';
+      return 'student';
+    };
+
+    try {
+      const baseUrl = ENV.SUPABASE_URL.replace(/\/+$/, '');
+      const [profilesRes, sysRolesRes] = await Promise.all([
+        fetch(`${baseUrl}/rest/v1/profiles?select=id,email,role`, {
+          headers: this.getAntiCacheHeaders(),
+          cache: 'no-store',
+        }).catch(() => null),
+        fetch(`${baseUrl}/rest/v1/classrooms?id=eq.__system_user_roles__&select=description`, {
+          headers: this.getAntiCacheHeaders(),
+          cache: 'no-store',
+        }).catch(() => null),
+      ]);
+
+      const merged: Record<string, AccountRole> = { ...localMap };
+
+      if (sysRolesRes && sysRolesRes.ok) {
+        const rows = await sysRolesRes.json();
+        if (Array.isArray(rows) && rows.length > 0 && rows[0].description) {
+          try {
+            const parsed = JSON.parse(rows[0].description);
+            if (parsed && typeof parsed === 'object') {
+              Object.entries(parsed).forEach(([k, v]) => {
+                if (k) merged[k.trim().toLowerCase()] = normalizeRole(String(v));
+              });
+            }
+          } catch {}
+        }
+      }
+
+      if (profilesRes && profilesRes.ok) {
+        const profiles = await profilesRes.json();
+        if (Array.isArray(profiles)) {
+          const hasAdminInProfiles = profiles.some((p: any) => normalizeRole(p.role) === 'admin');
+          profiles.forEach((p: any) => {
+            const email = (p.email || '').trim().toLowerCase();
+            if (email) {
+              merged[email] = normalizeRole(p.role);
+            }
+          });
+          // Nếu trong bảng profiles chưa có admin nào (hoặc lỡ bị xóa hết admin), luôn bảo vệ ít nhất 1 admin tối cao
+          if (!hasAdminInProfiles && !Object.values(merged).some((r) => r === 'admin')) {
+            merged['minh.ldd2610979@sis.hust.edu.vn'] = 'admin';
+          }
+        }
+      }
+
+      if (!Object.values(merged).some((r) => r === 'admin')) {
+        merged['minh.ldd2610979@sis.hust.edu.vn'] = 'admin';
+      }
+
+      storageService.saveUserRolesMap(merged);
+      return merged;
+    } catch (e) {
+      console.warn('[apiService] fetchUserRolesMap warn:', e);
+      return localMap;
+    }
+  },
+
+  /**
+   * Cập nhật vai trò của một người dùng (Giáo viên <-> Học sinh) trên cả bảng `profiles`, `__system_user_roles__` và `__system_students__`
+   * Lưu ý: Quyền 'admin' tối cao được bảo vệ và chỉ có thể chỉnh sửa trực tiếp trong Supabase Dashboard.
+   */
+  async updateUserRoleOnCloud(userId: string, email: string, newRole: 'teacher' | 'student'): Promise<void> {
+    const cleanEmail = (email || '').trim().toLowerCase();
+    const rolesMap = await this.fetchUserRolesMap();
+
+    // Không cho phép hạ quyền Admin tối cao từ giao diện web
+    if (cleanEmail && rolesMap[cleanEmail] === 'admin') {
+      throw new Error('Tài khoản Admin tối cao được bảo vệ. Muốn thay đổi quyền Admin, vui lòng thực hiện trực tiếp trong Supabase.');
+    }
+
+    if (cleanEmail) {
+      rolesMap[cleanEmail] = newRole;
+    }
+    storageService.saveUserRolesMap(rolesMap);
+
+    // Cập nhật ngay trong danh sách students local
+    const localStudents = storageService.getStudents().map((s) => {
+      const sEmail = (s.email || s.username || '').trim().toLowerCase();
+      if ((userId && s.id === userId) || (cleanEmail && sEmail === cleanEmail)) {
+        return { ...s, role: newRole };
+      }
+      return s;
+    });
+    storageService.saveStudents(localStudents);
+
+    if (!isSupabaseConfigured()) return;
+
+    const baseUrl = ENV.SUPABASE_URL.replace(/\/+$/, '');
+    const calls: Promise<any>[] = [];
+
+    // 1. Cập nhật bảng `public.profiles` trên Supabase
+    if (userId && !userId.startsWith('student_')) {
+      calls.push(
+        fetch(`${baseUrl}/rest/v1/profiles?id=eq.${encodeURIComponent(userId)}`, {
+          method: 'PATCH',
+          headers: {
+            ...this.getAntiCacheHeaders(),
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ role: newRole, updated_at: new Date().toISOString() }),
+        })
+      );
+    }
+    if (cleanEmail) {
+      calls.push(
+        fetch(`${baseUrl}/rest/v1/profiles?email=eq.${encodeURIComponent(cleanEmail)}`, {
+          method: 'PATCH',
+          headers: {
+            ...this.getAntiCacheHeaders(),
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ role: newRole, updated_at: new Date().toISOString() }),
+        })
+      );
+    }
+
+    // 2. Cập nhật bảng `__system_user_roles__`
+    calls.push(
+      fetch(`${baseUrl}/rest/v1/classrooms?on_conflict=id`, {
+        method: 'POST',
+        headers: {
+          ...this.getAntiCacheHeaders(),
+          'Content-Type': 'application/json',
+          Prefer: 'resolution=merge-duplicates',
+        },
+        body: JSON.stringify({
+          id: '__system_user_roles__',
+          class_name: 'USER_ROLES',
+          description: JSON.stringify(rolesMap),
+          join_code: 'ROLE',
+          updated_at: new Date().toISOString(),
+        }),
+      })
+    );
+
+    await Promise.allSettled(calls);
+
+    // 3. Đồng bộ lại vào `__system_students__`
+    try {
+      await this.saveStudents(localStudents);
+    } catch {}
+  },
+
+  /**
    * Lấy danh sách Lớp học (Classrooms) từ Database đám mây (Anti-cache real-time)
    */
   async fetchClassrooms(): Promise<Classroom[]> {
     if (isSupabaseConfigured()) {
       try {
+        const owners = await this.fetchResourceOwners();
         // Bảo mật: Lọc ngay từ phía máy chủ Supabase, tuyệt đối không trả các bản ghi __system_ về mạng của người dùng
         const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/classrooms?id=not.like.__system_%25&order=created_at.asc`;
         const res = await fetch(targetUrl, {
@@ -132,7 +354,7 @@ export const apiService = {
                 id: c.id,
                 className: c.class_name || 'Lớp học',
                 description: c.description || '',
-                teacherId: 'admin',
+                teacherId: normalizeOwnerEmail(owners.classes[c.id] || c.teacher_id),
                 joinCode: c.join_code || '',
                 createdAt: c.created_at || new Date().toISOString(),
               }));
@@ -157,6 +379,11 @@ export const apiService = {
    */
   async saveClassroom(cls: Classroom): Promise<void> {
     if (!cls || !cls.id) return;
+    if (cls.teacherId) {
+      const owners = storageService.getResourceOwners();
+      owners.classes[cls.id] = normalizeOwnerEmail(cls.teacherId);
+      await this.saveResourceOwners(owners);
+    }
     if (!isSupabaseConfigured()) return;
     try {
       const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/classrooms?on_conflict=id`;
@@ -307,43 +534,83 @@ export const apiService = {
       const controller = new AbortController();
       const timeoutTimer = setTimeout(() => controller.abort(), 10000);
       try {
-        const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/classrooms?id=eq.__system_students__&select=description`;
-        const res = await fetch(targetUrl, {
-          headers: this.getAntiCacheHeaders(),
-          cache: 'no-store',
-          signal: controller.signal,
-        });
+        const baseUrl = ENV.SUPABASE_URL.replace(/\/+$/, '');
+        const [res, profilesRes, rolesMap] = await Promise.all([
+          fetch(`${baseUrl}/rest/v1/classrooms?id=eq.__system_students__&select=description`, {
+            headers: this.getAntiCacheHeaders(),
+            cache: 'no-store',
+            signal: controller.signal,
+          }),
+          fetch(`${baseUrl}/rest/v1/profiles?select=id,email,full_name,role,created_at`, {
+            headers: this.getAntiCacheHeaders(),
+            cache: 'no-store',
+          }).catch(() => null),
+          this.fetchUserRolesMap(),
+        ]);
         clearTimeout(timeoutTimer);
         if (!res.ok) {
           console.warn(`[apiService] fetchRawCloudStudents HTTP ${res.status}`);
           continue;
         }
         const rows = await res.json();
-        if (!Array.isArray(rows) || rows.length === 0 || !rows[0].description) return [];
-        let parsed: any[];
-        try {
-          parsed = JSON.parse(rows[0].description);
-        } catch {
-          return null;
+        let parsed: any[] = [];
+        if (Array.isArray(rows) && rows.length > 0 && rows[0].description) {
+          try {
+            const p = JSON.parse(rows[0].description);
+            if (Array.isArray(p)) parsed = p;
+          } catch {
+            return null;
+          }
         }
-        if (!Array.isArray(parsed)) return null;
-        return parsed
+
+        const userMap = new Map<string, StudentUser>();
+        parsed
           .filter((s: any) => {
             if (!s || !s.username) return false;
-            // Bỏ cơ chế cũ: Tài khoản bắt buộc tạo bằng Gmail/Email (phải chứa ký tự '@')
             return Boolean(
               (s.email && s.email.includes('@')) ||
               (s.username && s.username.includes('@'))
             );
           })
-          .map((s: any) => ({
-            id: s.id || `student_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-            fullName: s.fullName || s.username || 'Học sinh',
-            username: s.username,
-            email: s.email || (s.username && s.username.includes('@') ? s.username : undefined),
-            password: s.password || '',
-            createdAt: s.createdAt || new Date().toISOString(),
-          }));
+          .forEach((s: any) => {
+            const email = (s.email || (s.username && s.username.includes('@') ? s.username : '')).trim().toLowerCase();
+            if (!email) return;
+            userMap.set(email, {
+              id: s.id || `student_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+              fullName: s.fullName || s.username || 'Học sinh',
+              username: email,
+              email,
+              password: s.password || '',
+              role: rolesMap[email] || s.role || 'student',
+              createdAt: s.createdAt || new Date().toISOString(),
+            });
+          });
+
+        if (profilesRes && profilesRes.ok) {
+          const profileRows = await profilesRes.json();
+          if (Array.isArray(profileRows)) {
+            profileRows.forEach((p: any) => {
+              const email = (p.email || '').trim().toLowerCase();
+              if (!email || !email.includes('@')) return;
+              const prev = userMap.get(email);
+              userMap.set(email, {
+                id: p.id || prev?.id || `student_${Date.now()}`,
+                fullName:
+                  (prev?.fullName && prev.fullName !== 'Học sinh' ? prev.fullName : null) ||
+                  p.full_name ||
+                  prev?.fullName ||
+                  email.split('@')[0],
+                username: email,
+                email,
+                password: prev?.password || '',
+                role: rolesMap[email] || p.role || prev?.role || 'student',
+                createdAt: prev?.createdAt || p.created_at || new Date().toISOString(),
+              });
+            });
+          }
+        }
+
+        return Array.from(userMap.values());
       } catch (e) {
         clearTimeout(timeoutTimer);
         console.warn('[apiService] fetchRawCloudStudents error/timeout:', e);
@@ -353,12 +620,13 @@ export const apiService = {
   },
 
   /**
-   * Lấy danh sách Học sinh trực tiếp từ Supabase Cloud (trả về null nếu không kết nối được hoặc lỗi)
+   * Lấy danh sách Học sinh / Người dùng trực tiếp từ Supabase Cloud (trả về null nếu không kết nối được hoặc lỗi)
    */
   async fetchStudentsFromCloud(): Promise<StudentUser[] | null> {
     const cloudStudents = await this.fetchRawCloudStudents();
     if (cloudStudents === null) return null;
 
+    const rolesMap = storageService.getUserRolesMap();
     // Hợp nhất an toàn: Không làm mất học sinh cục bộ còn đang hoạt động
     const localList = storageService.getStudents();
     const studentMap = new Map<string, StudentUser>();
@@ -373,18 +641,19 @@ export const apiService = {
 
     const upsertStudent = (s: StudentUser) => {
       const k = getEmailKey(s);
-      if (!k || s.username === 'leduyducminh@gmail.com') return;
+      if (!k) return;
+      const resolvedRole = rolesMap[k] || s.role || 'student';
       const existing = studentMap.get(k);
       if (!existing) {
-        studentMap.set(k, s);
+        studentMap.set(k, { ...s, role: resolvedRole });
       } else {
         // Ưu tiên tài khoản Supabase Auth (UUID) hơn ID mock "student_..." cũ
         const isExistingUUID = existing.id && !existing.id.startsWith('student_');
         const isNewUUID = s.id && !s.id.startsWith('student_');
         if (isNewUUID && !isExistingUUID) {
-          studentMap.set(k, s);
+          studentMap.set(k, { ...s, role: resolvedRole });
         } else if (new Date(s.createdAt || 0).getTime() >= new Date(existing.createdAt || 0).getTime()) {
-          studentMap.set(k, s);
+          studentMap.set(k, { ...existing, ...s, role: resolvedRole });
         }
       }
     };
@@ -414,9 +683,10 @@ export const apiService = {
   },
 
   /**
-   * Lưu danh sách Học sinh lên Supabase Cloud
+   * Lưu danh sách Học sinh / Người dùng lên Supabase Cloud
    */
   async saveStudents(list: StudentUser[], removeIds: string[] = []): Promise<StudentUser[]> {
+    const rolesMap = storageService.getUserRolesMap();
     const removeSet = new Set(removeIds.map((id) => (id || '').trim().toLowerCase()));
     const isToRemove = (s: StudentUser) => {
       const sId = (s.id || '').trim().toLowerCase();
@@ -442,38 +712,41 @@ export const apiService = {
       // Không đọc được Cloud -> chỉ lưu trên máy, tuyệt đối không ghi đè Cloud bằng danh sách không đầy đủ
       list.forEach((s) => {
         const k = getKey(s);
-        if (k && !isToRemove(s) && s.username !== 'leduyducminh@gmail.com') merged.set(k, s);
+        if (k && !isToRemove(s)) merged.set(k, { ...s, role: rolesMap[k] || s.role || 'student' });
       });
       storageService.saveStudents(Array.from(merged.values()));
       throw new Error('Không đọc được danh sách học sinh trên Cloud (mạng chậm hoặc mất kết nối)');
     }
     cloudLatest.forEach((s) => {
       const k = getKey(s);
-      if (k && !isToRemove(s) && s.username !== 'leduyducminh@gmail.com') {
+      if (k && !isToRemove(s)) {
         const existing = merged.get(k);
+        const resolvedRole = rolesMap[k] || s.role || 'student';
         if (!existing) {
-          merged.set(k, s);
+          merged.set(k, { ...s, role: resolvedRole });
         } else {
           const isExistingUUID = existing.id && !existing.id.startsWith('student_');
           const isNewUUID = s.id && !s.id.startsWith('student_');
           if (isNewUUID && !isExistingUUID) {
-            merged.set(k, s);
+            merged.set(k, { ...s, role: resolvedRole });
           }
         }
       }
     });
     list.forEach((s) => {
       const k = getKey(s);
-      if (k && !isToRemove(s) && s.username !== 'leduyducminh@gmail.com') {
+      if (k && !isToRemove(s)) {
         const prev = merged.get(k);
         const customName = storageService.getStudentCustomName(s.id, s.email || s.username) || storageService.getStudentCustomName(prev?.id, prev?.email || prev?.username);
         const chosenFullName = customName || (s.fullName && s.fullName !== 'Học sinh' ? s.fullName : (prev?.fullName || s.fullName || 'Học sinh'));
+        const resolvedRole = rolesMap[k] || s.role || prev?.role || 'student';
         merged.set(k, {
           ...prev,
           ...s,
           fullName: chosenFullName,
           username: s.username || prev?.username || '',
           email: s.email || prev?.email || (s.username?.includes('@') ? s.username : prev?.username?.includes('@') ? prev.username : undefined),
+          role: resolvedRole,
         });
       }
     });
@@ -571,6 +844,7 @@ export const apiService = {
   async fetchTopics(): Promise<Topic[]> {
     if (isSupabaseConfigured()) {
       try {
+        const owners = await this.fetchResourceOwners();
         const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/classrooms?id=eq.__system_topics__`;
         const res = await fetch(targetUrl, {
           headers: this.getAntiCacheHeaders(),
@@ -581,8 +855,12 @@ export const apiService = {
           if (Array.isArray(rows) && rows.length > 0 && rows[0].description) {
             const parsed = JSON.parse(rows[0].description);
             if (Array.isArray(parsed)) {
-              storageService.saveTopics(parsed);
-              return parsed;
+              const normalized = parsed.map((t: any): Topic => ({
+                ...t,
+                teacherId: normalizeOwnerEmail(t.teacherId || owners.topics[t.id]),
+              }));
+              storageService.saveTopics(normalized);
+              return normalized;
             }
           }
         }
@@ -597,7 +875,14 @@ export const apiService = {
    * Lưu danh sách Chủ đề lên Supabase Cloud
    */
   async saveTopics(list: Topic[]): Promise<void> {
-    storageService.saveTopics(list);
+    const owners = storageService.getResourceOwners();
+    const normalized = list.map((t) => {
+      const owner = normalizeOwnerEmail(t.teacherId || owners.topics[t.id]);
+      owners.topics[t.id] = owner;
+      return { ...t, teacherId: owner };
+    });
+    storageService.saveTopics(normalized);
+    this.saveResourceOwners(owners).catch(() => {});
     if (!isSupabaseConfigured()) return;
     try {
       const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/classrooms?on_conflict=id`;
@@ -611,7 +896,7 @@ export const apiService = {
         body: JSON.stringify({
           id: '__system_topics__',
           class_name: 'TOPICS',
-          description: JSON.stringify(list),
+          description: JSON.stringify(normalized),
           join_code: 'TOPIC',
           updated_at: new Date().toISOString(),
         }),
@@ -1164,6 +1449,12 @@ export const apiService = {
       throw new Error('Dữ liệu bài tập không hợp lệ');
     }
 
+    if (problem.teacherId || problem.author) {
+      const owners = storageService.getResourceOwners();
+      owners.problems[problem.id] = normalizeOwnerEmail(problem.teacherId || problem.author);
+      this.saveResourceOwners(owners).catch(() => {});
+    }
+
     await idbService.saveProblem(problem);
 
     if (isSupabaseConfigured()) {
@@ -1261,6 +1552,9 @@ export const apiService = {
   async fetchProblems(): Promise<Problem[]> {
     if (isSupabaseConfigured()) {
       try {
+        const owners = await this.fetchResourceOwners();
+        const topics = storageService.getTopics();
+        const topicOwnerMap = new Map(topics.map((t) => [t.id, t.teacherId]));
         const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/problems?order=code.asc`;
         const res = await fetch(targetUrl, {
           headers: this.getAntiCacheHeaders(),
@@ -1269,33 +1563,42 @@ export const apiService = {
         if (res.ok) {
           const list = await res.json();
           if (Array.isArray(list)) {
-            const cloudProblems = list.map((item: any): Problem => ({
-              id: item.id,
-              code: item.code,
-              title: item.title,
-              description: item.description || '',
-              difficulty: item.difficulty || 'MEDIUM',
-              topicId: item.topic_id,
-              classId: item.class_id || 'NONE',
-              timeLimit: Number(item.time_limit) || 1.0,
-              memoryLimit: Number(item.memory_limit) || 1024,
-              totalPoints: Number(item.total_points) || 10,
-              inputFormat: item.input_format || '',
-              outputFormat: item.output_format || '',
-              constraints: item.constraints || '',
-              samples: item.samples || [],
-              starterCode: item.starter_code,
-              videoConfig: item.video_config || {
-                enabled: false,
-                type: 'youtube',
-                url: '',
-                unlockRule: 'always',
-              },
-              attachedFile: item.attached_file,
-              createdAt: item.created_at || new Date().toISOString(),
-              updatedAt: item.updated_at || new Date().toISOString(),
-              testCases: [],
-            }));
+            const cloudProblems = list.map((item: any): Problem => {
+              const resolvedOwner = normalizeOwnerEmail(
+                owners.problems[item.id] ||
+                (item.topic_id ? topicOwnerMap.get(item.topic_id) : undefined) ||
+                (item.class_id ? owners.classes[item.class_id] : undefined)
+              );
+              return {
+                id: item.id,
+                code: item.code,
+                title: item.title,
+                description: item.description || '',
+                difficulty: item.difficulty || 'MEDIUM',
+                topicId: item.topic_id,
+                classId: item.class_id || 'NONE',
+                timeLimit: Number(item.time_limit) || 1.0,
+                memoryLimit: Number(item.memory_limit) || 1024,
+                totalPoints: Number(item.total_points) || 10,
+                inputFormat: item.input_format || '',
+                outputFormat: item.output_format || '',
+                constraints: item.constraints || '',
+                samples: item.samples || [],
+                starterCode: item.starter_code,
+                videoConfig: item.video_config || {
+                  enabled: false,
+                  type: 'youtube',
+                  url: '',
+                  unlockRule: 'always',
+                },
+                attachedFile: item.attached_file,
+                author: resolvedOwner,
+                teacherId: resolvedOwner,
+                createdAt: item.created_at || new Date().toISOString(),
+                updatedAt: item.updated_at || new Date().toISOString(),
+                testCases: [],
+              };
+            });
 
             // ĐỒNG BỘ CHUẨN TỪ CLOUD (SINGLE SOURCE OF TRUTH):
             // Supabase Cloud là chân lý. Tự động đẩy các bài tập local chưa có trên Cloud nếu là phiên Admin.

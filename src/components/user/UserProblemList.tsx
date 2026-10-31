@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useJudge } from '../../context/JudgeContext';
 import type { Problem } from '../../types/judge';
-import { isProblemInClass } from '../../types/judge';
+import { isProblemInClass, isResourceOwnedByTeacher } from '../../types/judge';
 import { storageService } from '../../services/storageService';
 import {
   CheckCircle2,
@@ -26,6 +26,7 @@ interface UserProblemListProps {
 
 export const UserProblemList: React.FC<UserProblemListProps> = ({ onSelectProblem, onBackToClasses }) => {
   const {
+    classes,
     topics,
     problems,
     getProblemStatus,
@@ -89,10 +90,10 @@ export const UserProblemList: React.FC<UserProblemListProps> = ({ onSelectProble
 
   // Lọc bài tập chỉ thuộc lớp học hiện tại nếu có activeClassId
   const classScopedProblems = activeClassId
-    ? problems.filter((p) => isProblemInClass(p, activeClassId, topics))
+    ? problems.filter((p) => isProblemInClass(p, activeClassId, topics, classes))
     : problems;
 
-  // Lọc chủ đề hiển thị: nếu đang trong lớp học cụ thể, chỉ hiển thị chủ đề giao cho lớp này (hỗ trợ cả mảng classIds và classId) hoặc giao cho tất cả các lớp (ALL)
+  // Lọc chủ đề hiển thị: nếu đang trong lớp học cụ thể, chỉ hiển thị chủ đề giao cho lớp này (hỗ trợ cả mảng classIds và classId) hoặc giao cho tất cả các lớp (ALL) của cùng giáo viên
   const visibleTopics = activeClassId
     ? topics.filter((t) => {
         const assignedIds = t.classIds && t.classIds.length > 0
@@ -101,6 +102,9 @@ export const UserProblemList: React.FC<UserProblemListProps> = ({ onSelectProble
 
         if (assignedIds.includes(activeClassId)) return true;
         if (assignedIds.includes('ALL')) {
+          if (activeClass?.teacherId && !isResourceOwnedByTeacher(t.teacherId, activeClass.teacherId)) {
+            return false;
+          }
           // Chủ đề chung: hiển thị nếu có bài tập thuộc lớp này hoặc nếu chủ đề này chưa có bài nào
           const hasClassProblems = classScopedProblems.some((p) => p.topicId === t.id);
           const totalInTopic = problems.filter((p) => p.topicId === t.id).length;
