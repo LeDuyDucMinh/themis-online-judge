@@ -13,7 +13,6 @@ import { UserManager } from './components/admin/UserManager';
 import { SuperAdminDashboard } from './components/admin/SuperAdminDashboard';
 import { AdminLayout, type AdminTabType } from './components/admin/AdminLayout';
 import { AuthModal } from './components/auth/AuthModal';
-import { ChangePasswordModal } from './components/admin/ChangePasswordModal';
 import { ChangeNameModal } from './components/user/ChangeNameModal';
 import { ServerConfigModal } from './components/admin/ServerConfigModal';
 import { ConfirmModal } from './components/common/ConfirmModal';
@@ -366,7 +365,6 @@ function MainApp() {
 
       {/* Supabase Auth & Admin Modals */}
       <AuthModal />
-      <ChangePasswordModal />
       <ChangeNameModal />
       <ServerConfigModal
         isOpen={isServerConfigModalOpen}

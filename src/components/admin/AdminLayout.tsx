@@ -7,7 +7,6 @@ import {
   ListTree,
   Trophy,
   Server,
-  KeyRound,
   RotateCcw,
   LogOut,
   ExternalLink,
@@ -49,7 +48,6 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
     isSuperAdmin,
     logoutAdmin,
     setIsServerConfigModalOpen,
-    setIsChangePasswordModalOpen,
     resetAllData,
     openConfirmModal,
     setActiveClassId,
@@ -408,19 +406,6 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                 >
                   <Server className="w-4 h-4 text-emerald-400 shrink-0" />
                   <span className="flex-1 truncate">Server Chấm VPS</span>
-                </button>
-
-                {/* Nút Đổi mật mã Admin */}
-                <button
-                  onClick={() => {
-                    setIsChangePasswordModalOpen(true);
-                    setIsMobileMenuOpen(false);
-                  }}
-                  className="w-full flex items-center gap-3.5 px-4 py-2.5 rounded-2xl text-sm font-semibold text-stone-100 hover:text-amber-300 hover:bg-white/10 transition-all text-left cursor-pointer"
-                  title="Đổi mật khẩu Quản trị viên"
-                >
-                  <KeyRound className="w-4 h-4 text-amber-400 shrink-0" />
-                  <span className="flex-1 truncate">Đổi mật khẩu Admin</span>
                 </button>
 
                 {/* Nút Khôi phục dữ liệu mẫu */}

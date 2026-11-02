@@ -4,7 +4,6 @@ import {
   Code2,
   ShieldCheck,
   LogOut,
-  KeyRound,
   RotateCcw,
   Trophy,
   ListTree,
@@ -48,7 +47,6 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab }) => 
     logoutStudent,
     setAuthModalTab,
     setIsAuthModalOpen,
-    setIsChangePasswordModalOpen,
     setIsChangeNameModalOpen,
     setIsServerConfigModalOpen,
     logoutAdmin,
@@ -365,26 +363,6 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab }) => 
                       <span className="text-[10px] px-2 py-0.5 rounded-md bg-slate-800 text-amber-400 border border-slate-700/60 font-mono">
                         {theme === 'dark' ? 'Sáng' : 'Tối'}
                       </span>
-                    </button>
-
-                    {/* 2. NÚT ĐỔI MẬT MÃ ADMIN */}
-                    <button
-                      onClick={() => {
-                        setIsSettingsOpen(false);
-                        setIsChangePasswordModalOpen(true);
-                      }}
-                      className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold text-slate-200 hover:text-white hover:bg-slate-800 transition-all cursor-pointer group"
-                      title="Đổi mật mã Admin"
-                    >
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-7 h-7 rounded-lg bg-red-500/15 text-red-400 flex items-center justify-center border border-red-500/20 group-hover:scale-105 transition-transform">
-                          <KeyRound className="w-3.5 h-3.5" />
-                        </div>
-                        <div className="text-left">
-                          <span className="block text-slate-200 font-medium">Đổi mật mã Admin</span>
-                          <span className="block text-[10px] text-slate-400">Thiết lập mật khẩu quản trị</span>
-                        </div>
-                      </div>
                     </button>
 
                     {/* 3. NÚT KHÔI PHỤC LẠI DỮ LIỆU MẪU */}
