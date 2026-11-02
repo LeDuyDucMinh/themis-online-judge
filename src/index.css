@@ -507,92 +507,90 @@ html.light span.text-white.uppercase {
 
 /* ====================================================
    BỘ SỬA ĐỘ TƯƠNG PHẢN TOÀN DIỆN CHO CÁC MÀU TEXT
-   (Đổi các mã màu 300, 400 vốn quá nhạt trên nền trắng sang 700 đậm đà)
+   (Đổi các mã màu 300, 400 vốn quá nhạt trên nền trắng sang 700 đậm đà,
+    nhưng KHÔNG áp dụng vào thanh aside tối hoặc khối pre code nền tối)
    ==================================================== */
-html.light .text-emerald-400,
-html.light .text-emerald-300 {
+html.light .text-emerald-400:not(aside *):not(pre):not(pre *),
+html.light .text-emerald-300:not(aside *):not(pre):not(pre *) {
   color: #047857 !important;
 }
 
-html.light .text-rose-400,
-html.light .text-rose-300 {
+html.light .text-rose-400:not(aside *),
+html.light .text-rose-300:not(aside *) {
   color: #be123c !important;
 }
 
-html.light .text-red-400,
-html.light .text-red-300 {
+html.light .text-red-400:not(aside *),
+html.light .text-red-300:not(aside *) {
   color: #b91c1c !important;
 }
 
-html.light .text-amber-400,
-html.light .text-amber-300 {
+html.light .text-amber-400:not(aside *),
+html.light .text-amber-300:not(aside *) {
   color: #b45309 !important;
 }
 
-html.light .text-blue-400,
-html.light .text-blue-300 {
+html.light .text-blue-400:not(aside *),
+html.light .text-blue-300:not(aside *) {
   color: #1d4ed8 !important;
 }
 
-html.light .text-indigo-400,
-html.light .text-indigo-300 {
+html.light .text-indigo-400:not(aside *),
+html.light .text-indigo-300:not(aside *) {
   color: #4338ca !important;
 }
 
-html.light .text-orange-400,
-html.light .text-orange-300 {
+html.light .text-orange-400:not(aside *),
+html.light .text-orange-300:not(aside *) {
   color: #c2410c !important;
 }
 
-html.light .text-slate-100,
-html.light .text-slate-200 {
+html.light .text-slate-100:not(aside *),
+html.light .text-slate-200:not(aside *) {
   color: #1e293b !important;
 }
 
-html.light .text-slate-300 {
+html.light .text-slate-300:not(aside *) {
   color: #334155 !important;
 }
 
-html.light .text-slate-400 {
+html.light .text-slate-400:not(aside *) {
   color: #64748b !important;
 }
 
-html.light .text-slate-500 {
+html.light .text-slate-500:not(aside *) {
   color: #64748b !important;
 }
 
-html.light label {
+html.light label:not(aside *) {
   color: #334155 !important;
 }
 
 /* ====================================================
-   BỘ SỬA NỀN CÁC BADGE & PILL
+   BỘ SỬA NỀN CÁC BADGE & PILL (NGOÀI SIDEBAR ASIDE)
    ==================================================== */
-html.light .bg-emerald-500\/10,
-html.light .bg-emerald-500\/15,
-html.light .bg-emerald-500\/20 {
+html.light .bg-emerald-500\/10:not(aside *),
+html.light .bg-emerald-500\/15:not(aside *),
+html.light .bg-emerald-500\/20:not(aside *) {
   background-color: #ecfdf5 !important;
-  border-color: #a7f3d0 !important;
 }
 
-html.light .bg-amber-500\/10,
-html.light .bg-amber-500\/15,
-html.light .bg-amber-500\/20 {
+html.light .bg-amber-500\/10:not(aside *),
+html.light .bg-amber-500\/15:not(aside *),
+html.light .bg-amber-500\/20:not(aside *) {
   background-color: #fffbeb !important;
-  border-color: #fde68a !important;
 }
 
-html.light .bg-blue-500\/10,
-html.light .bg-blue-500\/15,
-html.light .bg-blue-500\/20 {
+html.light .bg-blue-500\/10:not(aside *),
+html.light .bg-blue-500\/15:not(aside *),
+html.light .bg-blue-500\/20:not(aside *) {
   background-color: #eff6ff !important;
-  border-color: #bfdbfe !important;
 }
 
-html.light .bg-indigo-500\/10,
-html.light .bg-indigo-500\/15,
-html.light .bg-indigo-500\/20,
-html.light .bg-indigo-950\/30 {
+html.light .bg-indigo-500\/10:not(aside *),
+html.light .bg-indigo-500\/15:not(aside *),
+html.light .bg-indigo-500\/20:not(aside *),
+html.light .bg-indigo-950\/30:not(aside *) {
   background-color: #eef2ff !important;
   border-color: #c7d2fe !important;
   color: #3730a3 !important;
@@ -776,29 +774,29 @@ html.light .auth-dark .text-emerald-400 {
 
 /* ====================================================
    HỘP CẢNH BÁO TRÙNG LẶP / GHI CHÚ TRONG LIGHT MODE
-   Đảm bảo chữ vàng/cam/hổ phách luôn đậm, sắc nét, tương phản cao
+   (Chỉ áp dụng cho nền amber mờ / amber-50 bên ngoài aside,
+    KHÔNG áp dụng lên hover:bg-amber-500/10 hoặc nút bg-amber-500 đặc)
    ==================================================== */
-html.light [class*="bg-amber-500"],
-html.light .bg-amber-50,
-html[data-theme="light"] [class*="bg-amber-500"],
-html[data-theme="light"] .bg-amber-50 {
+html.light .bg-amber-500\/10:not(aside *),
+html.light .bg-amber-500\/15:not(aside *),
+html.light .bg-amber-500\/20:not(aside *),
+html.light .bg-amber-50:not(aside *),
+html[data-theme="light"] .bg-amber-500\/10:not(aside *),
+html[data-theme="light"] .bg-amber-500\/15:not(aside *),
+html[data-theme="light"] .bg-amber-500\/20:not(aside *),
+html[data-theme="light"] .bg-amber-50:not(aside *) {
   color: #78350f !important;
 }
 
-html.light [class*="bg-amber-500"] b,
-html.light [class*="bg-amber-500"] strong,
-html.light .bg-amber-50 b,
-html.light .bg-amber-50 strong,
-html[data-theme="light"] [class*="bg-amber-500"] b,
-html[data-theme="light"] [class*="bg-amber-500"] strong,
-html[data-theme="light"] .bg-amber-50 b,
-html[data-theme="light"] .bg-amber-50 strong {
-  color: #451a03 !important;
-}
-
-html.light [class*="bg-amber-500"] button,
-html.light .bg-amber-50 button,
-html[data-theme="light"] [class*="bg-amber-500"] button,
-html[data-theme="light"] .bg-amber-50 button {
+html.light .bg-amber-500\/10:not(aside *) b,
+html.light .bg-amber-500\/15:not(aside *) b,
+html.light .bg-amber-500\/20:not(aside *) b,
+html.light .bg-amber-50:not(aside *) b,
+html.light .bg-amber-50:not(aside *) strong,
+html[data-theme="light"] .bg-amber-500\/10:not(aside *) b,
+html[data-theme="light"] .bg-amber-500\/15:not(aside *) b,
+html[data-theme="light"] .bg-amber-500\/20:not(aside *) b,
+html[data-theme="light"] .bg-amber-50:not(aside *) b,
+html[data-theme="light"] .bg-amber-50:not(aside *) strong {
   color: #451a03 !important;
 }

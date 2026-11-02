@@ -109,20 +109,20 @@ export const ServerConfigModal: React.FC<ServerConfigModalProps> = ({ isOpen, on
               <Server className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-base font-bold text-white flex items-center gap-2">
+              <h3 className="text-base font-bold text-stone-900 dark:text-white flex items-center gap-2">
                 <span>Cấu hình Máy chủ Chấm bài (VPS)</span>
                 <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-red-500/20 text-red-400 border border-red-500/30">
                   JUDGE0
                 </span>
               </h3>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-slate-500 dark:text-slate-400">
                 Kết nối hệ thống chấm bài tự động với máy chủ riêng của FAMINH
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
+            className="p-1.5 text-slate-400 hover:text-stone-900 dark:hover:text-white rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -143,22 +143,22 @@ export const ServerConfigModal: React.FC<ServerConfigModalProps> = ({ isOpen, on
                 }`}
               />
               <div>
-                <p className="text-xs font-semibold text-white flex items-center gap-2">
+                <p className="text-xs font-semibold text-stone-900 dark:text-white flex items-center gap-2">
                   <span>Trạng thái:</span>
                   {isTesting ? (
-                    <span className="text-amber-400">Đang kiểm tra kết nối...</span>
+                    <span className="text-amber-600 dark:text-amber-400">Đang kiểm tra kết nối...</span>
                   ) : testStatus.success ? (
-                    <span className="text-emerald-400 flex items-center gap-1">
+                    <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
                       <CheckCircle2 className="w-3.5 h-3.5 inline" /> Hoạt động tốt
                       {testStatus.version && ` (v${testStatus.version})`}
                     </span>
                   ) : (
-                    <span className="text-rose-400 flex items-center gap-1">
+                    <span className="text-rose-600 dark:text-rose-400 flex items-center gap-1">
                       <AlertCircle className="w-3.5 h-3.5 inline" /> Mất kết nối
                     </span>
                   )}
                 </p>
-                <p className="text-[11px] text-slate-400">
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">
                   {isTesting
                     ? 'Đang gửi gói tin ping đến VPS...'
                     : testStatus.message || 'Chưa kiểm tra'}
@@ -172,7 +172,7 @@ export const ServerConfigModal: React.FC<ServerConfigModalProps> = ({ isOpen, on
             <button
               onClick={() => handleTestConnection()}
               disabled={isTesting}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-colors disabled:opacity-50 cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-slate-800 hover:bg-slate-700 text-stone-700 dark:text-slate-200 border border-slate-700 transition-colors disabled:opacity-50 cursor-pointer"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isTesting ? 'animate-spin' : ''}`} />
               <span>Kiểm tra</span>
@@ -181,7 +181,7 @@ export const ServerConfigModal: React.FC<ServerConfigModalProps> = ({ isOpen, on
 
           {/* Ô nhập URL Server */}
           <div className="space-y-1.5">
-            <label className="block text-xs font-semibold text-slate-300">
+            <label className="block text-xs font-semibold text-stone-700 dark:text-slate-300">
               Địa chỉ IP hoặc URL của Máy chủ Judge0:
             </label>
             <div className="relative">
@@ -190,22 +190,22 @@ export const ServerConfigModal: React.FC<ServerConfigModalProps> = ({ isOpen, on
                 value={serverUrl}
                 onChange={(e) => setLocalServerUrl(e.target.value)}
                 placeholder={DEFAULT_JUDGE0_URL}
-                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 focus:border-red-500 focus:ring-1 focus:ring-red-500 text-sm text-white placeholder-slate-500 font-mono transition-colors outline-none"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 focus:border-red-500 focus:ring-1 focus:ring-red-500 text-sm text-stone-900 dark:text-white placeholder-slate-500 font-mono transition-colors outline-none"
               />
               <a
                 href={serverUrl ? `${serverUrl.replace(/\/+$/, '')}/about` : '#'}
                 target="_blank"
                 rel="noreferrer"
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1.5 text-slate-400 hover:text-white rounded hover:bg-slate-800 transition-colors"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1.5 text-slate-400 hover:text-stone-900 dark:hover:text-white rounded hover:bg-slate-800 transition-colors"
                 title="Mở link kiểm tra trong tab mới"
               >
                 <ExternalLink className="w-4 h-4" />
               </a>
             </div>
-            <p className="text-[11px] text-slate-400">
-              Mặc định: <code className="text-red-400">{DEFAULT_JUDGE0_URL}</code> (VPS riêng của FAMINH).
+            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+              Mặc định: <code className="text-red-600 dark:text-red-400">{DEFAULT_JUDGE0_URL}</code> (VPS riêng của FAMINH).
               {typeof window !== 'undefined' && window.location.protocol === 'https:' && (
-                <span className="block mt-1 text-emerald-400 font-medium">
+                <span className="block mt-1 text-emerald-600 dark:text-emerald-400 font-medium">
                   🔒 Đã kích hoạt Secure HTTPS Proxy (tự động vượt lỗi Mixed Content để kết nối VPS an toàn).
                 </span>
               )}
@@ -213,20 +213,20 @@ export const ServerConfigModal: React.FC<ServerConfigModalProps> = ({ isOpen, on
           </div>
 
           {/* Card ưu điểm hệ thống */}
-          <div className="p-3.5 rounded-xl bg-red-950/20 border border-red-900/30 text-xs text-slate-300 space-y-2">
-            <div className="font-semibold text-red-300 flex items-center gap-1.5">
-              <Zap className="w-4 h-4 text-red-400" />
+          <div className="p-3.5 rounded-xl bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/30 text-xs text-stone-700 dark:text-slate-300 space-y-2">
+            <div className="font-semibold text-red-700 dark:text-red-300 flex items-center gap-1.5">
+              <Zap className="w-4 h-4 text-red-600 dark:text-red-400" />
               <span>Lợi thế khi dùng Máy chủ VPS riêng:</span>
             </div>
-            <ul className="space-y-1 text-[11px] text-slate-400 list-disc list-inside">
+            <ul className="space-y-1 text-[11px] text-stone-600 dark:text-slate-400 list-disc list-inside">
               <li>
-                <strong className="text-slate-200">Tốc độ cực nhanh:</strong> Thời gian chấm chỉ 0.005s - 0.020s / test case.
+                <strong className="text-stone-900 dark:text-slate-200">Tốc độ cực nhanh:</strong> Thời gian chấm chỉ 0.005s - 0.020s / test case.
               </li>
               <li>
-                <strong className="text-slate-200">Không lo nghẽn mạng:</strong> Hệ thống tự động xếp hàng và chấm song song khi cả lớp nộp bài.
+                <strong className="text-stone-900 dark:text-slate-200">Không lo nghẽn mạng:</strong> Hệ thống tự động xếp hàng và chấm song song khi cả lớp nộp bài.
               </li>
               <li>
-                <strong className="text-slate-200">Cô lập an toàn:</strong> Sandbox cgroup v1 bảo vệ an toàn tuyệt đối cho máy chủ.
+                <strong className="text-stone-900 dark:text-slate-200">Cô lập an toàn:</strong> Sandbox cgroup v1 bảo vệ an toàn tuyệt đối cho máy chủ.
               </li>
             </ul>
           </div>

@@ -325,26 +325,26 @@ export const UserManager: React.FC<UserManagerProps> = ({ mode = 'all' }) => {
 
       {/* 1b. Hộp hướng dẫn Thêm / Bỏ quyền Admin tối cao trực tiếp trong Supabase */}
       {showSupabaseGuide && (
-        <div className="p-5 rounded-xl bg-slate-900 text-slate-100 border border-slate-700 space-y-3 text-xs leading-relaxed">
-          <div className="flex items-center gap-2 text-amber-400 font-bold text-sm">
+        <div className="p-5 rounded-xl bg-stone-50 dark:bg-slate-900 text-stone-800 dark:text-slate-100 border border-stone-200 dark:border-slate-700 space-y-3 text-xs leading-relaxed">
+          <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400 font-bold text-sm">
             <ShieldCheck className="w-4 h-4 shrink-0" />
             <span>Cơ chế bảo vệ Admin tối cao (Bắt buộc tối thiểu 1 Admin duy trì hệ thống)</span>
           </div>
-          <p className="text-slate-300">
-            Trên giao diện web, tài khoản <span className="font-mono font-bold text-white">Admin tối cao</span> bị khóa nút hạ quyền và xóa để tránh thao tác nhầm làm mất quyền điều khiển hệ thống. Để <b>thêm</b> hoặc <b>bỏ</b> quyền Admin tối cao, bạn vào <b>Supabase Dashboard &rarr; SQL Editor</b> (hoặc <b>Table Editor &rarr; bảng profiles</b>) và chạy lệnh:
+          <p className="text-stone-600 dark:text-slate-300">
+            Trên giao diện web, tài khoản <span className="font-mono font-bold text-stone-900 dark:text-white">Admin tối cao</span> bị khóa nút hạ quyền và xóa để tránh thao tác nhầm làm mất quyền điều khiển hệ thống. Để <b>thêm</b> hoặc <b>bỏ</b> quyền Admin tối cao, bạn vào <b>Supabase Dashboard &rarr; SQL Editor</b> (hoặc <b>Table Editor &rarr; bảng profiles</b>) và chạy lệnh:
           </p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
-            <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-1.5">
-              <div className="font-bold text-emerald-400">1. Thêm 1 tài khoản làm Admin tối cao:</div>
-              <pre className="font-mono text-[11px] text-slate-200 overflow-x-auto whitespace-pre-wrap">
+            <div className="p-3 rounded-lg bg-white dark:bg-slate-950 border border-stone-200 dark:border-slate-800 space-y-1.5">
+              <div className="font-bold text-emerald-700 dark:text-emerald-400">1. Thêm 1 tài khoản làm Admin tối cao:</div>
+              <pre className="font-mono text-[11px] text-stone-800 dark:text-slate-200 overflow-x-auto whitespace-pre-wrap">
 {`UPDATE public.profiles
 SET role = 'admin'
 WHERE lower(email) = 'email_can_cap@gmail.com';`}
               </pre>
             </div>
-            <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-1.5">
-              <div className="font-bold text-amber-400">2. Bỏ quyền Admin tối cao (chuyển về Giáo viên):</div>
-              <pre className="font-mono text-[11px] text-slate-200 overflow-x-auto whitespace-pre-wrap">
+            <div className="p-3 rounded-lg bg-white dark:bg-slate-950 border border-stone-200 dark:border-slate-800 space-y-1.5">
+              <div className="font-bold text-amber-700 dark:text-amber-400">2. Bỏ quyền Admin tối cao (chuyển về Giáo viên):</div>
+              <pre className="font-mono text-[11px] text-stone-800 dark:text-slate-200 overflow-x-auto whitespace-pre-wrap">
 {`-- Chỉ chạy được khi hệ thống còn ít nhất 1 Admin khác
 UPDATE public.profiles
 SET role = 'teacher'
@@ -361,7 +361,7 @@ WHERE lower(email) = 'email_admin_cu@gmail.com';`}
           onClick={() => setRoleFilter('ALL')}
           className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
             roleFilter === 'ALL'
-              ? 'bg-[#c51f26]/10 border-[#c51f26] dark:bg-[#c51f26]/20'
+              ? 'bg-red-50 border-[#c51f26] dark:bg-[#c51f26]/20'
               : 'bg-white dark:bg-stone-900 border-stone-200 dark:border-stone-800 hover:border-stone-300'
           }`}
         >
@@ -377,11 +377,11 @@ WHERE lower(email) = 'email_admin_cu@gmail.com';`}
           onClick={() => setRoleFilter('admin')}
           className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
             roleFilter === 'admin'
-              ? 'bg-amber-500/10 border-amber-500 dark:bg-amber-500/20'
+              ? 'bg-amber-50 border-amber-500 dark:bg-amber-500/20'
               : 'bg-white dark:bg-stone-900 border-stone-200 dark:border-stone-800 hover:border-stone-300'
           }`}
         >
-          <div className="text-[11px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400 flex items-center gap-1">
+          <div className="text-[11px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400 flex items-center gap-1">
             <ShieldCheck className="w-3.5 h-3.5" />
             <span>Admin tối cao</span>
           </div>
@@ -394,11 +394,11 @@ WHERE lower(email) = 'email_admin_cu@gmail.com';`}
           onClick={() => setRoleFilter('teacher')}
           className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
             roleFilter === 'teacher'
-              ? 'bg-blue-500/10 border-blue-500 dark:bg-blue-500/20'
+              ? 'bg-blue-50 border-blue-500 dark:bg-blue-500/20'
               : 'bg-white dark:bg-stone-900 border-stone-200 dark:border-stone-800 hover:border-stone-300'
           }`}
         >
-          <div className="text-[11px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400 flex items-center gap-1">
+          <div className="text-[11px] font-bold uppercase tracking-wider text-blue-700 dark:text-blue-400 flex items-center gap-1">
             <BookOpen className="w-3.5 h-3.5" />
             <span>Giáo viên</span>
           </div>
@@ -411,7 +411,7 @@ WHERE lower(email) = 'email_admin_cu@gmail.com';`}
           onClick={() => setRoleFilter('student')}
           className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
             roleFilter === 'student'
-              ? 'bg-emerald-500/10 border-emerald-500 dark:bg-emerald-500/20'
+              ? 'bg-emerald-50 border-emerald-500 dark:bg-emerald-500/20'
               : 'bg-white dark:bg-stone-900 border-stone-200 dark:border-stone-800 hover:border-stone-300'
           }`}
         >

@@ -274,12 +274,12 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                 {isSuperAdmin ? (
                   <>
                     <h1 className="font-black text-base tracking-tight text-white flex items-center gap-1.5">
-                      <span>FAMINH</span>
-                      <span className="bg-gradient-to-r from-amber-300 via-yellow-400 to-amber-500 bg-clip-text text-transparent">
+                      <span className="!text-white text-white">FAMINH</span>
+                      <span className="!text-amber-400 text-amber-400">
                         Supreme
                       </span>
                     </h1>
-                    <p className="text-[10px] font-black uppercase tracking-wider text-amber-400 flex items-center gap-1 mt-0.5">
+                    <p className="text-[10px] font-black uppercase tracking-wider !text-amber-400 text-amber-400 flex items-center gap-1 mt-0.5">
                       <Crown className="w-3 h-3 text-amber-400 shrink-0" />
                       <span>Quản Trị Tối Cao</span>
                     </p>
@@ -334,7 +334,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                         ? 'bg-gradient-to-r from-amber-400 via-yellow-500 to-amber-500 text-stone-950 font-black shadow-lg shadow-amber-500/20 translate-x-1'
                         : 'bg-white text-stone-900 shadow-md translate-x-1'
                       : isSuperAdmin
-                      ? 'text-stone-300 hover:text-amber-200 hover:bg-amber-500/10 border border-transparent hover:border-amber-500/20'
+                      ? 'text-stone-100 hover:text-amber-300 hover:bg-white/10 border border-transparent hover:border-amber-500/25'
                       : 'text-white/85 hover:text-white hover:bg-white/10'
                   }`}
                 >
@@ -345,7 +345,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                           ? 'text-stone-950'
                           : 'text-[#c51f26]'
                         : isSuperAdmin
-                        ? 'text-amber-400/85'
+                        ? 'text-amber-400'
                         : 'text-white/85'
                     }`}
                   />
@@ -361,7 +361,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
 
             {/* Phân cách các nút cấu hình / công cụ hệ thống */}
             <div className={`text-[10px] font-black uppercase tracking-wider px-3 mt-5 mb-1 ${
-              isSuperAdmin ? 'text-amber-400/80' : 'text-white/60'
+              isSuperAdmin ? 'text-amber-400/90' : 'text-white/60'
             }`}>
               {isSuperAdmin ? 'Hạ tầng & Bảo mật Root' : 'Giao diện'}
             </div>
@@ -371,7 +371,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
               onClick={toggleTheme}
               className={`w-full flex items-center justify-between px-4 py-2.5 rounded-2xl text-sm font-semibold transition-all text-left cursor-pointer ${
                 isSuperAdmin
-                  ? 'text-stone-300 hover:text-amber-200 hover:bg-amber-500/10'
+                  ? 'text-stone-100 hover:text-amber-300 hover:bg-white/10'
                   : 'text-white/85 hover:text-white hover:bg-white/10'
               }`}
               title={theme === 'dark' ? 'Chuyển sang Giao diện Sáng (Light Mode)' : 'Chuyển sang Giao diện Tối (Dark Mode)'}
@@ -380,7 +380,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                 {theme === 'dark' ? (
                   <Sun className="w-4 h-4 text-amber-300 shrink-0" />
                 ) : (
-                  <Moon className="w-4 h-4 text-amber-200 shrink-0" />
+                  <Moon className="w-4 h-4 text-amber-300 shrink-0" />
                 )}
                 <span className="flex-1 truncate">
                   {theme === 'dark' ? 'Chế độ Sáng' : 'Chế độ Tối'}
@@ -388,7 +388,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
               </div>
               <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full shadow-2xs ${
                 isSuperAdmin
-                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                  ? 'bg-white/15 text-amber-300 border border-amber-400/40'
                   : 'bg-white/20 text-white'
               }`}>
                 {theme === 'dark' ? 'DARK' : 'LIGHT'}
@@ -403,7 +403,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                     setIsServerConfigModalOpen(true);
                     setIsMobileMenuOpen(false);
                   }}
-                  className="w-full flex items-center gap-3.5 px-4 py-2.5 rounded-2xl text-sm font-semibold text-stone-300 hover:text-amber-200 hover:bg-amber-500/10 transition-all text-left cursor-pointer"
+                  className="w-full flex items-center gap-3.5 px-4 py-2.5 rounded-2xl text-sm font-semibold text-stone-100 hover:text-amber-300 hover:bg-white/10 transition-all text-left cursor-pointer"
                   title="Cấu hình Server VPS Judge0"
                 >
                   <Server className="w-4 h-4 text-emerald-400 shrink-0" />
@@ -416,7 +416,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                     setIsChangePasswordModalOpen(true);
                     setIsMobileMenuOpen(false);
                   }}
-                  className="w-full flex items-center gap-3.5 px-4 py-2.5 rounded-2xl text-sm font-semibold text-stone-300 hover:text-amber-200 hover:bg-amber-500/10 transition-all text-left cursor-pointer"
+                  className="w-full flex items-center gap-3.5 px-4 py-2.5 rounded-2xl text-sm font-semibold text-stone-100 hover:text-amber-300 hover:bg-white/10 transition-all text-left cursor-pointer"
                   title="Đổi mật khẩu Quản trị viên"
                 >
                   <KeyRound className="w-4 h-4 text-amber-400 shrink-0" />
@@ -429,7 +429,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                     handleResetConfirm();
                     setIsMobileMenuOpen(false);
                   }}
-                  className="w-full flex items-center gap-3.5 px-4 py-2.5 rounded-2xl text-sm font-semibold text-stone-300 hover:text-amber-200 hover:bg-amber-500/10 transition-all text-left cursor-pointer"
+                  className="w-full flex items-center gap-3.5 px-4 py-2.5 rounded-2xl text-sm font-semibold text-stone-100 hover:text-amber-300 hover:bg-white/10 transition-all text-left cursor-pointer"
                   title="Khôi phục lại bài tập & bộ test mặc định"
                 >
                   <RotateCcw className="w-4 h-4 text-rose-400 shrink-0" />
@@ -468,7 +468,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
           isSuperAdmin
             ? theme === 'dark'
               ? 'bg-gradient-to-r from-[#0e0c0a] via-[#16120c] to-[#0e0c0a] border-amber-500/30 text-white'
-              : 'bg-gradient-to-r from-amber-50/90 via-white to-amber-50/90 border-amber-300/80 text-stone-900'
+              : 'bg-white border-stone-200 text-stone-900'
             : theme === 'dark'
             ? 'bg-slate-900/95 border-slate-800 text-white'
             : 'bg-white border-stone-200/90 text-stone-900'
@@ -491,11 +491,15 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
             <div className="min-w-0">
               {isSuperAdmin ? (
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-500/20 text-amber-600 dark:text-amber-300 border border-amber-500/40">
-                    <Crown className="w-3 h-3 text-amber-500 dark:text-amber-400 shrink-0" />
+                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border ${
+                    theme === 'dark'
+                      ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                      : 'bg-amber-100 text-amber-900 border-amber-300'
+                  }`}>
+                    <Crown className={`w-3 h-3 shrink-0 ${theme === 'dark' ? 'text-amber-400' : 'text-amber-700'}`} />
                     <span>QUẢN TRỊ VIÊN TỐI CAO (SUPREME ADMIN)</span>
                   </span>
-                  <span className="hidden sm:inline-block text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+                  <span className="hidden sm:inline-block text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">
                     • TOÀN QUYỀN HỆ THỐNG
                   </span>
                 </div>
@@ -535,7 +539,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                 isSuperAdmin
                   ? theme === 'dark'
                     ? 'border-amber-500/40 bg-stone-900 text-amber-200 hover:text-white hover:bg-stone-800'
-                    : 'border-amber-400 bg-white hover:bg-amber-50 text-amber-900'
+                    : 'border-stone-300 bg-white hover:bg-amber-50 text-stone-800 hover:text-amber-900 hover:border-amber-400'
                   : theme === 'dark'
                   ? 'border-slate-700 bg-slate-800 text-slate-200 hover:text-white hover:bg-slate-700'
                   : 'border-stone-300 hover:border-[#c51f26] bg-white hover:bg-red-50/50 text-stone-700 hover:text-[#c51f26]'

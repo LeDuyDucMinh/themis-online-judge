@@ -55,6 +55,7 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
     isRefreshing,
     getStudentsInClass,
     getPendingStudentsInClass,
+    theme,
   } = useJudge();
 
   const [quickSearch, setQuickSearch] = useState('');
@@ -210,22 +211,40 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
       {/* ===================================================================== */}
       {/* 1. SUPREME COMMAND BANNER (OBSIDIAN & ROYAL GOLD)                     */}
       {/* ===================================================================== */}
-      <div className="relative overflow-hidden rounded-2xl border border-amber-500/35 bg-gradient-to-r from-[#0e0c0a] via-[#17130d] to-[#110e0a] p-6 sm:p-8 text-white shadow-2xl">
+      <div
+        className={`relative overflow-hidden rounded-2xl border p-6 sm:p-8 transition-colors ${
+          theme === 'light'
+            ? 'border-amber-300 bg-gradient-to-br from-amber-50/90 via-white to-amber-100/50 text-stone-900 shadow-sm'
+            : 'border-amber-500/35 bg-gradient-to-r from-[#0e0c0a] via-[#17130d] to-[#110e0a] text-white shadow-2xl'
+        }`}
+      >
         <div className="pointer-events-none absolute -right-12 -top-12 h-56 w-56 rounded-full bg-amber-500/10 blur-3xl" />
         <div className="pointer-events-none absolute -bottom-16 left-1/3 h-44 w-44 rounded-full bg-yellow-500/5 blur-2xl" />
 
         <div className="relative z-10 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
           <div className="space-y-2.5 max-w-2xl">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/15 border border-amber-400/40 text-amber-300 text-[11px] font-black uppercase tracking-widest">
-              <Crown className="w-3.5 h-3.5 text-amber-400" />
+            <div
+              className={`inline-flex items-center gap-2 px-3 py-1 rounded-full border text-[11px] font-black uppercase tracking-widest ${
+                theme === 'light'
+                  ? 'bg-amber-100 border-amber-300 text-amber-900'
+                  : 'bg-amber-500/15 border-amber-400/40 text-amber-300'
+              }`}
+            >
+              <Crown className={`w-3.5 h-3.5 ${theme === 'light' ? 'text-amber-700' : 'text-amber-400'}`} />
               <span>SUPREME ADMIN • TRUNG TÂM QUYỀN LỰC TỐI CAO</span>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white">
+            <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-stone-900 dark:text-white">
               Bảng Điều Khiển Quản Trị Hệ Thống Toàn Diện
             </h1>
-            <p className="text-xs sm:text-sm text-stone-300 leading-relaxed">
+            <p className="text-xs sm:text-sm text-stone-600 dark:text-stone-300 leading-relaxed">
               Xin chào Admin tối cao{' '}
-              <span className="font-mono font-bold text-amber-300">
+              <span
+                className={`font-mono font-bold ${
+                  theme === 'light'
+                    ? 'text-amber-900 bg-amber-100/80 border border-amber-300 px-1.5 py-0.5 rounded'
+                    : 'text-amber-300'
+                }`}
+              >
                 {adminEmail || 'minh.ldd2610979@sis.hust.edu.vn'}
               </span>
               . Tại đây bạn nắm toàn quyền cấp phép Giáo viên, quản lý Học sinh toàn hệ thống và giám sát mọi lớp học & kho đề.
@@ -244,19 +263,27 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
 
             <button
               onClick={() => setIsServerConfigModalOpen(true)}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-amber-500/40 bg-amber-500/10 hover:bg-amber-500/20 text-amber-200 text-xs font-bold transition-all cursor-pointer"
+              className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
+                theme === 'light'
+                  ? 'border-amber-300 bg-white hover:bg-amber-50 text-amber-900 shadow-2xs'
+                  : 'border-amber-500/40 bg-amber-500/10 hover:bg-amber-500/20 text-amber-200'
+              }`}
             >
-              <Server className="w-4 h-4 text-amber-400" />
+              <Server className={`w-4 h-4 ${theme === 'light' ? 'text-amber-700' : 'text-amber-400'}`} />
               <span>Cấu hình Server VPS</span>
             </button>
 
             <button
               onClick={() => refreshAllData()}
               disabled={isRefreshing}
-              className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl border border-white/15 bg-white/5 hover:bg-white/10 text-stone-200 text-xs font-semibold transition-all cursor-pointer disabled:opacity-50"
+              className={`inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl border text-xs font-semibold transition-all cursor-pointer disabled:opacity-50 ${
+                theme === 'light'
+                  ? 'border-stone-300 bg-white hover:bg-stone-100 text-stone-700 shadow-2xs'
+                  : 'border-white/15 bg-white/5 hover:bg-white/10 text-stone-200'
+              }`}
               title="Làm mới toàn bộ dữ liệu từ Supabase Cloud"
             >
-              <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-amber-400' : ''}`} />
+              <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-amber-500' : ''}`} />
               <span>Làm mới</span>
             </button>
           </div>
@@ -270,25 +297,25 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
         {/* Card 1: Đội ngũ Giáo viên */}
         <div
           onClick={() => onNavigateTab('admin_teachers')}
-          className="group p-5 rounded-2xl border border-amber-500/30 bg-white dark:bg-[#12100d] hover:border-amber-500 transition-all cursor-pointer shadow-xs flex flex-col justify-between"
+          className="group p-5 rounded-2xl border border-stone-200 dark:border-amber-500/30 bg-white dark:bg-[#12100d] hover:border-amber-500 transition-all cursor-pointer shadow-xs flex flex-col justify-between"
         >
           <div className="flex items-start justify-between">
             <div>
-              <span className="text-[11px] font-black uppercase tracking-wider text-amber-600 dark:text-amber-400">
+              <span className="text-[11px] font-black uppercase tracking-wider text-amber-700 dark:text-amber-400">
                 ĐỘI NGŨ GIÁO VIÊN
               </span>
               <div className="text-3xl font-black text-stone-900 dark:text-white mt-1">
                 {teachersList.length}
-                <span className="text-xs font-bold text-stone-400 ml-1.5">
+                <span className="text-xs font-bold text-stone-500 dark:text-stone-400 ml-1.5">
                   giáo viên (+{adminsList.length} Admin)
                 </span>
               </div>
             </div>
-            <div className="w-11 h-11 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-600 dark:text-amber-400 flex items-center justify-center">
+            <div className="w-11 h-11 rounded-xl bg-amber-50 border border-amber-200 text-amber-700 dark:bg-amber-500/15 dark:border-amber-500/30 dark:text-amber-400 flex items-center justify-center">
               <UserCheck className="w-5 h-5" />
             </div>
           </div>
-          <div className="mt-4 pt-3 border-t border-stone-100 dark:border-stone-800/80 flex items-center justify-between text-xs font-bold text-amber-600 dark:text-amber-400">
+          <div className="mt-4 pt-3 border-t border-stone-100 dark:border-stone-800/80 flex items-center justify-between text-xs font-bold text-amber-700 dark:text-amber-400">
             <span>Cấp quyền & Quản lý GV</span>
             <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
           </div>
@@ -301,19 +328,19 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
         >
           <div className="flex items-start justify-between">
             <div>
-              <span className="text-[11px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+              <span className="text-[11px] font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-400">
                 HỌC SINH TOÀN HỆ THỐNG
               </span>
               <div className="text-3xl font-black text-stone-900 dark:text-white mt-1">
                 {studentsList.length}
-                <span className="text-xs font-bold text-stone-400 ml-1.5">tài khoản</span>
+                <span className="text-xs font-bold text-stone-500 dark:text-stone-400 ml-1.5">tài khoản</span>
               </div>
             </div>
-            <div className="w-11 h-11 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+            <div className="w-11 h-11 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 dark:bg-emerald-500/15 dark:border-emerald-500/30 dark:text-emerald-400 flex items-center justify-center">
               <Users className="w-5 h-5" />
             </div>
           </div>
-          <div className="mt-4 pt-3 border-t border-stone-100 dark:border-stone-800/80 flex items-center justify-between text-xs font-bold text-emerald-600 dark:text-emerald-400">
+          <div className="mt-4 pt-3 border-t border-stone-100 dark:border-stone-800/80 flex items-center justify-between text-xs font-bold text-emerald-700 dark:text-emerald-400">
             <span>Quản lý tất cả Học sinh</span>
             <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
           </div>
@@ -329,19 +356,19 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
         >
           <div className="flex items-start justify-between">
             <div>
-              <span className="text-[11px] font-black uppercase tracking-wider text-blue-600 dark:text-blue-400">
+              <span className="text-[11px] font-black uppercase tracking-wider text-blue-700 dark:text-blue-400">
                 LỚP HỌC TOÀN HỆ THỐNG
               </span>
               <div className="text-3xl font-black text-stone-900 dark:text-white mt-1">
                 {allClasses.length}
-                <span className="text-xs font-bold text-stone-400 ml-1.5">lớp đang mở</span>
+                <span className="text-xs font-bold text-stone-500 dark:text-stone-400 ml-1.5">lớp đang mở</span>
               </div>
             </div>
-            <div className="w-11 h-11 rounded-xl bg-blue-500/15 border border-blue-500/30 text-blue-600 dark:text-blue-400 flex items-center justify-center">
+            <div className="w-11 h-11 rounded-xl bg-blue-50 border border-blue-200 text-blue-700 dark:bg-blue-500/15 dark:border-blue-500/30 dark:text-blue-400 flex items-center justify-center">
               <GraduationCap className="w-5 h-5" />
             </div>
           </div>
-          <div className="mt-4 pt-3 border-t border-stone-100 dark:border-stone-800/80 flex items-center justify-between text-xs font-bold text-blue-600 dark:text-blue-400">
+          <div className="mt-4 pt-3 border-t border-stone-100 dark:border-stone-800/80 flex items-center justify-between text-xs font-bold text-blue-700 dark:text-blue-400">
             <span>Giám sát mọi Lớp học</span>
             <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
           </div>
@@ -354,21 +381,21 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
         >
           <div className="flex items-start justify-between">
             <div>
-              <span className="text-[11px] font-black uppercase tracking-wider text-purple-600 dark:text-purple-400">
+              <span className="text-[11px] font-black uppercase tracking-wider text-purple-700 dark:text-purple-400">
                 KHO ĐỀ & BÀI NỘP
               </span>
               <div className="text-3xl font-black text-stone-900 dark:text-white mt-1">
                 {allProblems.length}
-                <span className="text-xs font-bold text-stone-400 ml-1.5">
+                <span className="text-xs font-bold text-stone-500 dark:text-stone-400 ml-1.5">
                   đề • {submissions.length} bài nộp
                 </span>
               </div>
             </div>
-            <div className="w-11 h-11 rounded-xl bg-purple-500/15 border border-purple-500/30 text-purple-600 dark:text-purple-400 flex items-center justify-center">
+            <div className="w-11 h-11 rounded-xl bg-purple-50 border border-purple-200 text-purple-700 dark:bg-purple-500/15 dark:border-purple-500/30 dark:text-purple-400 flex items-center justify-center">
               <FileCode2 className="w-5 h-5" />
             </div>
           </div>
-          <div className="mt-4 pt-3 border-t border-stone-100 dark:border-stone-800/80 flex items-center justify-between text-xs font-bold text-purple-600 dark:text-purple-400">
+          <div className="mt-4 pt-3 border-t border-stone-100 dark:border-stone-800/80 flex items-center justify-between text-xs font-bold text-purple-700 dark:text-purple-400">
             <span>Xem {allTopics.length} Chủ đề & Kho đề</span>
             <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
           </div>
@@ -665,4 +692,3 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
     </div>
   );
 };
-

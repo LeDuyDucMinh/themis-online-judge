@@ -821,7 +821,7 @@ export const SubmissionHistory: React.FC = () => {
                             return (
                               <td
                                 key={prob.id}
-                                className="py-3 px-3 text-center border-l border-slate-800/50"
+                                className="py-3 px-3 text-center border-l border-slate-200 dark:border-slate-800/50"
                               >
                                 {bestSub ? (
                                   <button
