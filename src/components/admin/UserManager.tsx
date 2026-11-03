@@ -6,6 +6,7 @@ import {
   RefreshCw,
   Mail,
   GraduationCap,
+  UserCheck,
 } from 'lucide-react';
 import { useJudge } from '../../context/JudgeContext';
 import { storageService } from '../../services/storageService';
@@ -15,6 +16,7 @@ export const UserManager: React.FC = () => {
   const {
     students,
     classes,
+    adminEmail,
     deleteStudent,
     openConfirmModal,
     refreshStudents,
@@ -43,6 +45,25 @@ export const UserManager: React.FC = () => {
   const getDisplayEmail = (student: StudentUser): string => {
     const raw = student.email || (student.username && student.username.includes('@') ? student.username : null);
     return (raw || student.username || 'Chưa cập nhật email').trim().toLowerCase();
+  };
+
+  // Nhận diện tài khoản Giáo viên / Quản trị viên
+  const isTeacherAccount = (student: StudentUser): boolean => {
+    const email = getDisplayEmail(student);
+    if (email === 'minh.ldd2610979@sis.hust.edu.vn' || email === 'leduyducminh@gmail.com') {
+      return true;
+    }
+    if (adminEmail && email === adminEmail.toLowerCase().trim()) {
+      return true;
+    }
+    if (student.role === 'admin' || student.role === 'teacher') {
+      return true;
+    }
+    const rolesMap = storageService.getUserRolesMap();
+    if (rolesMap[email] === 'admin' || rolesMap[email] === 'teacher') {
+      return true;
+    }
+    return false;
   };
 
   // Lấy danh sách các lớp học người dùng đang tham gia
@@ -234,9 +255,14 @@ export const UserManager: React.FC = () => {
                         </div>
                       </td>
 
-                      {/* Cột 4: Các lớp học đang tham gia */}
+                      {/* Cột 4: Các lớp học đang tham gia hoặc Vai trò Giáo viên */}
                       <td className="py-3.5 px-4">
-                        {userClasses.length > 0 ? (
+                        {isTeacherAccount(student) ? (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/60 shadow-2xs">
+                            <UserCheck className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                            <span>Giáo viên</span>
+                          </span>
+                        ) : userClasses.length > 0 ? (
                           <div className="flex flex-wrap gap-1.5 max-w-xs">
                             {userClasses.map((clsName, cIdx) => (
                               <span
@@ -255,15 +281,21 @@ export const UserManager: React.FC = () => {
 
                       {/* Cột 5: Nút Xóa tài khoản */}
                       <td className="py-3.5 px-4 text-right">
-                        <button
-                          onClick={() => handleDeleteUserCompletely(student)}
-                          disabled={isBusy}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-[#c51f26] dark:text-red-400 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/40 hover:bg-[#c51f26] hover:text-white dark:hover:bg-[#c51f26] dark:hover:text-white transition-colors cursor-pointer disabled:opacity-50"
-                          title={`Xóa tài khoản "${displayName}" ra khỏi hệ thống`}
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                          <span>Xóa</span>
-                        </button>
+                        {isTeacherAccount(student) ? (
+                          <span className="text-[11px] font-semibold text-stone-400 italic pr-2">
+                            Quản trị viên
+                          </span>
+                        ) : (
+                          <button
+                            onClick={() => handleDeleteUserCompletely(student)}
+                            disabled={isBusy}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-[#c51f26] dark:text-red-400 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/40 hover:bg-[#c51f26] hover:text-white dark:hover:bg-[#c51f26] dark:hover:text-white transition-colors cursor-pointer disabled:opacity-50"
+                            title={`Xóa tài khoản "${displayName}" ra khỏi hệ thống`}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            <span>Xóa</span>
+                          </button>
+                        )}
                       </td>
                     </tr>
                   );
