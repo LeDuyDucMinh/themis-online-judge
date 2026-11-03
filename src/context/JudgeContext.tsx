@@ -11,7 +11,6 @@ import {
   type TestCase,
   type TestResult,
   normalizeOwnerEmail,
-  isResourceOwnedByTeacher,
 } from '../types/judge';
 import { storageService, resolveStudentFullName } from '../services/storageService';
 import { apiService } from '../services/apiService';
@@ -243,8 +242,8 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     storageService.setUserRole(newRole);
   };
 
-  const isSuperAdmin = isAdminAuthenticated && role === 'ADMIN';
-  const isTeacher = isAdminAuthenticated && role === 'TEACHER';
+  const isSuperAdmin = false;
+  const isTeacher = isAdminAuthenticated;
 
   // Bắt buộc Đăng nhập khi vào web: Tuyệt đối KHÔNG mở modal khi hệ thống đang trong quá trình tải và đọc session
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
@@ -272,12 +271,8 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   });
 
   const classes = useMemo(() => {
-    if (isAdminAuthenticated && role === 'TEACHER') {
-      const activeTeacherEmail = adminEmail || storageService.getAdminEmail();
-      return allClasses.filter((c) => isResourceOwnedByTeacher(c.teacherId, activeTeacherEmail));
-    }
     return allClasses;
-  }, [allClasses, isAdminAuthenticated, role, adminEmail]);
+  }, [allClasses]);
 
   const setActiveClassId = (id: string | null) => {
     setActiveClassIdState(id);
@@ -652,35 +647,16 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const [allSubmissions, setAllSubmissions] = useState<Submission[]>(() => storageService.getSubmissions());
 
   const topics = useMemo(() => {
-    if (isAdminAuthenticated && role === 'TEACHER') {
-      const activeTeacherEmail = adminEmail || storageService.getAdminEmail();
-      return allTopics.filter((t) => isResourceOwnedByTeacher(t.teacherId, activeTeacherEmail));
-    }
     return allTopics;
-  }, [allTopics, isAdminAuthenticated, role, adminEmail]);
+  }, [allTopics]);
 
   const problems = useMemo(() => {
-    if (isAdminAuthenticated && role === 'TEACHER') {
-      const activeTeacherEmail = adminEmail || storageService.getAdminEmail();
-      return allProblems.filter((p) => isResourceOwnedByTeacher(p.teacherId || p.author, activeTeacherEmail));
-    }
     return allProblems;
-  }, [allProblems, isAdminAuthenticated, role, adminEmail]);
+  }, [allProblems]);
 
   const submissions = useMemo(() => {
-    if (isAdminAuthenticated && role === 'TEACHER') {
-      const teacherClassIds = new Set(classes.map((c) => c.id));
-      const teacherProblemIds = new Set(problems.map((p) => p.id));
-      const teacherProblemCodes = new Set(problems.map((p) => (p.code || '').trim().toUpperCase()));
-      return allSubmissions.filter((sub) => {
-        if (sub.classId && teacherClassIds.has(sub.classId)) return true;
-        if (sub.problemId && teacherProblemIds.has(sub.problemId)) return true;
-        if (sub.problemCode && teacherProblemCodes.has(sub.problemCode.trim().toUpperCase())) return true;
-        return false;
-      });
-    }
     return allSubmissions;
-  }, [allSubmissions, isAdminAuthenticated, role, classes, problems]);
+  }, [allSubmissions]);
 
   const [activeProblem, setActiveProblem] = useState<Problem | null>(() => {
     const list = storageService.getProblems();
@@ -970,9 +946,8 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         }
 
         if (isStaff) {
-          const targetRole: UserRole = isSuperAdminRole ? 'ADMIN' : 'TEACHER';
           setIsAdminAuthenticated(true);
-          setRole(targetRole);
+          setRole('ADMIN');
           if (u?.email) {
             setAdminEmail(u.email);
             storageService.setAdminEmail(u.email);
@@ -988,7 +963,7 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
             email: u.email,
             password: '',
             createdAt: u.created_at || new Date().toISOString(),
-            role: isSuperAdminRole ? 'admin' : 'teacher',
+            role: 'teacher',
           };
           apiService.saveStudents([staffRecord]).catch(() => {});
 
@@ -996,14 +971,12 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
             if (typeof window !== 'undefined') {
               const cleanHash = window.location.hash.replace(/^#\/?/, '');
               if (!cleanHash.startsWith('admin') && cleanHash !== 'submissions') {
-                window.location.hash = isSuperAdminRole ? '#admin/dashboard' : '#admin/classes';
+                window.location.hash = '#admin/classes';
               }
             }
             showToast(
-              isSuperAdminRole ? 'Admin tối cao' : 'Giáo viên',
-              isSuperAdminRole
-                ? `Chào mừng ${fullName}! Đã mở Bảng Điều Khiển Tối Cao.`
-                : `Chào mừng Giáo viên ${fullName}! Đã mở không gian quản lý lớp học của Thầy/Cô.`,
+              'Giáo viên Quản trị',
+              `Chào mừng Thầy/Cô ${fullName}! Đã mở không gian quản lý lớp học FAMINH.`,
               'success'
             );
           }
@@ -1097,10 +1070,9 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
             const isStaff = isSuperAdminRole || isTeacherRole || (roleRes.source === 'default' && storageService.isAdminSessionActive());
 
             if (isStaff) {
-              const targetRole: UserRole = isSuperAdminRole ? 'ADMIN' : 'TEACHER';
               if (isMounted) {
                 setIsAdminAuthenticated(true);
-                setRole(targetRole);
+                setRole('ADMIN');
                 if (u?.email) {
                   setAdminEmail(u.email);
                   storageService.setAdminEmail(u.email);
@@ -1116,7 +1088,7 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
                 email: u.email,
                 password: '',
                 createdAt: u.created_at || new Date().toISOString(),
-                role: isSuperAdminRole ? 'admin' : 'teacher',
+                role: 'teacher',
               };
               apiService.saveStudents([staffRecord]).catch(() => {});
             } else {

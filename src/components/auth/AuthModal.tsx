@@ -3,6 +3,7 @@ import { useJudge } from '../../context/JudgeContext';
 import { supabase, translateAuthError, fetchUserRoleFromSupabase } from '../../services/supabaseClient';
 import { apiService } from '../../services/apiService';
 import { storageService, resolveStudentFullName } from '../../services/storageService';
+import type { StudentUser } from '../../types/judge';
 import {
   Eye,
   EyeOff,
@@ -208,20 +209,19 @@ export const AuthModal: React.FC = () => {
           const roleRes = await fetchUserRoleFromSupabase(data.user.id, cleanEmail);
 
           if (roleRes.role === 'admin' || roleRes.role === 'teacher') {
-            const isSuperAdmin = roleRes.role === 'admin';
-            const staffUser = {
+            const staffUser: StudentUser = {
               id: data.user.id,
               fullName: cleanName,
               username: cleanEmail,
               email: cleanEmail,
               password: '',
               createdAt: data.user.created_at || new Date().toISOString(),
-              role: roleRes.role,
+              role: 'teacher',
             };
             apiService.saveStudents([staffUser]).catch(() => {});
 
             setIsAdminAuthenticated(true);
-            setRole(isSuperAdmin ? 'ADMIN' : 'TEACHER');
+            setRole('ADMIN');
             setAdminEmail(cleanEmail);
             storageService.setAdminEmail(cleanEmail);
             storageService.setAdminSessionActive(true);
@@ -231,17 +231,15 @@ export const AuthModal: React.FC = () => {
             setErrorMessage('');
 
             if (typeof window !== 'undefined') {
-              const targetHash = isSuperAdmin ? '#admin/dashboard' : '#admin/classes';
-              storageService.setCurrentTab(isSuperAdmin ? 'admin_dashboard' : 'admin_classes');
+              const targetHash = '#admin/classes';
+              storageService.setCurrentTab('admin_classes');
               window.location.hash = targetHash;
               window.history.pushState({}, '', `/${targetHash}`);
             }
 
             showToast(
-              isSuperAdmin ? 'Đăng ký Admin tối cao' : 'Đăng ký Giáo viên',
-              isSuperAdmin
-                ? `Chào mừng Quản trị viên tối cao ${cleanName}! Đã chuyển đến Bảng Điều Khiển Tối Cao.`
-                : `Chào mừng Giáo viên ${cleanName}! Đã chuyển đến không gian quản lý lớp học.`,
+              'Đăng ký Giáo viên',
+              `Chào mừng Giáo viên ${cleanName}! Đã chuyển đến không gian quản lý lớp học.`,
               'success'
             );
           } else {
@@ -381,20 +379,19 @@ export const AuthModal: React.FC = () => {
           // =========================================================================
           // NẾU ROLE === 'ADMIN' HOẶC 'TEACHER': Chuyển thẳng vào giao diện Quản lý lớp
           // =========================================================================
-          const isSuperAdmin = roleRes.role === 'admin';
-          const staffUser = {
+          const staffUser: StudentUser = {
             id: data.user.id,
             fullName: userFullName,
             username: cleanEmail,
             email: cleanEmail,
             password: '',
             createdAt: data.user.created_at || new Date().toISOString(),
-            role: roleRes.role,
+            role: 'teacher',
           };
           apiService.saveStudents([staffUser]).catch(() => {});
 
           setIsAdminAuthenticated(true);
-          setRole(isSuperAdmin ? 'ADMIN' : 'TEACHER');
+          setRole('ADMIN');
           setAdminEmail(cleanEmail);
           storageService.setAdminEmail(cleanEmail);
           storageService.setAdminSessionActive(true);
@@ -404,17 +401,15 @@ export const AuthModal: React.FC = () => {
           setErrorMessage('');
 
           if (typeof window !== 'undefined') {
-            const targetHash = isSuperAdmin ? '#admin/dashboard' : '#admin/classes';
-            storageService.setCurrentTab(isSuperAdmin ? 'admin_dashboard' : 'admin_classes');
+            const targetHash = '#admin/classes';
+            storageService.setCurrentTab('admin_classes');
             window.location.hash = targetHash;
             window.history.pushState({}, '', `/${targetHash}`);
           }
 
           showToast(
-            isSuperAdmin ? 'Admin tối cao' : 'Giáo viên',
-            isSuperAdmin
-              ? `Chào mừng Quản trị viên tối cao ${userFullName}! Đã chuyển đến Bảng Điều Khiển Tối Cao.`
-              : `Chào mừng Giáo viên ${userFullName}! Đã chuyển đến không gian quản lý lớp học của Thầy/Cô.`,
+            'Giáo viên FAMINH',
+            `Chào mừng Thầy/Cô ${userFullName}! Đã mở không gian quản lý lớp học.`,
             'success'
           );
         } else {

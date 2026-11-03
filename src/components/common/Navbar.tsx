@@ -20,8 +20,6 @@ interface NavbarProps {
   currentTab:
     | 'classes'
     | 'problems'
-    | 'admin_dashboard'
-    | 'admin_teachers'
     | 'admin_classes'
     | 'admin_topics'
     | 'admin_users'
@@ -30,8 +28,6 @@ interface NavbarProps {
     tab:
       | 'classes'
       | 'problems'
-      | 'admin_dashboard'
-      | 'admin_teachers'
       | 'admin_classes'
       | 'admin_topics'
       | 'admin_users'

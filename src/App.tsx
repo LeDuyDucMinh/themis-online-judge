@@ -10,7 +10,6 @@ import { TopicManager } from './components/admin/TopicManager';
 import { TeacherClassList } from './components/admin/TeacherClassList';
 import { TeacherClassDetail } from './components/admin/TeacherClassDetail';
 import { UserManager } from './components/admin/UserManager';
-import { SuperAdminDashboard } from './components/admin/SuperAdminDashboard';
 import { AdminLayout, type AdminTabType } from './components/admin/AdminLayout';
 import { AuthModal } from './components/auth/AuthModal';
 import { ChangeNameModal } from './components/user/ChangeNameModal';
@@ -24,7 +23,6 @@ import { storageService } from './services/storageService';
 function MainApp() {
   const {
     isAdminAuthenticated,
-    isSuperAdmin,
     isAuthLoading,
     setIsAuthModalOpen,
     theme,
@@ -42,31 +40,16 @@ function MainApp() {
     if (typeof window !== 'undefined' && window.location.hash) {
       const hash = window.location.hash.replace(/^#\/?/, '');
       if (hash.startsWith('submissions')) return 'submissions';
-      if (hash.startsWith('admin/dashboard')) return 'admin_dashboard';
-      if (hash.startsWith('admin/teachers')) return 'admin_teachers';
       if (hash.startsWith('admin/users')) return 'admin_users';
       if (hash.startsWith('admin/topics')) return 'admin_topics';
-      if (hash.startsWith('admin/classes')) return 'admin_classes';
-      if (hash === 'admin') return isSuperAdmin ? 'admin_dashboard' : 'admin_classes';
+      if (hash.startsWith('admin/classes') || hash === 'admin') return 'admin_classes';
       if (hash.startsWith('classes')) return 'classes';
     }
     // 2. Dự phòng đọc từ localStorage
     const saved = storageService.getCurrentTab() as AdminTabType | null;
     if (saved === 'submissions') return 'submissions';
     if (isAdminAuthenticated) {
-      if (isSuperAdmin) {
-        if (
-          saved === 'admin_dashboard' ||
-          saved === 'admin_teachers' ||
-          saved === 'admin_users' ||
-          saved === 'admin_classes' ||
-          saved === 'admin_topics'
-        ) {
-          return saved;
-        }
-        return 'admin_dashboard';
-      }
-      if (saved === 'admin_classes' || saved === 'admin_topics') return saved;
+      if (saved === 'admin_classes' || saved === 'admin_topics' || saved === 'admin_users') return saved;
       return 'admin_classes';
     } else {
       return 'classes';
@@ -125,8 +108,6 @@ function MainApp() {
     const isTargetingAdmin =
       currentHash.startsWith('admin') ||
       currentPath.startsWith('admin') ||
-      currentTab === 'admin_dashboard' ||
-      currentTab === 'admin_teachers' ||
       currentTab === 'admin_users' ||
       currentTab === 'admin_classes' ||
       currentTab === 'admin_topics';
@@ -150,35 +131,13 @@ function MainApp() {
     }
   }, [isAdminAuthenticated, isAuthLoading, currentTab]);
 
-  // Chuyển hướng một lần sang Bảng Điều Khiển Tối Cao khi nâng cấp lên giao diện Supreme Admin mới
-  useEffect(() => {
-    if (isAuthLoading) return;
-    if (isSuperAdmin && typeof window !== 'undefined') {
-      const upgradedKey = 'faminh_supreme_ui_v2_initialized';
-      if (!localStorage.getItem(upgradedKey)) {
-        localStorage.setItem(upgradedKey, 'true');
-        setCurrentTab('admin_dashboard');
-        storageService.setCurrentTab('admin_dashboard');
-        setActiveClassId(null);
-      }
-    }
-  }, [isSuperAdmin, isAuthLoading]);
-
   // Điều hướng phân vùng & Đặt màn hình mặc định theo vai trò:
-  // - Khi Admin tối cao (ADMIN) đăng nhập: Mặc định mở tab "Tổng quan Tối cao" (admin_dashboard)
-  // - Khi Giáo viên (TEACHER) đăng nhập: Mặc định mở tab "Lớp học của tôi" (admin_classes)
+  // - Khi Giáo viên (ADMIN / TEACHER) đăng nhập: Mặc định mở tab "Quản lý Lớp học" (admin_classes)
   // - Khi Học sinh (USER): Mặc định mở tab "Lớp học của tôi" (classes)
   useEffect(() => {
     if (isAuthLoading) return;
     if (isAdminAuthenticated) {
       if (currentTab === 'classes' || currentTab === 'problems') {
-        const nextTab = isSuperAdmin ? 'admin_dashboard' : 'admin_classes';
-        setCurrentTab(nextTab);
-        storageService.setCurrentTab(nextTab);
-      } else if (
-        !isSuperAdmin &&
-        (currentTab === 'admin_dashboard' || currentTab === 'admin_teachers' || currentTab === 'admin_users')
-      ) {
         setCurrentTab('admin_classes');
         storageService.setCurrentTab('admin_classes');
       }
@@ -186,8 +145,6 @@ function MainApp() {
       storageService.setSelectedProblemId(null);
     } else {
       if (
-        currentTab === 'admin_dashboard' ||
-        currentTab === 'admin_teachers' ||
         currentTab === 'admin_classes' ||
         currentTab === 'admin_topics' ||
         currentTab === 'admin_users'
@@ -196,7 +153,7 @@ function MainApp() {
         storageService.setCurrentTab('classes');
       }
     }
-  }, [isAdminAuthenticated, isSuperAdmin, isAuthLoading, currentTab]);
+  }, [isAdminAuthenticated, isAuthLoading, currentTab]);
 
   // Đồng bộ trạng thái điều hướng vào URL Hash & localStorage để khi F5 / Reload tải lại đúng trang hiện tại
   useEffect(() => {
@@ -204,11 +161,7 @@ function MainApp() {
 
     let targetHash = '';
     if (isAdminAuthenticated) {
-      if (currentTab === 'admin_dashboard' && isSuperAdmin) {
-        targetHash = '#admin/dashboard';
-      } else if (currentTab === 'admin_teachers' && isSuperAdmin) {
-        targetHash = '#admin/teachers';
-      } else if (currentTab === 'admin_users' && isSuperAdmin) {
+      if (currentTab === 'admin_users') {
         targetHash = '#admin/users';
       } else if (currentTab === 'admin_classes') {
         targetHash = activeClassId ? `#admin/classes/${activeClassId}` : '#admin/classes';
@@ -217,7 +170,7 @@ function MainApp() {
       } else if (currentTab === 'submissions') {
         targetHash = '#submissions';
       } else {
-        targetHash = isSuperAdmin ? '#admin/dashboard' : '#admin/classes';
+        targetHash = '#admin/classes';
       }
     } else {
       if (currentTab === 'classes') {
@@ -243,7 +196,7 @@ function MainApp() {
       }
     }
     storageService.setCurrentTab(currentTab);
-  }, [currentTab, activeClassId, selectedProblem, isAdminAuthenticated, isSuperAdmin, isAuthLoading]);
+  }, [currentTab, activeClassId, selectedProblem, isAdminAuthenticated, isAuthLoading]);
 
   // Lắng nghe sự kiện hashchange khi người dùng dùng nút Back/Forward của trình duyệt
   useEffect(() => {
@@ -267,31 +220,14 @@ function MainApp() {
           return;
         }
 
-        if (hash.startsWith('admin/dashboard')) {
-          const nextTab = isSuperAdmin ? 'admin_dashboard' : 'admin_classes';
-          setCurrentTab(nextTab);
-          storageService.setCurrentTab(nextTab);
-          setActiveClassId(null);
-        } else if (hash.startsWith('admin/teachers')) {
-          const nextTab = isSuperAdmin ? 'admin_teachers' : 'admin_classes';
-          setCurrentTab(nextTab);
-          storageService.setCurrentTab(nextTab);
-          setActiveClassId(null);
-        } else if (hash.startsWith('admin/users')) {
-          const nextTab = isSuperAdmin ? 'admin_users' : 'admin_classes';
-          setCurrentTab(nextTab);
-          storageService.setCurrentTab(nextTab);
+        if (hash.startsWith('admin/users')) {
+          setCurrentTab('admin_users');
+          storageService.setCurrentTab('admin_users');
           setActiveClassId(null);
         } else if (hash.startsWith('admin/topics')) {
           setCurrentTab('admin_topics');
           storageService.setCurrentTab('admin_topics');
-        } else if (hash.startsWith('admin/classes') || hash === 'admin') {
-          if (hash === 'admin' && isSuperAdmin) {
-            setCurrentTab('admin_dashboard');
-            storageService.setCurrentTab('admin_dashboard');
-            setActiveClassId(null);
-            return;
-          }
+        } else if (hash.startsWith('admin/classes') || hash === 'admin' || hash.startsWith('admin/dashboard') || hash.startsWith('admin/teachers')) {
           setCurrentTab('admin_classes');
           storageService.setCurrentTab('admin_classes');
           const classMatch = hash.match(/^admin\/classes\/([^/?#]+)/);
@@ -326,7 +262,7 @@ function MainApp() {
 
     window.addEventListener('hashchange', handleHashChange);
     return () => window.removeEventListener('hashchange', handleHashChange);
-  }, [isAdminAuthenticated, isSuperAdmin, problems, setActiveClassId]);
+  }, [isAdminAuthenticated, problems, setActiveClassId]);
 
   // Tự động làm mới dữ liệu từ hệ thống mỗi khi người dùng chuyển trang / tab
   useEffect(() => {
@@ -378,22 +314,7 @@ function MainApp() {
           currentTab={currentTab}
           setCurrentTab={setCurrentTab}
         >
-          {/* 1. Phân vùng ADMIN TỐI CAO: Bảng Điều Khiển Tối Cao (Supreme Dashboard) */}
-          {currentTab === 'admin_dashboard' && isSuperAdmin && (
-            <SuperAdminDashboard onNavigateTab={(tab) => setCurrentTab(tab)} />
-          )}
-
-          {/* 2. Phân vùng ADMIN TỐI CAO: Quản lý Đội ngũ Giáo viên & Cấp quyền */}
-          {currentTab === 'admin_teachers' && isSuperAdmin && (
-            <UserManager mode="teachers" />
-          )}
-
-          {/* 3. Phân vùng ADMIN TỐI CAO: Quản lý Học sinh Toàn hệ thống */}
-          {currentTab === 'admin_users' && isSuperAdmin && (
-            <UserManager mode="students" />
-          )}
-
-          {/* 4. Phân vùng LỚP HỌC (Admin tối cao giám sát toàn bộ lớp / Giáo viên quản lý lớp của mình) */}
+          {/* 1. Phân vùng LỚP HỌC */}
           {currentTab === 'admin_classes' && (
             activeClassId ? (
               <TeacherClassDetail classId={activeClassId} />
@@ -402,12 +323,17 @@ function MainApp() {
             )
           )}
 
-          {/* 5. Phân vùng CHỦ ĐỀ & ĐỀ BÀI */}
+          {/* 2. Phân vùng CHỦ ĐỀ & ĐỀ BÀI */}
           {currentTab === 'admin_topics' && (
             <TopicManager />
           )}
 
-          {/* 6. Phân vùng NHẬT KÝ CHẤM BÀI / LỊCH SỬ NỘP BÀI */}
+          {/* 3. Phân vùng NGƯỜI DÙNG / HỌC SINH */}
+          {currentTab === 'admin_users' && (
+            <UserManager />
+          )}
+
+          {/* 4. Phân vùng NHẬT KÝ CHẤM BÀI / LỊCH SỬ NỘP BÀI */}
           {currentTab === 'submissions' && (
             <SubmissionHistory />
           )}
@@ -421,9 +347,7 @@ function MainApp() {
             setCurrentTab={(tab) => {
               if (isAuthLoading) return;
               if (
-                (tab === 'admin_dashboard' ||
-                  tab === 'admin_teachers' ||
-                  tab === 'admin_classes' ||
+                (tab === 'admin_classes' ||
                   tab === 'admin_topics' ||
                   tab === 'admin_users') &&
                 !isAdminAuthenticated
