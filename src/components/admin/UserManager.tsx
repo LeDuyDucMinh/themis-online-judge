@@ -47,16 +47,16 @@ export const UserManager: React.FC = () => {
     return (raw || student.username || 'Chưa cập nhật email').trim().toLowerCase();
   };
 
-  // Nhận diện tài khoản Giáo viên / Quản trị viên
+  // Nhận diện tài khoản Giáo viên / Quản trị viên (Single Source of Truth từ Supabase profiles)
   const isTeacherAccount = (student: StudentUser): boolean => {
-    const email = getDisplayEmail(student);
-    if (email === 'minh.ldd2610979@sis.hust.edu.vn' || email === 'leduyducminh@gmail.com') {
-      return true;
-    }
-    if (adminEmail && email === adminEmail.toLowerCase().trim()) {
-      return true;
-    }
     if (student.role === 'admin' || student.role === 'teacher') {
+      return true;
+    }
+    if (student.role === 'student') {
+      return false;
+    }
+    const email = getDisplayEmail(student);
+    if (adminEmail && email === adminEmail.toLowerCase().trim()) {
       return true;
     }
     const rolesMap = storageService.getUserRolesMap();

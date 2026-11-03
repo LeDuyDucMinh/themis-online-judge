@@ -599,7 +599,7 @@ export const apiService = {
                 username: email,
                 email,
                 password: prev?.password || '',
-                role: rolesMap[email] || p.role || prev?.role || 'student',
+                role: p.role ? ((p.role === 'admin' || p.role === 'teacher') ? p.role : 'student') : (rolesMap[email] || prev?.role || 'student'),
                 createdAt: prev?.createdAt || p.created_at || new Date().toISOString(),
               });
             });

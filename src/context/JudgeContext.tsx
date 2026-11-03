@@ -231,7 +231,7 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     if (!storageService.isAdminSessionActive()) return 'USER';
     const savedEmail = (storageService.getAdminEmail() || '').trim().toLowerCase();
     const rolesMap = storageService.getUserRolesMap();
-    if (savedEmail === 'minh.ldd2610979@sis.hust.edu.vn' || rolesMap[savedEmail] === 'admin') {
+    if (rolesMap[savedEmail] === 'admin') {
       return 'ADMIN';
     }
     return 'TEACHER';
@@ -1520,7 +1520,7 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     const targetUser = students.find(
       (s) => (userId && s.id === userId) || (cleanEmail && (s.email?.toLowerCase() === cleanEmail || s.username?.toLowerCase() === cleanEmail))
     );
-    if (cleanEmail === 'minh.ldd2610979@sis.hust.edu.vn' || targetUser?.role === 'admin') {
+    if (targetUser?.role === 'admin') {
       showToast('Được bảo vệ cấp hệ thống', 'Không thể thay đổi quyền của Admin tối cao trên giao diện web. Vui lòng chỉnh sửa trực tiếp trong Supabase nếu cần.', 'warning');
       return;
     }
@@ -1556,10 +1556,9 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
     if (
       studentToDelete?.role === 'admin' ||
-      studentToDelete?.email?.toLowerCase() === 'minh.ldd2610979@sis.hust.edu.vn' ||
-      studentToDelete?.username?.toLowerCase() === 'minh.ldd2610979@sis.hust.edu.vn'
+      (adminEmail && studentToDelete?.email?.toLowerCase() === adminEmail.toLowerCase())
     ) {
-      showToast('Được bảo vệ cấp hệ thống', 'Không thể xóa tài khoản Admin tối cao trên web!', 'error');
+      showToast('Được bảo vệ cấp hệ thống', 'Không thể xóa tài khoản Quản trị viên đang đăng nhập trên web!', 'error');
       return;
     }
 

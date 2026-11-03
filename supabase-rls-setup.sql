@@ -30,7 +30,6 @@ SELECT
     split_part(u.email, '@', 1)
   ),
   CASE
-    WHEN LOWER(TRIM(u.email)) = 'minh.ldd2610979@sis.hust.edu.vn' THEN 'admin'
     WHEN LOWER(TRIM(u.email)) = 'leduyducminh@gmail.com' THEN 'teacher'
     ELSE 'student'
   END
@@ -38,10 +37,6 @@ FROM auth.users u
 WHERE u.email IS NOT NULL
 ON CONFLICT (id) DO UPDATE
 SET email = COALESCE(public.profiles.email, EXCLUDED.email);
-
--- Đảm bảo phân quyền chuẩn cho Admin tối cao và Giáo viên hiện tại
-UPDATE public.profiles SET role = 'admin' WHERE LOWER(TRIM(email)) = 'minh.ldd2610979@sis.hust.edu.vn';
-UPDATE public.profiles SET role = 'teacher' WHERE LOWER(TRIM(email)) = 'leduyducminh@gmail.com' AND LOWER(TRIM(role)) = 'admin';
 
 -- 2. HÀM KIỂM TRA QUYỀN ADMIN TỐI CAO & GIÁO VIÊN (SECURITY DEFINER)
 CREATE OR REPLACE FUNCTION public.is_super_admin()
@@ -124,7 +119,6 @@ BEGIN
         split_part(NEW.email, '@', 1)
       ),
       CASE
-        WHEN LOWER(TRIM(NEW.email)) = 'minh.ldd2610979@sis.hust.edu.vn' THEN 'admin'
         WHEN LOWER(TRIM(NEW.email)) = 'leduyducminh@gmail.com' THEN 'teacher'
         ELSE 'student'
       END
@@ -139,7 +133,6 @@ BEGIN
         NEW.id,
         LOWER(TRIM(NEW.email)),
         CASE
-          WHEN LOWER(TRIM(NEW.email)) = 'minh.ldd2610979@sis.hust.edu.vn' THEN 'admin'
           WHEN LOWER(TRIM(NEW.email)) = 'leduyducminh@gmail.com' THEN 'teacher'
           ELSE 'student'
         END

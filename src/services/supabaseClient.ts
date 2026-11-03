@@ -162,26 +162,8 @@ export async function fetchUserRoleFromSupabase(
           (cleanEmail && p.email && String(p.email).trim().toLowerCase() === cleanEmail)
       );
 
-      // Kiểm tra xem trên bảng profiles đã có ít nhất 1 tài khoản role = 'admin' nào chưa
-      const hasAdminInProfiles = allProfiles.some(
-        (p) => normalizeRoleValue(p.role) === 'admin'
-      );
-
       if (matchedProfile && matchedProfile.role) {
-        let resolvedRole = normalizeRoleValue(matchedProfile.role);
-
-        // Nếu trong bảng profiles chưa có bất kỳ admin nào (ví dụ admin gốc chưa được đồng bộ dòng vào profiles
-        // hoặc người dùng vô tình xóa hết admin khiến hệ thống mất admin duy nhất),
-        // tự động bảo vệ quyền admin cho minh.ldd2610979@sis.hust.edu.vn
-        if (!hasAdminInProfiles && cleanEmail === 'minh.ldd2610979@sis.hust.edu.vn') {
-          resolvedRole = 'admin';
-          supabase
-            .from('profiles')
-            .update({ role: 'admin' })
-            .eq('id', matchedProfile.id)
-            .then(() => {});
-        }
-
+        const resolvedRole = normalizeRoleValue(matchedProfile.role);
         return {
           role: resolvedRole,
           rawRole: matchedProfile.role,

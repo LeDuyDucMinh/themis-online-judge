@@ -25,7 +25,6 @@ BEGIN
         split_part(NEW.email, '@', 1)
       ),
       CASE
-        WHEN LOWER(TRIM(NEW.email)) = 'minh.ldd2610979@sis.hust.edu.vn' THEN 'admin'
         WHEN LOWER(TRIM(NEW.email)) = 'leduyducminh@gmail.com' THEN 'teacher'
         ELSE 'student'
       END
@@ -40,7 +39,6 @@ BEGIN
         NEW.id,
         LOWER(TRIM(NEW.email)),
         CASE
-          WHEN LOWER(TRIM(NEW.email)) = 'minh.ldd2610979@sis.hust.edu.vn' THEN 'admin'
           WHEN LOWER(TRIM(NEW.email)) = 'leduyducminh@gmail.com' THEN 'teacher'
           ELSE 'student'
         END

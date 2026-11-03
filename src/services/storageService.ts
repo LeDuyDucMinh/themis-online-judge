@@ -377,36 +377,21 @@ export const storageService = {
   },
 
   getUserRolesMap(): Record<string, AccountRole> {
-    const defaultRoles: Record<string, AccountRole> = {
-      'minh.ldd2610979@sis.hust.edu.vn': 'admin',
-      'leduyducminh@gmail.com': 'teacher',
-    };
     try {
       const raw = localStorage.getItem(STORAGE_KEYS.USER_ROLES_MAP);
       if (raw) {
         const parsed = JSON.parse(raw);
         if (parsed && typeof parsed === 'object') {
-          const merged: Record<string, AccountRole> = { ...defaultRoles, ...parsed };
-          // Bảo đảm hệ thống luôn có ít nhất 1 Admin tối cao
-          const hasAnyAdmin = Object.values(merged).some((r) => r === 'admin');
-          if (!hasAnyAdmin) {
-            merged['minh.ldd2610979@sis.hust.edu.vn'] = 'admin';
-          }
-          return merged;
+          return parsed;
         }
       }
     } catch {}
-    return defaultRoles;
+    return {};
   },
 
   saveUserRolesMap(map: Record<string, AccountRole>): void {
     try {
-      const copy: Record<string, AccountRole> = { ...map };
-      const hasAnyAdmin = Object.values(copy).some((r) => r === 'admin');
-      if (!hasAnyAdmin) {
-        copy['minh.ldd2610979@sis.hust.edu.vn'] = 'admin';
-      }
-      localStorage.setItem(STORAGE_KEYS.USER_ROLES_MAP, JSON.stringify(copy));
+      localStorage.setItem(STORAGE_KEYS.USER_ROLES_MAP, JSON.stringify(map));
     } catch {}
   },
 
