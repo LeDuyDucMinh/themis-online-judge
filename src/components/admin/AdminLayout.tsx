@@ -182,14 +182,11 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
         {/* Phần Logo Header của FAMINH Admin */}
         <div className="flex flex-col min-h-0">
           <div className="flex items-center gap-3.5 px-2 pb-6 border-b border-white/15">
-            <div className="w-10 h-10 rounded-2xl bg-white p-1.5 flex items-center justify-center shrink-0 shadow-md">
+            <div className="w-11 h-11 rounded-2xl bg-white p-1.5 flex items-center justify-center shrink-0 shadow-md">
               <img
-                src="/logo.png"
+                src="/faminh-logo.jpg"
                 alt="FAMiNH"
-                className="w-full h-full object-contain"
-                onError={(e) => {
-                  (e.target as HTMLElement).style.display = 'none';
-                }}
+                className="w-full h-full object-cover rounded-xl"
               />
             </div>
             <div className="min-w-0">
