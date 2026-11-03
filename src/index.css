@@ -1,6 +1,7 @@
 @import "tailwindcss";
 @custom-variant dark (&:where(.dark, .dark *));
 @import "katex/dist/katex.min.css";
+@import "./tokens.css";
 
 /* ====================================================
    DESIGN TOKENS — FAMINH JUDGE
@@ -99,24 +100,24 @@ aside nav::-webkit-scrollbar-thumb,
   transition: background-color 0.3s ease;
 }
 
-/* Khi đang cuộn hoặc khi người dùng hover vào menu thanh đỏ */
+/* Khi đang cuộn hoặc khi người dùng hover vào menu thanh bên */
 aside nav:hover,
 aside nav.is-scrolling,
 .sidebar-scrollbar:hover,
 .sidebar-scrollbar.is-scrolling {
-  scrollbar-color: rgba(255, 255, 255, 0.35) transparent;
+  scrollbar-color: rgba(120, 113, 108, 0.35) transparent;
 }
 
 aside nav:hover::-webkit-scrollbar-thumb,
 aside nav.is-scrolling::-webkit-scrollbar-thumb,
 .sidebar-scrollbar:hover::-webkit-scrollbar-thumb,
 .sidebar-scrollbar.is-scrolling::-webkit-scrollbar-thumb {
-  background-color: rgba(255, 255, 255, 0.35);
+  background-color: rgba(120, 113, 108, 0.35);
 }
 
 aside nav::-webkit-scrollbar-thumb:hover,
 .sidebar-scrollbar::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(255, 255, 255, 0.6) !important;
+  background-color: rgba(120, 113, 108, 0.55) !important;
 }
 
 /* Themis-style monospace typography */
@@ -135,25 +136,25 @@ html[data-theme="light"] {
 
 /* Nền toàn trang & màu chữ tổng thể */
 html.light body,
-html.light div.min-h-screen {
+html.light div.min-h-screen:not([data-studio-shell]) {
   background-color: #f8fafc !important;
   color: #0f172a !important;
 }
 
 /* Header & Navbar */
-html.light header {
+html.light header:not([data-studio-header]) {
   background-color: #ffffff !important;
   border-color: #e2e8f0 !important;
   color: #0f172a !important;
   box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05) !important;
 }
 
-html.light header .text-slate-400 {
+html.light header:not([data-studio-header]) .text-slate-400 {
   color: #64748b !important;
 }
 
-html.light header .bg-slate-800\/80,
-html.light header .bg-slate-800 {
+html.light header:not([data-studio-header]) .bg-slate-800\/80,
+html.light header:not([data-studio-header]) .bg-slate-800 {
   background-color: #f1f5f9 !important;
   border-color: #e2e8f0 !important;
 }
@@ -166,16 +167,6 @@ html.light h4,
 html.light h5,
 html.light h6 {
   color: #0f172a;
-}
-
-/* Đảm bảo tiêu đề trong aside thanh đỏ quản trị luôn là màu trắng */
-html.light aside h1,
-html.light aside h2,
-html.light aside h3,
-html[data-theme="light"] aside h1,
-html[data-theme="light"] aside h2,
-html[data-theme="light"] aside h3 {
-  color: #ffffff !important;
 }
 
 /* Card chính, Bảng, Hộp nội dung (bg-slate-900 -> Nền trắng với bóng nhẹ) */
