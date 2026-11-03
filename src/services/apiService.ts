@@ -563,36 +563,32 @@ export const apiService = {
           }
         }
 
-        const userMap = new Map<string, StudentUser>();
-        parsed
-          .filter((s: any) => {
-            if (!s || !s.username) return false;
-            return Boolean(
-              (s.email && s.email.includes('@')) ||
-              (s.username && s.username.includes('@'))
-            );
-          })
-          .forEach((s: any) => {
-            const email = (s.email || (s.username && s.username.includes('@') ? s.username : '')).trim().toLowerCase();
-            if (!email) return;
-            userMap.set(email, {
-              id: s.id || `student_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-              fullName: s.fullName || s.username || 'Học sinh',
-              username: email,
-              email,
-              password: s.password || '',
-              role: rolesMap[email] || s.role || 'student',
-              createdAt: s.createdAt || new Date().toISOString(),
+        const parsedMap = new Map<string, any>();
+        if (Array.isArray(parsed)) {
+          parsed
+            .filter((s: any) => {
+              if (!s || !s.username) return false;
+              return Boolean(
+                (s.email && s.email.includes('@')) ||
+                (s.username && s.username.includes('@'))
+              );
+            })
+            .forEach((s: any) => {
+              const email = (s.email || (s.username && s.username.includes('@') ? s.username : '')).trim().toLowerCase();
+              if (email) parsedMap.set(email, s);
             });
-          });
+        }
+
+        const userMap = new Map<string, StudentUser>();
 
         if (profilesRes && profilesRes.ok) {
           const profileRows = await profilesRes.json();
           if (Array.isArray(profileRows)) {
+            // Nguồn chân lý tối cao: Chỉ những tài khoản đã có trong bảng profiles (đã xác thực) mới được đưa vào hệ thống
             profileRows.forEach((p: any) => {
               const email = (p.email || '').trim().toLowerCase();
               if (!email || !email.includes('@')) return;
-              const prev = userMap.get(email);
+              const prev = parsedMap.get(email);
               userMap.set(email, {
                 id: p.id || prev?.id || `student_${Date.now()}`,
                 fullName:
@@ -608,6 +604,19 @@ export const apiService = {
               });
             });
           }
+        } else {
+          // Dự phòng khi bảng profiles không truy cập được (mạng offline hoặc lỗi kết nối): dùng __system_students__
+          parsedMap.forEach((s: any, email: string) => {
+            userMap.set(email, {
+              id: s.id || `student_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+              fullName: s.fullName || s.username || 'Học sinh',
+              username: email,
+              email,
+              password: s.password || '',
+              role: rolesMap[email] || s.role || 'student',
+              createdAt: s.createdAt || new Date().toISOString(),
+            });
+          });
         }
 
         return Array.from(userMap.values());
@@ -627,8 +636,6 @@ export const apiService = {
     if (cloudStudents === null) return null;
 
     const rolesMap = storageService.getUserRolesMap();
-    // Hợp nhất an toàn: Không làm mất học sinh cục bộ còn đang hoạt động
-    const localList = storageService.getStudents();
     const studentMap = new Map<string, StudentUser>();
 
     const getEmailKey = (s: StudentUser) => {
@@ -662,10 +669,14 @@ export const apiService = {
       const hasEmail = Boolean((s.email && s.email.includes('@')) || (s.username && s.username.includes('@')));
       if (hasEmail) upsertStudent(s);
     });
-    localList.forEach((s) => {
-      const hasEmail = Boolean((s.email && s.email.includes('@')) || (s.username && s.username.includes('@')));
-      if (hasEmail) upsertStudent(s);
-    });
+    // Chỉ giữ thêm phiên đăng nhập hiện tại nếu đang làm việc offline mà chưa kịp sync
+    const curSession = storageService.getStudentSession();
+    if (curSession && curSession.email) {
+      const k = getEmailKey(curSession);
+      if (k && !studentMap.has(k)) {
+        upsertStudent(curSession);
+      }
+    }
     const mergedList = Array.from(studentMap.values());
     storageService.saveStudents(mergedList);
     return mergedList;
@@ -761,7 +772,28 @@ export const apiService = {
     if (finalList.length === 0 && removeIds.length === 0) return finalList;
 
     try {
-      const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/classrooms?on_conflict=id`;
+      const baseUrl = ENV.SUPABASE_URL.replace(/\/+$/, '');
+      const authHeaders = this.getAntiCacheHeaders();
+
+      // Nếu có danh sách cần xóa, đồng bộ xóa cả trên bảng public.profiles
+      if (removeIds.length > 0) {
+        for (const remId of removeIds) {
+          const clean = remId.trim().toLowerCase();
+          if (clean.includes('@')) {
+            fetch(`${baseUrl}/rest/v1/profiles?email=eq.${encodeURIComponent(clean)}`, {
+              method: 'DELETE',
+              headers: authHeaders,
+            }).catch(() => {});
+          } else if (clean.includes('-')) {
+            fetch(`${baseUrl}/rest/v1/profiles?id=eq.${encodeURIComponent(clean)}`, {
+              method: 'DELETE',
+              headers: authHeaders,
+            }).catch(() => {});
+          }
+        }
+      }
+
+      const targetUrl = `${baseUrl}/rest/v1/classrooms?on_conflict=id`;
       const res = await fetch(targetUrl, {
         method: 'POST',
         headers: {

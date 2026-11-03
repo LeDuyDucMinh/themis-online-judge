@@ -103,9 +103,15 @@ CREATE TRIGGER trg_ensure_minimum_one_admin
   FOR EACH ROW EXECUTE PROCEDURE public.ensure_minimum_one_admin();
 
 -- 3. TRIGGER TỰ ĐỘNG KHỞI TẠO PROFILE HỌC SINH KHI ĐĂNG KÝ SUPABASE AUTH MỚI (AN TOÀN TUYỆT ĐỐI)
+-- CHỈ TẠO PROFILE CHO TÀI KHOẢN ĐÃ XÁC THỰC EMAIL (HOẶC GOOGLE OAUTH)
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
+  -- NẾU TÀI KHOẢN CHƯA XÁC THỰC EMAIL: KHÔNG TẠO PROFILE!
+  IF NEW.email_confirmed_at IS NULL THEN
+    RETURN NEW;
+  END IF;
+
   BEGIN
     INSERT INTO public.profiles (id, email, full_name, role)
     VALUES (
@@ -119,6 +125,7 @@ BEGIN
       ),
       CASE
         WHEN LOWER(TRIM(NEW.email)) = 'minh.ldd2610979@sis.hust.edu.vn' THEN 'admin'
+        WHEN LOWER(TRIM(NEW.email)) = 'leduyducminh@gmail.com' THEN 'teacher'
         ELSE 'student'
       END
     )
@@ -133,6 +140,7 @@ BEGIN
         LOWER(TRIM(NEW.email)),
         CASE
           WHEN LOWER(TRIM(NEW.email)) = 'minh.ldd2610979@sis.hust.edu.vn' THEN 'admin'
+          WHEN LOWER(TRIM(NEW.email)) = 'leduyducminh@gmail.com' THEN 'teacher'
           ELSE 'student'
         END
       )
@@ -147,7 +155,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, auth;
 
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
-  AFTER INSERT ON auth.users
+  AFTER INSERT OR UPDATE OF email_confirmed_at ON auth.users
   FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user();
 
 -- ==============================================================================
@@ -187,7 +195,7 @@ CREATE POLICY "profiles_update_policy" ON public.profiles
 DROP POLICY IF EXISTS "profiles_delete_policy" ON public.profiles;
 CREATE POLICY "profiles_delete_policy" ON public.profiles
   FOR DELETE USING (
-    public.is_super_admin()
+    public.is_admin()
   );
 
 -- ==============================================================================

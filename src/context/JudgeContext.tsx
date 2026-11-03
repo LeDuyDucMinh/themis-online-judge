@@ -1571,6 +1571,12 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     // 1. Xóa khỏi danh sách học sinh & xóa tên tuỳ chỉnh
     storageService.deleteStudent(stuId, stuUsername, stuEmail);
     storageService.removeStudentCustomName(stuId, stuEmail || stuUsername);
+    if (stuId && stuId.includes('-')) {
+      Promise.resolve(supabase.from('profiles').delete().eq('id', stuId)).catch(() => {});
+    }
+    if (stuEmail) {
+      Promise.resolve(supabase.from('profiles').delete().eq('email', stuEmail.toLowerCase().trim())).catch(() => {});
+    }
     try {
       const removeIds = [stuId];
       if (stuUsername) removeIds.push(stuUsername);
