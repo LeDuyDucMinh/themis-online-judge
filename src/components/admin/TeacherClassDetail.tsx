@@ -4,6 +4,7 @@ import { isProblemInClass } from '../../types/judge';
 import { storageService } from '../../services/storageService';
 import { AdminDashboard } from './AdminDashboard';
 import { TopicManager } from './TopicManager';
+import { ClassLeaderboard } from '../common/ClassLeaderboard';
 import {
   ArrowLeft,
   GraduationCap,
@@ -20,6 +21,7 @@ import {
   ListTree,
   Mail,
   UserMinus,
+  Trophy,
 } from 'lucide-react';
 
 interface TeacherClassDetailProps {
@@ -52,10 +54,10 @@ export const TeacherClassDetail: React.FC<TeacherClassDetailProps> = ({ classId 
     return () => clearInterval(timer);
   }, [classId]);
 
-  const [activeTab, setActiveTabState] = useState<'assignments' | 'topics' | 'students'>(() => {
+  const [activeTab, setActiveTabState] = useState<'assignments' | 'topics' | 'students' | 'leaderboard'>(() => {
     return (storageService.getTeacherClassTab() as any) || 'assignments';
   });
-  const setActiveTab = (tab: 'assignments' | 'topics' | 'students') => {
+  const setActiveTab = (tab: 'assignments' | 'topics' | 'students' | 'leaderboard') => {
     setActiveTabState(tab);
     storageService.setTeacherClassTab(tab);
   };
@@ -264,6 +266,18 @@ export const TeacherClassDetail: React.FC<TeacherClassDetailProps> = ({ classId 
             </span>
           )}
         </button>
+
+        <button
+          onClick={() => setActiveTab('leaderboard')}
+          className={`pb-2.5 px-4 text-xs font-bold flex items-center gap-2 border-b-2 transition-colors cursor-pointer ${
+            activeTab === 'leaderboard'
+              ? 'border-[#c51f26] text-[#c51f26] dark:text-red-400'
+              : 'border-transparent text-stone-500 hover:text-stone-900 dark:hover:text-white'
+          }`}
+        >
+          <Trophy className="w-4 h-4 text-amber-500" />
+          <span>Bảng xếp hạng</span>
+        </button>
       </div>
 
       {/* Tab 1: Bài tập (Assignments) */}
@@ -283,6 +297,9 @@ export const TeacherClassDetail: React.FC<TeacherClassDetailProps> = ({ classId 
       {/* Tab 3: Danh sách Học sinh (Students) */}
       {activeTab === 'students' && (
         <div className="space-y-5 animate-in fade-in duration-150">
+          {/* Bảng Xếp Hạng Lớp Học tích hợp ngay trong tab Học sinh */}
+          <ClassLeaderboard classId={classId} />
+
           {/* Hộp duyệt học sinh chờ tham gia lớp học */}
           {pendingStudents.length > 0 && (
             <div className={`p-5 rounded-2xl border-2 space-y-3 ${
@@ -471,6 +488,13 @@ export const TeacherClassDetail: React.FC<TeacherClassDetailProps> = ({ classId 
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+
+      {/* Tab 4: Bảng Xếp Hạng Lớp Học (Leaderboard) */}
+      {activeTab === 'leaderboard' && (
+        <div className="animate-in fade-in duration-150">
+          <ClassLeaderboard classId={classId} />
         </div>
       )}
 

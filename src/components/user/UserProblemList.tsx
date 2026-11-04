@@ -3,6 +3,7 @@ import { useJudge } from '../../context/JudgeContext';
 import type { Problem } from '../../types/judge';
 import { isProblemInClass, isResourceOwnedByTeacher } from '../../types/judge';
 import { storageService } from '../../services/storageService';
+import { ClassLeaderboard } from '../common/ClassLeaderboard';
 import {
   CheckCircle2,
   Clock,
@@ -580,6 +581,9 @@ export const UserProblemList: React.FC<UserProblemListProps> = ({ onSelectProble
           <span className="text-xs font-black text-stone-700 dark:text-stone-300 mt-2 tracking-widest uppercase">FAMINH</span>
         </div>
       </div>
+
+      {/* Bảng Xếp Hạng Trong Lớp Học (Class-Specific Leaderboard) */}
+      {activeClassId && <ClassLeaderboard classId={activeClassId} />}
 
       {/* Danh Sách Các Ô Chủ Đề Bài Tập (nếu lớp có chủ đề) */}
       {visibleTopics.length > 0 && (

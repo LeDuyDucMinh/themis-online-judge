@@ -592,7 +592,7 @@ export const apiService = {
               userMap.set(email, {
                 id: p.id || prev?.id || `student_${Date.now()}`,
                 fullName:
-                  (p.full_name && p.full_name.trim() && p.full_name !== 'Học sinh' ? p.full_name.trim() : null) ||
+                  (prev?.fullName && prev.fullName.trim() && prev.fullName !== 'Học sinh' ? prev.fullName.trim() : null) || (p.full_name && p.full_name.trim() && p.full_name !== 'Học sinh' ? p.full_name.trim() : null) ||
                   (prev?.fullName && prev.fullName.trim() && prev.fullName !== 'Học sinh' ? prev.fullName.trim() : null) ||
                   p.full_name ||
                   email.split('@')[0],
@@ -1423,6 +1423,43 @@ export const apiService = {
   /**
    * Lấy chi tiết một bài nộp (bao gồm đầy đủ test_results) khi người dùng mở xem chi tiết
    */
+  async fetchClassAcSubmissions(classId: string): Promise<Array<{
+    id: string;
+    problemId: string;
+    problemCode: string;
+    userId: string;
+    userName: string;
+    classId: string;
+    verdict: string;
+    submittedAt: string;
+  }> | null> {
+    if (!classId || !isSupabaseConfigured()) return null;
+    try {
+      const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/submissions?select=id,problem_id,problem_code,user_id,user_name,class_id,verdict,submitted_at&class_id=eq.${encodeURIComponent(classId)}&verdict=eq.AC&order=submitted_at.asc`;
+      const res = await fetch(targetUrl, {
+        method: 'GET',
+        headers: this.getAntiCacheHeaders(),
+        cache: 'no-store',
+      });
+      if (!res.ok) return null;
+      const rows = await res.json();
+      if (!Array.isArray(rows)) return null;
+      return rows.map((r: any) => ({
+        id: String(r.id || ''),
+        problemId: String(r.problem_id || ''),
+        problemCode: String(r.problem_code || ''),
+        userId: String(r.user_id || ''),
+        userName: String(r.user_name || ''),
+        classId: String(r.class_id || ''),
+        verdict: String(r.verdict || ''),
+        submittedAt: String(r.submitted_at || ''),
+      }));
+    } catch (err) {
+      console.warn('[apiService] Lỗi truy vấn SELECT bảng xếp hạng lớp học:', err);
+      return null;
+    }
+  },
+
   async fetchSubmissionById(id: string): Promise<Submission | null> {
     if (!id) return null;
     if (isSupabaseConfigured()) {
