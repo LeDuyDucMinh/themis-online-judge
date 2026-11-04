@@ -1453,13 +1453,7 @@ export function resolveStudentFullName(
   userEmail?: string | null,
   fallbackFromOAuth?: string | null
 ): string {
-  // 1. Kiểm tra bảng tên tùy chỉnh bền vững (không bao giờ bị reset khi logout/login)
-  const customName = storageService.getStudentCustomName(userId, userEmail);
-  if (customName && customName.trim()) {
-    return customName.trim();
-  }
-
-  // 2. Kiểm tra trong danh sách học sinh lưu trữ cục bộ (students)
+  // 1. Kiểm tra trong danh sách học sinh lưu trữ từ Cloud (students)
   const localStudents = storageService.getStudents();
   const foundStu = localStudents.find((s) => {
     const matchId = Boolean(userId && s.id === userId);
@@ -1470,6 +1464,12 @@ export function resolveStudentFullName(
   if (foundStu?.fullName && foundStu.fullName !== 'Học sinh' && foundStu.fullName.trim()) {
     storageService.setStudentCustomName(userId, userEmail, foundStu.fullName.trim());
     return foundStu.fullName.trim();
+  }
+
+  // 2. Kiểm tra bảng tên tùy chỉnh bền vững (nếu danh sách chưa tải kịp)
+  const customName = storageService.getStudentCustomName(userId, userEmail);
+  if (customName && customName.trim() && customName !== 'Học sinh') {
+    return customName.trim();
   }
 
   // 3. Kiểm tra trong danh sách quan hệ lớp học (class_students)

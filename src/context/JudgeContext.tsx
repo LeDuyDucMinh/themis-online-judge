@@ -1414,6 +1414,12 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         apiService.saveClassStudents(updatedClassStudents),
         apiService.updateSubmissionsUserName(student.id, student.username, student.email, cleanName),
         supabase.auth.updateUser({ data: { custom_full_name: cleanName, full_name: cleanName, name: cleanName } }).catch(() => {}),
+        student.id && student.id.includes('-')
+          ? Promise.resolve(supabase.from('profiles').update({ full_name: cleanName }).eq('id', student.id)).catch(() => {})
+          : Promise.resolve(),
+        student.email
+          ? Promise.resolve(supabase.from('profiles').update({ full_name: cleanName }).eq('email', student.email.toLowerCase().trim())).catch(() => {})
+          : Promise.resolve(),
       ]);
     } catch (e) {
       console.warn('[JudgeContext] Lỗi đồng bộ đổi tên lên Cloud:', e);

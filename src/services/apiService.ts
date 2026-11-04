@@ -592,9 +592,9 @@ export const apiService = {
               userMap.set(email, {
                 id: p.id || prev?.id || `student_${Date.now()}`,
                 fullName:
-                  (prev?.fullName && prev.fullName !== 'Học sinh' ? prev.fullName : null) ||
+                  (p.full_name && p.full_name.trim() && p.full_name !== 'Học sinh' ? p.full_name.trim() : null) ||
+                  (prev?.fullName && prev.fullName.trim() && prev.fullName !== 'Học sinh' ? prev.fullName.trim() : null) ||
                   p.full_name ||
-                  prev?.fullName ||
                   email.split('@')[0],
                 username: email,
                 email,
@@ -749,7 +749,10 @@ export const apiService = {
       if (k && !isToRemove(s)) {
         const prev = merged.get(k);
         const customName = storageService.getStudentCustomName(s.id, s.email || s.username) || storageService.getStudentCustomName(prev?.id, prev?.email || prev?.username);
-        const chosenFullName = customName || (s.fullName && s.fullName !== 'Học sinh' ? s.fullName : (prev?.fullName || s.fullName || 'Học sinh'));
+        const chosenFullName =
+          (s.fullName && s.fullName.trim() && s.fullName !== 'Học sinh')
+            ? s.fullName.trim()
+            : ((customName && customName !== 'Học sinh') ? customName : (prev?.fullName || s.fullName || 'Học sinh'));
         const resolvedRole = rolesMap[k] || s.role || prev?.role || 'student';
         merged.set(k, {
           ...prev,

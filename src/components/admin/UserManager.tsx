@@ -31,13 +31,13 @@ export const UserManager: React.FC = () => {
     return storageService.getClassStudents();
   }, [students, classes]);
 
-  // Lấy tên hiển thị hiện tại của người dùng (ưu tiên tên tuỳ chỉnh mới nhất)
+  // Lấy tên hiển thị hiện tại của người dùng (ưu tiên tên mới nhất từ Cloud)
   const getDisplayName = (student: StudentUser): string => {
-    const custom = storageService.getStudentCustomName(student.id, student.email || student.username);
-    if (custom && custom.trim()) return custom.trim();
     if (student.fullName && student.fullName.trim() && student.fullName !== 'Học sinh') {
       return student.fullName.trim();
     }
+    const custom = storageService.getStudentCustomName(student.id, student.email || student.username);
+    if (custom && custom.trim() && custom !== 'Học sinh') return custom.trim();
     return student.username || 'Chưa đặt tên';
   };
 
