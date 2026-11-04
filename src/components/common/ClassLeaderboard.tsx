@@ -6,6 +6,8 @@ import { Trophy, Medal, CheckCircle2, Sparkles } from 'lucide-react';
 
 interface ClassLeaderboardProps {
   classId: string;
+  hideSubtitle?: boolean;
+  hideCountBadge?: boolean;
 }
 
 interface LeaderboardEntry {
@@ -18,7 +20,11 @@ interface LeaderboardEntry {
   isCurrentUser: boolean;
 }
 
-export const ClassLeaderboard: React.FC<ClassLeaderboardProps> = ({ classId }) => {
+export const ClassLeaderboard: React.FC<ClassLeaderboardProps> = ({
+  classId,
+  hideSubtitle,
+  hideCountBadge,
+}) => {
   const {
     classes,
     topics,
@@ -27,8 +33,12 @@ export const ClassLeaderboard: React.FC<ClassLeaderboardProps> = ({ classId }) =
     students,
     getStudentsInClass,
     currentStudent,
+    isAdminAuthenticated,
     theme,
   } = useJudge();
+
+  const showSubtitle = hideSubtitle !== undefined ? !hideSubtitle : isAdminAuthenticated;
+  const showCountBadge = hideCountBadge !== undefined ? !hideCountBadge : isAdminAuthenticated;
 
   const [cloudAcSubs, setCloudAcSubs] = useState<Array<{
     id: string;
@@ -399,23 +409,27 @@ export const ClassLeaderboard: React.FC<ClassLeaderboardProps> = ({ classId }) =
                 </span>
               )}
             </div>
-            <p className={`text-xs mt-0.5 ${theme === 'light' ? 'text-stone-500' : 'text-stone-400'}`}>
-              Xếp hạng theo số bài giải đúng 100% (Full AC) trong lớp • Không tính trùng bài nộp lại
-            </p>
+            {showSubtitle && (
+              <p className={`text-xs mt-0.5 ${theme === 'light' ? 'text-stone-500' : 'text-stone-400'}`}>
+                Xếp hạng theo số bài giải đúng 100% (Full AC) trong lớp • Không tính trùng bài nộp lại
+              </p>
+            )}
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <span
-            className={`text-xs font-mono font-bold px-3 py-1.5 rounded-xl border ${
-              theme === 'light'
-                ? 'bg-stone-50 border-stone-200 text-stone-700'
-                : 'bg-stone-900 border-stone-800 text-stone-300'
-            }`}
-          >
-            {leaderboardEntries.length} học sinh đạt AC
-          </span>
-        </div>
+        {showCountBadge && (
+          <div className="flex items-center gap-2">
+            <span
+              className={`text-xs font-mono font-bold px-3 py-1.5 rounded-xl border ${
+                theme === 'light'
+                  ? 'bg-stone-50 border-stone-200 text-stone-700'
+                  : 'bg-stone-900 border-stone-800 text-stone-300'
+              }`}
+            >
+              {leaderboardEntries.length} học sinh đạt AC
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Nội dung Bảng Xếp Hạng */}
@@ -569,3 +583,4 @@ export const ClassLeaderboard: React.FC<ClassLeaderboardProps> = ({ classId }) =
     </div>
   );
 };
+

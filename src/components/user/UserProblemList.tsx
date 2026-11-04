@@ -583,7 +583,13 @@ export const UserProblemList: React.FC<UserProblemListProps> = ({ onSelectProble
       </div>
 
       {/* Bảng Xếp Hạng Trong Lớp Học (Class-Specific Leaderboard) */}
-      {activeClassId && <ClassLeaderboard classId={activeClassId} />}
+      {activeClassId && (
+        <ClassLeaderboard
+          classId={activeClassId}
+          hideSubtitle={true}
+          hideCountBadge={true}
+        />
+      )}
 
       {/* Danh Sách Các Ô Chủ Đề Bài Tập (nếu lớp có chủ đề) */}
       {visibleTopics.length > 0 && (
