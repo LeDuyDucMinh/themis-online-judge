@@ -493,7 +493,104 @@ export const apiService = {
   /**
    * Lưu liên kết Học sinh - Lớp học lên Supabase Cloud
    */
-  async saveClassStudents(list: ClassStudent[]): Promise<void> {
+  async fetchRawCloudClassStudents(): Promise<ClassStudent[] | null> {
+    if (!isSupabaseConfigured()) return null;
+    try {
+      const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/classrooms?id=eq.__system_class_students__&select=description`;
+      const res = await fetch(targetUrl, {
+        headers: this.getAntiCacheHeaders(),
+        cache: 'no-store',
+      });
+      if (!res.ok) return null;
+      const rows = await res.json();
+      if (Array.isArray(rows) && rows.length > 0 && rows[0].description) {
+        const parsed = JSON.parse(rows[0].description);
+        if (Array.isArray(parsed)) return parsed;
+      }
+      return [];
+    } catch (e) {
+      console.warn('[apiService] fetchRawCloudClassStudents warn:', e);
+      return null;
+    }
+  },
+
+  async saveClassStudents(list: ClassStudent[], options?: { replace?: boolean }): Promise<void> {
+    let finalList = Array.isArray(list) ? [...list] : [];
+
+    if (isSupabaseConfigured() && !options?.replace) {
+      const cloudList = await this.fetchRawCloudClassStudents();
+      if (cloudList && cloudList.length > 0) {
+        const merged: ClassStudent[] = [...cloudList];
+        const isSameRelation = (a: ClassStudent, b: ClassStudent) => {
+          if (a.classId !== b.classId) return false;
+          const aId = (a.studentId || '').trim().toLowerCase();
+          const bId = (b.studentId || '').trim().toLowerCase();
+          const aEmail = (a.studentEmail || (a.studentUsername?.includes('@') ? a.studentUsername : '')).trim().toLowerCase();
+          const bEmail = (b.studentEmail || (b.studentUsername?.includes('@') ? b.studentUsername : '')).trim().toLowerCase();
+          const aUser = (a.studentUsername || '').trim().toLowerCase();
+          const bUser = (b.studentUsername || '').trim().toLowerCase();
+          if (aId && bId && aId === bId) return true;
+          if (aEmail && bEmail && aEmail === bEmail) return true;
+          if (aUser && bUser && aUser === bUser) return true;
+          if (aId && bEmail && aId === bEmail) return true;
+          if (bId && aEmail && bId === aEmail) return true;
+          return false;
+        };
+
+        for (const item of finalList) {
+          const idx = merged.findIndex((m) => isSameRelation(m, item));
+          if (idx >= 0) {
+            const existing = merged[idx];
+            merged[idx] = {
+              ...existing,
+              ...item,
+              studentName:
+                item.studentName && item.studentName !== 'Học sinh'
+                  ? item.studentName
+                  : existing.studentName || item.studentName,
+              status:
+                item.status === 'approved' || existing.status === 'approved'
+                  ? 'approved'
+                  : item.status || existing.status || 'approved',
+            };
+          } else {
+            merged.push(item);
+          }
+        }
+        finalList = merged;
+      }
+    }
+
+    storageService.saveClassStudents(finalList);
+    if (!isSupabaseConfigured()) return;
+    try {
+      const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/classrooms?on_conflict=id`;
+      const res = await fetch(targetUrl, {
+        method: 'POST',
+        headers: {
+          ...this.getAntiCacheHeaders(),
+          'Content-Type': 'application/json',
+          Prefer: 'resolution=merge-duplicates',
+        },
+        body: JSON.stringify({
+          id: '__system_class_students__',
+          class_name: 'CLASS_STUDENTS',
+          description: JSON.stringify(finalList),
+          join_code: 'REL',
+          updated_at: new Date().toISOString(),
+        }),
+      });
+      if (!res.ok) {
+        const detail = await res.text();
+        throw new Error(`Lỗi lưu quan hệ học sinh-lớp (${res.status}): ${detail.slice(0, 150)}`);
+      }
+    } catch (e) {
+      console.error('[apiService] saveClassStudents warn:', e);
+      throw e;
+    }
+  },
+
+  async _legacySaveClassStudents_unused(list: ClassStudent[]): Promise<void> {
     storageService.saveClassStudents(list);
     if (!isSupabaseConfigured()) return;
     try {
@@ -1828,7 +1925,12 @@ export const apiService = {
     }
 
     // 2. Đồng bộ quan hệ học sinh - lớp, danh sách học sinh và chủ đề (Merge an toàn)
-    await this.saveClassStudents(storageService.getClassStudents());
+    const cloudRelations = await this.fetchRawCloudClassStudents();
+    if (cloudRelations && cloudRelations.length > 0) {
+      await this.saveClassStudents(storageService.getClassStudents());
+    } else if (cloudRelations !== null && storageService.getClassStudents().length > 0) {
+      await this.saveClassStudents(storageService.getClassStudents());
+    }
     const cloudStudents = await this.fetchStudents();
     const localStudents = storageService.getStudents();
     const studentMap = new Map<string, StudentUser>();
@@ -1848,7 +1950,10 @@ export const apiService = {
       }
       storageService.saveStudents(mergedStudents);
     }
-    await this.saveTopics(storageService.getTopics());
+    const cloudTopics = await this.fetchTopics();
+    if (cloudTopics.length === 0 && storageService.getTopics().length > 0) {
+      await this.saveTopics(storageService.getTopics());
+    }
 
     // 3. Gom toàn bộ bài tập từ IndexedDB và localStorage
     const [idbProblems, storageProblems] = await Promise.all([

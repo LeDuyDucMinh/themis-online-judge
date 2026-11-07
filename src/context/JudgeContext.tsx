@@ -482,13 +482,25 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   };
 
   const approveStudentJoin = async (classId: string, studentId: string): Promise<void> => {
-    storageService.approveStudentJoin(classId, studentId);
+    const targetStu =
+      students.find((s) => s.id === studentId) ||
+      storageService.getStudents().find((s) => s.id === studentId);
+    const cleanId = (studentId || '').trim().toLowerCase();
+    const cleanEmail = (targetStu?.email || targetStu?.username || '').trim().toLowerCase();
+
     let relations = await apiService.fetchClassStudents();
-    if (!relations) {
+    if (!relations || relations.length === 0) {
       relations = storageService.getClassStudents();
     }
     const updatedRelations = relations.map((cs) => {
-      if (cs.classId === classId && (cs.studentId === studentId || cs.studentId === studentId.trim())) {
+      if (cs.classId !== classId) return cs;
+      const csId = (cs.studentId || '').trim().toLowerCase();
+      const csEmail = (cs.studentEmail || '').trim().toLowerCase();
+      const csUser = (cs.studentUsername || '').trim().toLowerCase();
+      if (
+        (cleanId && (csId === cleanId || csEmail === cleanId || csUser === cleanId)) ||
+        (cleanEmail && (csId === cleanEmail || csEmail === cleanEmail || csUser === cleanEmail))
+      ) {
         return { ...cs, status: 'approved' as const };
       }
       return cs;
@@ -501,16 +513,16 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     } catch (e) {
       console.warn('Lỗi ghi duyệt học sinh lên Cloud:', e);
     }
-    const student = storageService.getStudents().find((s) => s.id === studentId);
-    showToast('Đã duyệt học sinh', `Đã duyệt học sinh ${student?.fullName || ''} vào lớp thành công!`, 'success');
+    showToast('Đã duyệt học sinh', `Đã duyệt học sinh ${targetStu?.fullName || ''} vào lớp thành công!`, 'success');
   };
 
   const rejectStudentJoin = async (classId: string, studentId: string): Promise<void> => {
+    await apiService.fetchClassStudents().catch(() => {});
     storageService.rejectStudentJoin(classId, studentId);
     const updatedRelations = storageService.getClassStudents();
     setClassStudents(updatedRelations);
     try {
-      await apiService.saveClassStudents(updatedRelations);
+      await apiService.saveClassStudents(updatedRelations, { replace: true });
     } catch (e) {
       console.warn('Lỗi ghi từ chối học sinh lên Cloud:', e);
     }
@@ -615,11 +627,12 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     studentUsername?: string,
     studentEmail?: string
   ): Promise<void> => {
+    await apiService.fetchClassStudents().catch(() => {});
     storageService.removeStudentFromClass(classId, studentId, studentUsername, studentEmail);
     const updatedRelations = storageService.getClassStudents();
     setClassStudents(updatedRelations);
     try {
-      await apiService.saveClassStudents(updatedRelations);
+      await apiService.saveClassStudents(updatedRelations, { replace: true });
     } catch (e) {
       console.warn('Lỗi ghi hủy liên kết lớp lên Cloud:', e);
     }
@@ -628,11 +641,12 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
   const leaveClass = async (classId: string): Promise<void> => {
     if (!currentStudent) return;
+    await apiService.fetchClassStudents().catch(() => {});
     storageService.removeStudentFromClass(classId, currentStudent.id, currentStudent.username, currentStudent.email);
     const updatedRelations = storageService.getClassStudents();
     setClassStudents(updatedRelations);
     try {
-      await apiService.saveClassStudents(updatedRelations);
+      await apiService.saveClassStudents(updatedRelations, { replace: true });
     } catch (e) {
       console.warn('Lỗi ghi học sinh rời lớp lên Cloud:', e);
     }
@@ -1150,13 +1164,9 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
           setIsAuthLoading(false);
         }
 
-        if (storageService.isAdminSessionActive() && apiService.isConfigured()) {
-          // Tự động đồng bộ ngầm toàn bộ dữ liệu từ máy này lên Cloud
-          apiService.syncAllToCloud().catch((err) => {
-            console.warn('[JudgeContext] Lỗi đồng bộ ngầm khi khởi động:', err);
-          });
-        }
-        await refreshAllData();
+        // Luôn ưu tiên tải dữ liệu mới nhất từ Supabase Cloud (Single Source of Truth) trước tiên
+        // Tuyệt đối không chạy syncAllToCloud trước refreshAllData để tránh thiết bị phụ (điện thoại) ghi đè dữ liệu cũ lên Cloud
+        await refreshAllData(true);
 
         // Học sinh giữ nguyên phiên làm việc ổn định, tuyệt đối không tự ý ngắt phiên khi nạp trang
       } catch (err) {
@@ -1594,11 +1604,12 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       showToast('Chưa đồng bộ được lên Cloud', 'Việc xóa học sinh chưa được cập nhật lên Cloud, vui lòng thử lại khi có mạng.', 'error');
     }
 
-    // 2. Xóa khỏi mọi lớp học
+    // 2. Xóa khỏi mọi lớp học (Kéo danh sách mới nhất từ Cloud trước rồi mới xóa)
+    await apiService.fetchClassStudents().catch(() => {});
     storageService.removeStudentFromAllClasses(stuId, stuUsername, stuEmail);
     const remainingClassStudents = storageService.getClassStudents();
     setClassStudents(remainingClassStudents);
-    await apiService.saveClassStudents(remainingClassStudents);
+    await apiService.saveClassStudents(remainingClassStudents, { replace: true });
 
     // 3. XÓA TOÀN BỘ LỊCH SỬ NỘP BÀI CỦA HỌC SINH NÀY (LocalStorage, IndexedDB, Supabase Cloud, React State)
     storageService.deleteSubmissionsForStudent(stuId, stuUsername, stuFullName, stuEmail);
@@ -1663,14 +1674,15 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       storageService.setCookie('faminh_admin_verified_pass', cleanPass, 30);
       setIsAuthModalOpen(false);
 
-      // Đồng bộ + tải dữ liệu ở chế độ nền (một lượt duy nhất) để vào trang giáo viên ngay lập tức
-      apiService.syncAllToCloud().then((res) => {
-        console.log('[JudgeContext] Đồng bộ tự động ngầm thành công:', res);
-      }).catch((err) => {
-        console.warn('[JudgeContext] Lỗi đồng bộ ngầm sau đăng nhập:', err);
-      }).finally(() => {
-        refreshAllData().catch(() => {});
-      });
+      // Tải dữ liệu mới nhất từ Cloud về thiết bị trước, sau đó mới đồng bộ các bài tập mới (nếu có)
+      refreshAllData(true)
+        .then(() => apiService.syncAllToCloud())
+        .then((res) => {
+          console.log('[JudgeContext] Đồng bộ tự động ngầm thành công:', res);
+        })
+        .catch((err) => {
+          console.warn('[JudgeContext] Lỗi đồng bộ ngầm sau đăng nhập:', err);
+        });
 
       showToast(
         'Xác thực thành công',
