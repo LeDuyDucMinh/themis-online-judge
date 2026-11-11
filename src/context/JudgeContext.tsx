@@ -819,7 +819,7 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
           if (curSession.fullName) validStudentNames.add(curSession.fullName.trim().toLowerCase());
         }
 
-        const activeSubs = cloudSubs.filter((sub) => {
+        const activeSubs = !(cloudStudents && cloudStudents.length > 0) ? cloudSubs : cloudSubs.filter((sub) => {
           if (sub.userId === 'admin_faminh' || sub.userName === 'Giáo viên FAMINH' || sub.userName?.startsWith('Giáo viên')) return true;
           const subUser = (sub.userId || '').trim().toLowerCase();
           const subName = (sub.userName || '').trim().toLowerCase();

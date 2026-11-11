@@ -955,14 +955,8 @@ export const apiService = {
             })
           );
         }
-        if (fullName) {
-          deleteCalls.push(
-            fetch(`${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/submissions?user_name=eq.${encodeURIComponent(fullName)}`, {
-              method: 'DELETE',
-              headers: this.getAntiCacheHeaders(),
-            })
-          );
-        }
+        // KHÔNG xóa theo user_name: nhiều học sinh có thể trùng họ tên, xóa theo tên sẽ làm mất bài của học sinh khác
+        void fullName;
         await Promise.allSettled(deleteCalls);
       } catch (e) {
         console.warn('[apiService] deleteSubmissionsForStudent cloud error:', e);
