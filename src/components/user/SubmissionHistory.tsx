@@ -50,16 +50,30 @@ export const SubmissionHistory: React.FC = () => {
     setTimeout(() => setCopiedCode(false), 2000);
   };
 
+  const [isLoadingDetail, setIsLoadingDetail] = useState(false);
+
   const handleOpenDetail = async (sub: Submission) => {
     setSelectedSub(sub);
-    if (!sub.testResults || sub.testResults.length === 0) {
+    if (!sub.testResults || sub.testResults.length === 0 || !sub.sourceCode) {
       try {
+        setIsLoadingDetail(true);
         const full = await apiService.fetchSubmissionById(sub.id);
-        if (full?.testResults && full.testResults.length > 0) {
-          setSelectedSub((curr) => (curr?.id === sub.id ? { ...curr, testResults: full.testResults } : curr));
+        if (full) {
+          setSelectedSub((curr) =>
+            curr?.id === sub.id
+              ? {
+                  ...curr,
+                  ...full,
+                  testResults: full.testResults && full.testResults.length > 0 ? full.testResults : curr.testResults,
+                  sourceCode: full.sourceCode || curr.sourceCode,
+                }
+              : curr
+          );
         }
       } catch (e) {
         console.warn('Lỗi tải chi tiết bài nộp:', e);
+      } finally {
+        setIsLoadingDetail(false);
       }
     }
   };
@@ -1002,7 +1016,11 @@ export const SubmissionHistory: React.FC = () => {
                     tabSize: 4,
                   }}
                 >
-                  {typeof selectedSub.sourceCode === 'object' ? JSON.stringify(selectedSub.sourceCode, null, 2) : String(selectedSub.sourceCode || '')}
+                  {isLoadingDetail && !selectedSub.sourceCode
+                    ? '// Đang tải mã nguồn từ máy chủ...'
+                    : typeof selectedSub.sourceCode === 'object'
+                    ? JSON.stringify(selectedSub.sourceCode, null, 2)
+                    : String(selectedSub.sourceCode || '// Không có mã nguồn được lưu')}
                 </pre>
               </div>
             </div>

@@ -1406,7 +1406,7 @@ export const apiService = {
     let cloudSubmissions: Submission[] = [];
     if (isSupabaseConfigured()) {
       try {
-        const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/submissions?select=id,problem_id,problem_code,problem_title,user_id,user_name,class_id,language,status,verdict,total_points_earned,max_total_points,passed_count,total_tests,execution_time,memory,compilation_message,submitted_at,source_code,test_results&order=submitted_at.desc&limit=60`;
+        const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/submissions?select=id,problem_id,problem_code,problem_title,user_id,user_name,class_id,language,status,verdict,total_points_earned,max_total_points,passed_count,total_tests,execution_time,memory,compilation_message,submitted_at&order=submitted_at.desc&limit=5000`;
         const res = await fetch(targetUrl, {
           headers: this.getAntiCacheHeaders(),
           cache: 'no-store',
@@ -1461,7 +1461,7 @@ export const apiService = {
                 userName: resolvedUserName || item.user_name,
                 classId: item.class_id,
                 language: item.language,
-                sourceCode: item.source_code,
+                sourceCode: item.source_code || '',
                 status: (item.status as any) || 'COMPLETED',
                 overallVerdict: item.verdict,
                 totalPointsEarned: Number(item.total_points_earned) || 0,
@@ -1490,12 +1490,12 @@ export const apiService = {
         const localSubMap = new Map(existingLocalSubs.map((s) => [s.id, s]));
 
         const enrichedSubmissions = cloudSubmissions.map((cs) => {
-          if (cs.testResults && cs.testResults.length > 0) return cs;
           const localMatch = localSubMap.get(cs.id);
-          if (localMatch?.testResults && localMatch.testResults.length > 0) {
-            return { ...cs, testResults: localMatch.testResults };
-          }
-          return cs;
+          return {
+            ...cs,
+            sourceCode: cs.sourceCode || localMatch?.sourceCode || '',
+            testResults: (cs.testResults && cs.testResults.length > 0) ? cs.testResults : (localMatch?.testResults || []),
+          };
         });
 
         await idbService.clearSubmissions();

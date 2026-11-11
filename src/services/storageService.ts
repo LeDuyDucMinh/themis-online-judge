@@ -298,15 +298,19 @@ export const storageService = {
     } else {
       subs.unshift(lightSubmission);
     }
-    const trimmed = subs.slice(0, 50);
+    const trimmed = subs.slice(0, 1000);
     try {
       localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, JSON.stringify(trimmed));
     } catch (err) {
-      console.warn('[storageService] Lỗi lưu trữ submissions vào localStorage, cắt giảm còn 20:', err);
+      console.warn('[storageService] Lỗi lưu trữ submissions vào localStorage, thử giảm kích thước:', err);
       try {
-        localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, JSON.stringify(subs.slice(0, 20)));
+        localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, JSON.stringify(subs.slice(0, 200)));
       } catch {
-        // IndexedDB đã lưu đầy đủ
+        try {
+          localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, JSON.stringify(subs.slice(0, 50)));
+        } catch {
+          // IndexedDB đã lưu đầy đủ
+        }
       }
     }
 
@@ -317,7 +321,7 @@ export const storageService = {
   },
 
   saveSubmissions(submissions: Submission[]): void {
-    const trimmed = (submissions || []).slice(0, 50).map((submission) => ({
+    const trimmed = (submissions || []).slice(0, 1000).map((submission) => ({
       ...submission,
       sourceCode: submission.sourceCode && submission.sourceCode.length > 2000
         ? submission.sourceCode.substring(0, 2000)
@@ -342,11 +346,15 @@ export const storageService = {
     try {
       localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, JSON.stringify(trimmed));
     } catch (err) {
-      console.warn('[storageService] Lỗi lưu trữ submissions vào localStorage:', err);
+      console.warn('[storageService] Lỗi lưu trữ submissions vào localStorage, thử giảm kích thước:', err);
       try {
-        localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, JSON.stringify(trimmed.slice(0, 20)));
+        localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, JSON.stringify(trimmed.slice(0, 200)));
       } catch {
-        // ignore
+        try {
+          localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, JSON.stringify(trimmed.slice(0, 50)));
+        } catch {
+          // IndexedDB đã lưu đầy đủ
+        }
       }
     }
   },

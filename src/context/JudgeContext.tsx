@@ -844,9 +844,13 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
             updatedUserName = custom || curSession.fullName || updatedUserName;
           }
 
-          let res: Submission = { ...sub, userName: updatedUserName };
+          const localMatch = currentSubMap.get(sub.id);
+          let res: Submission = {
+            ...sub,
+            userName: updatedUserName,
+            sourceCode: sub.sourceCode || localMatch?.sourceCode || '',
+          };
           if (res.testResults && res.testResults.length > 0) return res;
-          const localMatch = currentSubMap.get(res.id);
           if (localMatch?.testResults && localMatch.testResults.length > 0) {
             return { ...res, testResults: localMatch.testResults };
           }
