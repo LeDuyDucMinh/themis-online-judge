@@ -10,8 +10,6 @@ export const UserManager: React.FC = () => {
     adminEmail,
     deleteStudent,
     openConfirmModal,
-    refreshStudents,
-    isRefreshing,
   } = useJudge();
 
   const [searchTerm, setSearchTerm] = useState('');
@@ -126,25 +124,13 @@ export const UserManager: React.FC = () => {
   return (
     <div className="space-y-6" style={{ fontFamily: "'Be Vietnam Pro', sans-serif" }}>
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-[#1F1D1A] tracking-tight">
-            Học sinh & tài khoản
-          </h1>
-          <p className="text-sm text-[#6B655C] mt-1">
-            Danh sách học sinh đã đăng ký và lớp các em đang theo học.
-          </p>
-        </div>
-
-        <div>
-          <button
-            onClick={() => refreshStudents?.()}
-            disabled={isRefreshing}
-            className="px-4 py-2 border border-[#D9D2C3] bg-[#FAF7EE] hover:bg-[#F4EFE6] text-[#1F1D1A] text-sm font-medium rounded-lg transition-colors cursor-pointer disabled:opacity-50"
-          >
-            {isRefreshing ? 'Đang đồng bộ...' : 'Đang đồng bộ...'}
-          </button>
-        </div>
+      <div>
+        <h1 className="text-3xl font-bold text-[#1F1D1A] tracking-tight">
+          Học sinh & tài khoản
+        </h1>
+        <p className="text-sm text-[#6B655C] mt-1">
+          Danh sách học sinh đã đăng ký và lớp các em đang theo học.
+        </p>
       </div>
 
       {/* Search Bar & Stats */}
