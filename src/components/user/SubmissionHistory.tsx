@@ -2,24 +2,11 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useJudge } from '../../context/JudgeContext';
 import { isProblemInClass, type Submission, type StudentUser, type Problem } from '../../types/judge';
 import {
-  Trophy,
-  CheckCircle2,
-  XCircle,
-  Clock,
-  AlertOctagon,
-  FileCode2,
   Code2,
-  Calendar,
-  Layers,
-  ChevronRight,
   X,
-  User,
-  BarChart3,
-  BookOpen,
-  Users,
-  GraduationCap,
   Copy,
   Check,
+  ChevronDown,
 } from 'lucide-react';
 import { ThemisGradingTable } from './ThemisGradingTable';
 import { apiService } from '../../services/apiService';
@@ -32,7 +19,6 @@ export const SubmissionHistory: React.FC = () => {
     topics,
     classes,
     studentClasses,
-    theme,
     isAdminAuthenticated,
     currentStudent,
     students,
@@ -436,65 +422,6 @@ export const SubmissionHistory: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [selectedSub]);
 
-  const getVerdictBadge = (sub: Submission) => {
-    const isFull =
-      (sub.passedCount === sub.totalTests && sub.totalTests > 0) ||
-      (sub.maxTotalPoints > 0 && sub.totalPointsEarned >= sub.maxTotalPoints);
-    if (isFull) {
-      return (
-        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
-          <CheckCircle2 className="w-3.5 h-3.5" />
-          FULL AC (100%)
-        </span>
-      );
-    }
-    if (sub.passedCount > 0 || sub.totalPointsEarned > 0) {
-      return (
-        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30">
-          PARTIAL ({sub.totalPointsEarned}đ)
-        </span>
-      );
-    }
-    if (sub.overallVerdict === 'CE') {
-      return (
-        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-slate-500/20 text-slate-300 border border-slate-500/30">
-          <FileCode2 className="w-3.5 h-3.5" />
-          LỖI BIÊN DỊCH (CE)
-        </span>
-      );
-    }
-    if (sub.overallVerdict === 'TLE') {
-      return (
-        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30">
-          <Clock className="w-3.5 h-3.5" />
-          QUÁ THỜI GIAN (TLE)
-        </span>
-      );
-    }
-    if (sub.overallVerdict === 'RTE') {
-      return (
-        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-orange-500/15 text-orange-400 border border-orange-500/30">
-          <AlertOctagon className="w-3.5 h-3.5" />
-          LỖI THỰC THI (RTE)
-        </span>
-      );
-    }
-    if (sub.overallVerdict === 'SYS') {
-      return (
-        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-purple-500/15 text-purple-400 border border-purple-500/30">
-          <AlertOctagon className="w-3.5 h-3.5" />
-          LỖI MÁY CHẤM (SYS)
-        </span>
-      );
-    }
-    return (
-      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-rose-500/15 text-rose-400 border border-rose-500/30">
-        <XCircle className="w-3.5 h-3.5" />
-        SAI KẾT QUẢ (WA)
-      </span>
-    );
-  };
-
   // 10 lượt gần nhất
   const recent10Submissions = useMemo(() => {
     return allFilteredSubmissions.slice(0, 10);
@@ -872,280 +799,280 @@ export const SubmissionHistory: React.FC = () => {
   }
 
   return (
-    <div className={isAdminAuthenticated ? "max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6" : "fj-w space-y-6"} style={isAdminAuthenticated ? undefined : { paddingTop: 32, paddingBottom: 64 }}>
-      {/* Header & Bộ chuyển đổi chế độ xem (Dành cho Giáo viên) */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div className="max-w-7xl mx-auto space-y-6 pb-12">
+      {/* Header & Tabs (Khung điều hướng giáo viên) */}
+      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold flex items-center gap-2" style={{ color: '#1F1D1A' }}>
-            <Trophy className="w-6 h-6 text-amber-500" />
-            {viewMode === 'log' ? 'Lịch sử nộp bài' : 'Bảng điểm & Tiến độ theo Chủ đề'}
-          </h2>
-          <p className="text-xs fj-m mt-1">
-            {viewMode === 'log'
-              ? 'Theo dõi chi tiết kết quả của các lượt nộp bài gần đây nhất'
-              : 'Thống kê tổng điểm và tiến độ hoàn thành từng bài tập của học sinh theo từng chuyên đề'}
+          <h1 className="text-3xl font-extrabold text-[#1F1D1A] tracking-tight">
+            {viewMode === 'topic_grades' ? 'Bảng điểm theo chủ đề' : 'Lịch sử nộp bài'}
+          </h1>
+          <p className="text-sm text-[#6B655C] mt-1">
+            {viewMode === 'topic_grades'
+              ? 'Tổng điểm và tiến độ từng bài của học sinh theo chủ đề.'
+              : 'Theo dõi chi tiết kết quả của các lượt nộp bài gần đây nhất.'}
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
-          {/* Bộ lọc theo Lớp học */}
-          <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-6 self-start sm:self-auto">
+          {/* Tabs */}
+          <div className="flex items-center gap-5 text-sm">
+            <button
+              type="button"
+              onClick={() => setViewMode('log')}
+              className={`pb-1 transition-all cursor-pointer ${
+                viewMode === 'log'
+                  ? 'text-[#1F1D1A] font-bold border-b-2 border-[#B4281F]'
+                  : 'text-[#6B655C] hover:text-[#1F1D1A] font-medium'
+              }`}
+            >
+              Nhật ký nộp bài
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('topic_grades')}
+              className={`pb-1 transition-all cursor-pointer ${
+                viewMode === 'topic_grades'
+                  ? 'text-[#1F1D1A] font-bold border-b-2 border-[#B4281F]'
+                  : 'text-[#6B655C] hover:text-[#1F1D1A] font-medium'
+              }`}
+            >
+              Bảng điểm
+            </button>
+          </div>
+
+          {/* Class selector */}
+          <div className="relative">
             <select
               value={selectedClassId}
               onChange={(e) => setSelectedClassId(e.target.value)}
-              className="fj-f text-xs cursor-pointer"
+              className="appearance-none bg-[#FAF7EE] border border-[#D9D2C3] rounded-lg px-3.5 py-1.5 pr-8 text-sm font-semibold text-[#1F1D1A] focus:outline-none focus:border-[#1F1D1A] cursor-pointer"
             >
-              <option value="ALL">Tất cả lớp học ({availableClasses.length})</option>
+              <option value="ALL">Tất cả lớp học</option>
               {availableClasses.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.className}
                 </option>
               ))}
             </select>
+            <ChevronDown className="w-4 h-4 text-[#6B655C] absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
           </div>
-
-          {/* 2 Nút chuyển chế độ xem dành riêng cho Giáo viên */}
-          {isAdminAuthenticated && (
-            <div className="flex items-center p-1 bg-stone-100 dark:bg-stone-800/80 rounded-xl border border-stone-200 dark:border-stone-700">
-              <button
-                type="button"
-                onClick={() => setViewMode('log')}
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
-                  viewMode === 'log'
-                    ? 'bg-[#c51f26] text-white'
-                    : 'text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-white hover:bg-stone-200/60 dark:hover:bg-stone-700/50'
-                }`}
-              >
-                <Clock className="w-3.5 h-3.5" />
-                <span>Nhật ký từng lần nộp</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setViewMode('topic_grades')}
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
-                  viewMode === 'topic_grades'
-                    ? 'bg-[#c51f26] text-white'
-                    : 'text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-white hover:bg-stone-200/60 dark:hover:bg-stone-700/50'
-                }`}
-              >
-                <BarChart3 className="w-3.5 h-3.5" />
-                <span>Bảng điểm theo Chủ đề</span>
-              </button>
-            </div>
-          )}
-
-          <span className="text-xs font-mono text-stone-700 dark:text-stone-300 bg-white dark:bg-stone-900 px-3 py-1.5 rounded-lg border border-stone-200 dark:border-stone-800">
-            {viewMode === 'log' ? `${displayedSubmissions.length} lượt nộp gần nhất` : `${topicEligibleStudents.length} học sinh được giao`}
-          </span>
         </div>
       </div>
 
-      {/* CHẾ ĐỘ 1: NHẬT KÝ TỪNG LẦN NỘP (Bảng thời gian như hiện tại) */}
-      {(viewMode === 'log' || !isAdminAuthenticated) && (
-        displayedSubmissions.length === 0 ? (
-          <div className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl p-12 text-center text-stone-500">
-            <Layers className="w-10 h-10 mx-auto text-stone-400 dark:text-stone-600 mb-2" />
-            <h5 className="font-semibold text-stone-900 dark:text-stone-200">Chưa có lượt nộp bài nào</h5>
-            <p className="text-xs text-stone-500 mt-1">
-              {isAdminAuthenticated
-                ? 'Chưa có lượt nộp bài nào được ghi nhận trên hệ thống.'
-                : 'Hãy chọn một bài tập bất kỳ và thử nộp bài để trải nghiệm hệ thống chấm Themis!'}
-            </p>
-          </div>
-        ) : (
-          <div className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-xs">
-                <thead>
-                  <tr className="border-b border-stone-200 dark:border-stone-800 text-[11px] font-bold uppercase text-stone-600 dark:text-stone-400 bg-stone-50 dark:bg-stone-800/50">
-                    <th className="py-3 px-4">Thời gian</th>
-                    <th className="py-3 px-4">Học sinh</th>
-                    <th className="py-3 px-4">Bài tập</th>
-                    <th className="py-3 px-4">Ngôn ngữ</th>
-                    <th className="py-3 px-4">Kết quả (Themis)</th>
-                    <th className="py-3 px-4">Điểm số</th>
-                    <th className="py-3 px-4">Thời gian chạy</th>
-                    <th className="py-3 px-4 text-center">Thao tác</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-stone-200 dark:divide-stone-800/80 font-mono">
-                  {displayedSubmissions.map((sub) => (
-                    <tr
-                      key={sub.id}
-                      className="hover:bg-stone-50 dark:hover:bg-stone-800/40 transition-colors cursor-pointer"
-                      onClick={() => handleOpenDetail(sub)}
-                    >
-                      <td className="py-3 px-4 text-slate-500 dark:text-slate-400 font-sans flex items-center gap-1.5">
-                        <Calendar className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 shrink-0" />
-                        {new Date(sub.submittedAt).toLocaleTimeString()} ({new Date(sub.submittedAt).toLocaleDateString()})
-                      </td>
-                      <td className="py-3 px-4 font-sans font-semibold text-slate-900 dark:text-slate-200">
-                        <div className="flex items-center gap-1.5">
-                          <User className="w-3.5 h-3.5 text-red-500 dark:text-red-400 shrink-0" />
-                          <span>{getSubDisplayName(sub)}</span>
-                        </div>
-                      </td>
-                      <td className="py-3 px-4 font-sans font-semibold text-slate-900 dark:text-slate-200">
-                        [{sub.problemCode}] {sub.problemTitle}
-                      </td>
-                      <td className="py-3 px-4 uppercase text-slate-700 dark:text-slate-300 font-bold">
-                        {sub.language}
-                      </td>
-                      <td className="py-3 px-4">{getVerdictBadge(sub)}</td>
-                      <td className="py-3 px-4 font-bold">
-                        <span className="text-amber-600 dark:text-amber-400">{sub.totalPointsEarned}</span>
-                        <span className="text-slate-400 dark:text-slate-500"> / {sub.maxTotalPoints}</span>
-                      </td>
-                      <td className="py-3 px-4 text-slate-500 dark:text-slate-400">
-                        {(typeof sub.executionTime === 'number' ? sub.executionTime : (typeof (sub as any).time === 'number' ? (sub as any).time : 0)).toFixed(3)}s
-                      </td>
-                      <td className="py-3 px-4 text-center">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleOpenDetail(sub);
-                          }}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-red-600 text-slate-700 dark:text-slate-300 hover:text-white transition-colors cursor-pointer border border-slate-200 dark:border-slate-700"
-                        >
-                          Chi tiết <ChevronRight className="w-3 h-3" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <div className="px-4 py-2.5 bg-slate-50 dark:bg-slate-800/40 border-t border-slate-200 dark:border-slate-800/80 text-[11px] text-slate-500 dark:text-slate-400 flex items-center justify-between">
-              <span className="flex items-center gap-1.5">
-                <Clock className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
-                Chỉ hiển thị tối đa 15 lượt nộp bài gần đây nhất
-              </span>
-              <span className="text-slate-400 dark:text-slate-500 font-mono text-[10px]">
-                (Các lượt nộp quá 15 lượt được ẩn trên bảng này)
-              </span>
-            </div>
-          </div>
-        )
-      )}
-
-      {/* CHẾ ĐỘ 2: BẢNG ĐIỂM THEO CHỦ ĐỀ (Dành riêng cho Giáo viên) */}
-      {isAdminAuthenticated && viewMode === 'topic_grades' && (
-        <div className="space-y-6 animate-in fade-in duration-200">
-          {/* Thanh chọn Chủ đề & Thống kê */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 sm:p-5 flex flex-wrap items-center justify-between gap-4 shadow-sm">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-red-500/15 text-red-500 dark:text-red-400 border border-red-500/30 flex items-center justify-center shrink-0">
-                <BookOpen className="w-5 h-5" />
-              </div>
-              <div>
-                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 mb-0.5">
-                  Chọn chủ đề (Chuyên đề) muốn xem bảng điểm:
-                </label>
-                <div className="flex items-center gap-2">
-                  <select
-                    value={selectedTopicId}
-                    onChange={(e) => setSelectedTopicId(e.target.value)}
-                    className="bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-xs sm:text-sm font-bold rounded-xl px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-red-500 cursor-pointer min-w-[220px]"
-                  >
-                    {topics.map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {t.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-            </div>
-
+      {/* CHẾ ĐỘ 1: NHẬT KÝ TỪNG LẦN NỘP */}
+      {viewMode === 'log' && (
+        <div className="space-y-6">
+          {/* Header tóm tắt lượt gần nhất */}
+          {recent10Submissions.length > 0 && (
             <div className="flex flex-wrap items-center gap-3">
-              <span className="text-xs font-mono text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800/80 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700/80 flex items-center gap-1.5">
-                <GraduationCap className="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-400" />
-                <span className="text-slate-500 dark:text-slate-400">Giao cho:</span>{' '}
-                <b className="text-indigo-600 dark:text-indigo-300 font-sans">
-                  {topicClassIds.includes('ALL')
-                    ? 'Tất cả các lớp'
-                    : topicClassIds
-                        .map((id) => classes.find((c) => c.id === id)?.className || id)
-                        .join(', ')}
-                </b>
-              </span>
-              <span className="text-xs font-mono text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800/80 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700/80 flex items-center gap-1.5">
-                <Users className="w-3.5 h-3.5 text-emerald-500 dark:text-emerald-400" />
-                <span className="text-slate-500 dark:text-slate-400">Học sinh được làm:</span>{' '}
-                <b className="text-emerald-600 dark:text-emerald-400">{topicEligibleStudents.length} HS</b>
-              </span>
-              <span className="text-xs font-mono text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800/80 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700/80">
-                <span className="text-slate-500 dark:text-slate-400">Số bài:</span>{' '}
-                <b className="text-blue-600 dark:text-blue-400">{topicProblems.length}</b>
-              </span>
-              <span className="text-xs font-mono text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800/80 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700/80">
-                <span className="text-slate-500 dark:text-slate-400">Điểm tối đa:</span>{' '}
-                <b className="text-amber-600 dark:text-amber-400">{topicMaxTotalPoints}đ</b>
+              <div className="flex items-center gap-1">
+                {recent10Submissions.map((sub, idx) => (
+                  <span
+                    key={sub.id || idx}
+                    className="w-4 h-4 rounded-xs inline-block"
+                    style={{ backgroundColor: getPillBg(sub) }}
+                    title={`${sub.problemCode}: ${sub.totalPointsEarned}/${sub.maxTotalPoints || 10}`}
+                  />
+                ))}
+              </div>
+              <span className="text-xs text-[#6B655C]">
+                10 lượt gần nhất: {recent10FullAcCount} Full AC, {recent10NotFullCount} chưa đạt điểm tối đa
               </span>
             </div>
-          </div>
+          )}
 
-          {/* Bảng tổng hợp điểm số từng học sinh trong chủ đề */}
-          {students.length === 0 ? (
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-12 text-center text-slate-400">
-              <Users className="w-10 h-10 mx-auto text-slate-600 mb-2" />
-              <h5 className="font-semibold text-slate-300">Chưa có tài khoản học sinh nào</h5>
-              <p className="text-xs text-slate-500 mt-1">
-                Hãy nhấn vào nút <b>&quot;Quản lý Học sinh&quot;</b> trên thanh công cụ để cấp tài khoản cho học sinh.
-              </p>
-            </div>
-          ) : topicProblems.length === 0 ? (
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-12 text-center text-slate-400">
-              <BookOpen className="w-10 h-10 mx-auto text-slate-600 mb-2" />
-              <h5 className="font-semibold text-slate-300">Chủ đề này chưa có bài tập nào</h5>
-              <p className="text-xs text-slate-500 mt-1">
-                Vui lòng vào mục &quot;Quản lý Chủ đề&quot; để thêm bài tập vào chuyên đề này.
-              </p>
-            </div>
-          ) : topicEligibleStudents.length === 0 ? (
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-12 text-center text-slate-400">
-              <Users className="w-10 h-10 mx-auto text-slate-600 mb-2" />
-              <h5 className="font-semibold text-slate-300">Không có học sinh nào được giao chủ đề này</h5>
-              <p className="text-xs text-slate-500 mt-1">
-                {selectedClassId !== 'ALL'
-                  ? `Lớp hiện tại không thuộc danh sách lớp được giao chuyên đề "${currentGradeTopic?.name}". Hãy chọn "Tất cả lớp học" hoặc lớp được giao.`
-                  : `Chuyên đề "${currentGradeTopic?.name}" hiện chưa có học sinh nào thuộc các lớp được giao làm bài.`}
-              </p>
+          {displayedSubmissions.length === 0 ? (
+            <div className="border border-[#D9D2C3] rounded-lg p-12 text-center text-[#6B655C]">
+              Chưa có lượt nộp bài nào được ghi nhận trên hệ thống.
             </div>
           ) : (
-            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-xl">
-              <div className="overflow-x-auto">
+            <div>
+              <div className="border-t-2 border-[#1F1D1A] overflow-x-auto">
                 <table className="w-full text-left border-collapse text-xs">
                   <thead>
-                    <tr className="border-b border-slate-200 dark:border-slate-800 text-[11px] font-bold uppercase text-slate-600 dark:text-slate-400 bg-slate-100/90 dark:bg-slate-800/40">
-                      <th className="py-3 px-4 w-12 text-center">STT</th>
-                      <th className="py-3 px-4 min-w-[180px]">Học sinh</th>
-                      <th className="py-3 px-4 min-w-[170px]">Tiến độ chủ đề</th>
+                    <tr className="border-b border-[#D9D2C3] text-xs font-semibold text-[#6B655C]">
+                      <th className="py-3 px-3">Giờ nộp</th>
+                      <th className="py-3 px-4">Học sinh</th>
+                      <th className="py-3 px-4">Bài tập</th>
+                      <th className="py-3 px-3">Ngôn ngữ</th>
+                      <th className="py-3 px-4">Kết quả</th>
+                      <th className="py-3 px-3">Điểm</th>
+                      <th className="py-3 px-3">Thời gian chạy</th>
+                      <th className="py-3 px-4 text-right">Thao tác</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#E4DDCE]">
+                    {displayedSubmissions.map((sub) => (
+                      <tr
+                        key={sub.id}
+                        className="hover:bg-[#F4EFE6] transition-colors cursor-pointer"
+                        onClick={() => handleOpenDetail(sub)}
+                      >
+                        <td className="py-3.5 px-3 font-mono text-[#6B655C] whitespace-nowrap">
+                          {formatTimeOnly(sub.submittedAt)}
+                        </td>
+                        <td className="py-3.5 px-4">
+                          <div className="font-bold text-sm text-[#1F1D1A]">
+                            {getSubDisplayName(sub)}
+                          </div>
+                          <div className="text-xs text-[#6B655C] font-mono">
+                            {sub.userId || ''}
+                          </div>
+                        </td>
+                        <td className="py-3.5 px-4">
+                          <span className="font-bold font-mono text-[#1F1D1A]">
+                            [{sub.problemCode}]
+                          </span>{' '}
+                          <span className="text-[#1F1D1A] font-medium">
+                            {sub.problemTitle}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-3 font-mono text-[#6B655C]">
+                          {formatLanguageShort(sub.language)}
+                        </td>
+                        <td className="py-3.5 px-4 whitespace-nowrap">
+                          {renderStudentVerdict(sub)}
+                        </td>
+                        <td className="py-3.5 px-3 font-mono font-bold text-sm text-[#1F1D1A] whitespace-nowrap">
+                          {sub.totalPointsEarned} / {sub.maxTotalPoints || 10}
+                        </td>
+                        <td className="py-3.5 px-3 font-mono text-[#6B655C] whitespace-nowrap">
+                          {getExecutionTimeStr(sub)}
+                        </td>
+                        <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleOpenDetail(sub);
+                            }}
+                            className="text-[#B4281F] font-semibold hover:underline cursor-pointer inline-flex items-center gap-1"
+                          >
+                            Chi tiết →
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Table Footer */}
+              <div className="border-t border-[#D9D2C3] pt-4 mt-2 flex items-center justify-between text-xs text-[#6B655C]">
+                <div>
+                  {allFilteredSubmissions.length > displayLimit
+                    ? `Còn ${allFilteredSubmissions.length - displayLimit} lượt nộp cũ hơn`
+                    : `Đã hiển thị tất cả ${allFilteredSubmissions.length} lượt nộp`}
+                </div>
+                {allFilteredSubmissions.length > displayLimit && (
+                  <button
+                    onClick={() => setDisplayLimit((prev) => prev + 15)}
+                    className="text-[#B4281F] font-semibold hover:underline cursor-pointer"
+                  >
+                    Xem thêm →
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* CHẾ ĐỘ 2: BẢNG ĐIỂM THEO CHỦ ĐỀ */}
+      {viewMode === 'topic_grades' && (
+        <div className="space-y-6">
+          {/* Subheader: Bộ chọn chủ đề & Thống kê */}
+          <div className="flex flex-wrap items-end gap-x-8 gap-y-4">
+            <div>
+              <label className="block text-xs text-[#6B655C] mb-1">
+                Chủ đề đang xem
+              </label>
+              <div className="relative">
+                <select
+                  value={selectedTopicId}
+                  onChange={(e) => setSelectedTopicId(e.target.value)}
+                  className="appearance-none bg-[#FAF7EE] border border-[#D9D2C3] rounded-lg px-3.5 py-2 pr-9 text-sm font-bold text-[#1F1D1A] focus:outline-none focus:border-[#1F1D1A] cursor-pointer min-w-[260px]"
+                >
+                  {topics.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="w-4 h-4 text-[#6B655C] absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              </div>
+            </div>
+
+            <div>
+              <div className="text-xs text-[#6B655C] mb-1">Giao cho</div>
+              <div className="text-sm font-bold text-[#1F1D1A]">
+                {topicClassIds.includes('ALL')
+                  ? 'Tất cả các lớp'
+                  : topicClassIds
+                      .map((id) => classes.find((c) => c.id === id)?.className || id)
+                      .join(', ')}
+              </div>
+            </div>
+
+            <div>
+              <div className="text-xs text-[#6B655C] mb-1">Học sinh được làm</div>
+              <div className="text-sm font-bold text-[#1F1D1A]">
+                {topicEligibleStudents.length}
+              </div>
+            </div>
+
+            <div>
+              <div className="text-xs text-[#6B655C] mb-1">Số bài</div>
+              <div className="text-sm font-bold text-[#1F1D1A]">
+                {topicProblems.length}
+              </div>
+            </div>
+
+            <div>
+              <div className="text-xs text-[#6B655C] mb-1">Điểm tối đa</div>
+              <div className="text-sm font-bold text-[#1F1D1A]">
+                {topicMaxTotalPoints} điểm
+              </div>
+            </div>
+          </div>
+
+          {/* Table */}
+          {students.length === 0 ? (
+            <div className="border border-[#D9D2C3] rounded-lg p-12 text-center text-[#6B655C]">
+              Chưa có tài khoản học sinh nào trong hệ thống.
+            </div>
+          ) : topicProblems.length === 0 ? (
+            <div className="border border-[#D9D2C3] rounded-lg p-12 text-center text-[#6B655C]">
+              Chuyên đề này chưa có bài tập nào. Hãy vào mục "Quản lý chủ đề" để thêm bài tập.
+            </div>
+          ) : topicEligibleStudents.length === 0 ? (
+            <div className="border border-[#D9D2C3] rounded-lg p-12 text-center text-[#6B655C]">
+              Không có học sinh nào được giao chuyên đề này.
+            </div>
+          ) : (
+            <div>
+              <div className="border-t-2 border-[#1F1D1A] overflow-x-auto">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="border-b border-[#D9D2C3] text-xs font-semibold text-[#6B655C]">
+                      <th className="py-3 px-3 w-10 text-left">#</th>
+                      <th className="py-3 px-4 min-w-[200px]">Học sinh</th>
+                      <th className="py-3 px-4 min-w-[220px]">Tiến độ chủ đề</th>
                       {topicProblems.map((prob) => (
                         <th
                           key={prob.id}
-                          className="py-3 px-3 text-center min-w-[125px] border-l border-slate-200 dark:border-slate-800/50"
+                          className="py-3 px-3 text-center min-w-[100px]"
                         >
-                          <div className="font-mono text-blue-600 dark:text-blue-400 font-bold tracking-tight">
-                            [{prob.code}]
+                          <div className="font-mono font-bold text-[#1F1D1A] tracking-tight">
+                            {prob.code}
                           </div>
-                          <div
-                            className="text-[10px] text-slate-700 dark:text-slate-300 truncate max-w-[115px] font-medium mt-0.5 mx-auto"
-                            title={prob.title}
-                          >
-                            {prob.title}
-                          </div>
-                          <div className="text-[10px] text-slate-400 dark:text-slate-500 font-mono">
-                            ({prob.totalPoints || 10}đ)
+                          <div className="text-[11px] text-[#6B655C] font-normal mt-0.5">
+                            {prob.totalPoints || 10} điểm
                           </div>
                         </th>
                       ))}
-                      <th className="py-3 px-4 text-center min-w-[140px] border-l border-slate-200 dark:border-slate-800/80 bg-slate-50 dark:bg-slate-800/30">
-                        Tổng điểm chủ đề
-                      </th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-200 dark:divide-slate-800/60 font-mono">
+                  <tbody className="divide-y divide-[#E4DDCE]">
                     {topicEligibleStudents.map((st, idx) => {
                       let completedCount = 0;
                       let totalPointsEarned = 0;
@@ -1170,242 +1097,90 @@ export const SubmissionHistory: React.FC = () => {
                       return (
                         <tr
                           key={st.id}
-                          className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors"
+                          className="hover:bg-[#F4EFE6] transition-colors"
                         >
-                          <td className="py-3 px-4 text-center text-slate-400 dark:text-slate-500 font-bold">
-                            #{idx + 1}
+                          <td className="py-3.5 px-3 text-sm text-[#6B655C]">
+                            {idx + 1}
                           </td>
-                          <td className="py-3 px-4 font-sans">
-                            <div className="flex items-center gap-2">
-                              <div className="w-7 h-7 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
-                                <User className="w-3.5 h-3.5" />
-                              </div>
-                              <div>
-                                <span className="font-bold text-slate-900 dark:text-slate-100 block">
-                                  {st.fullName}
-                                </span>
-                                <span className="text-[11px] font-mono text-slate-500 dark:text-slate-400">
-                                  @{st.username}
-                                </span>
-                              </div>
+                          <td className="py-3.5 px-4">
+                            <div className="font-bold text-sm text-[#1F1D1A]">
+                              {st.fullName || st.username}
+                            </div>
+                            <div className="text-xs text-[#6B655C] font-mono mt-0.5">
+                              {st.email || `@${st.username}`}
                             </div>
                           </td>
-                          <td className="py-3 px-4 font-sans">
-                            <div className="space-y-1.5">
-                              <div className="flex items-center justify-between text-[11px]">
-                                <span className="text-slate-600 dark:text-slate-300 font-medium">
-                                  Đã làm {completedCount} / {topicProblems.length} bài
-                                </span>
-                                <span className="font-mono font-bold text-blue-600 dark:text-blue-400">
-                                  {progressPercent}%
-                                </span>
-                              </div>
-                              <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-1.5 overflow-hidden border border-slate-200 dark:border-slate-700/60">
-                                <div
-                                  className="bg-gradient-to-r from-blue-500 to-indigo-500 h-full rounded-full transition-all duration-300"
-                                  style={{ width: `${progressPercent}%` }}
-                                />
-                              </div>
+                          <td className="py-3.5 px-4">
+                            <div className="flex items-center justify-between text-xs text-[#1F1D1A] mb-1.5">
+                              <span>
+                                Đã làm {completedCount}/{topicProblems.length} bài
+                              </span>
+                              <span className="font-bold">{progressPercent}%</span>
+                            </div>
+                            <div className="w-full bg-[#E4DDCE] h-1 rounded-full overflow-hidden">
+                              <div
+                                className="bg-[#B4281F] h-full rounded-full transition-all duration-300"
+                                style={{ width: `${progressPercent}%` }}
+                              />
                             </div>
                           </td>
 
-                          {/* Điểm từng bài tập */}
                           {problemBests.map(({ prob, bestSub, isFull, maxPts }) => {
                             return (
                               <td
                                 key={prob.id}
-                                className="py-3 px-3 text-center border-l border-slate-200 dark:border-slate-800/50"
+                                className="py-3.5 px-3 text-center align-middle"
                               >
                                 {bestSub ? (
                                   <button
                                     onClick={() => handleOpenDetail(bestSub)}
-                                    className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold font-mono transition-all cursor-pointer shadow-sm hover:scale-105 ${
+                                    className={`inline-block px-2.5 py-0.5 rounded text-xs font-mono font-bold transition-transform hover:scale-105 cursor-pointer ${
                                       isFull
-                                        ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/25'
-                                        : bestSub.totalPointsEarned > 0
-                                        ? 'bg-amber-500/15 text-amber-400 border border-amber-500/30 hover:bg-amber-500/25'
-                                        : 'bg-rose-500/15 text-rose-400 border border-rose-500/30 hover:bg-rose-500/25'
+                                        ? 'bg-[#E8F5E9] text-[#2E7D32] border border-[#C8E6C9]'
+                                        : 'bg-[#FDF2F0] text-[#B4281F] border border-[#F7D6D0]'
                                     }`}
-                                    title="Bấm để xem chi tiết bài nộp & mã nguồn của học sinh"
+                                    title="Nhấn để xem chi tiết bài nộp"
                                   >
-                                    {isFull && (
-                                      <CheckCircle2 className="w-3 h-3 text-emerald-400 shrink-0" />
-                                    )}
-                                    <span>
-                                      {bestSub.totalPointsEarned} / {maxPts}
-                                    </span>
+                                    {bestSub.totalPointsEarned} / {maxPts}
                                   </button>
                                 ) : (
-                                  <span className="text-[11px] text-slate-500 font-mono italic">
-                                    Chưa làm (0đ)
+                                  <span className="text-[#6B655C] font-mono text-sm block">
+                                    –
                                   </span>
                                 )}
                               </td>
                             );
                           })}
-
-                          {/* Tổng điểm chủ đề */}
-                          <td className="py-3 px-4 text-center font-mono font-bold border-l border-slate-200 dark:border-slate-800/80 bg-slate-50 dark:bg-slate-800/20">
-                            <span
-                              className={`text-sm ${
-                                totalPointsEarned >= topicMaxTotalPoints &&
-                                topicMaxTotalPoints > 0
-                                  ? 'text-emerald-600 dark:text-emerald-400'
-                                  : totalPointsEarned > 0
-                                  ? 'text-amber-600 dark:text-amber-400'
-                                  : 'text-slate-400 dark:text-slate-500'
-                              }`}
-                            >
-                              {totalPointsEarned}
-                            </span>
-                            <span className="text-slate-400 dark:text-slate-500 text-xs">
-                              {' '}
-                              / {topicMaxTotalPoints}đ
-                            </span>
-                          </td>
                         </tr>
                       );
                     })}
                   </tbody>
                 </table>
               </div>
+
+              {/* Table Footer */}
+              <div className="border-t border-[#D9D2C3] pt-4 mt-2 flex items-center justify-between text-xs text-[#6B655C]">
+                <div>
+                  Hiện {topicEligibleStudents.length} học sinh · {topicProblems.length} bài · dấu – là chưa làm
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const el = document.querySelector('.overflow-x-auto');
+                    if (el) el.scrollLeft = el.scrollWidth;
+                  }}
+                  className="text-[#B4281F] font-semibold hover:underline cursor-pointer"
+                >
+                  Xem đầy đủ →
+                </button>
+              </div>
             </div>
           )}
         </div>
       )}
 
-      {/* Submission Detail Modal (Chi tiết bài nộp & kết quả chấm Themis) */}
-      {selectedSub && (
-        <div
-          onClick={() => setSelectedSub(null)}
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150"
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className={`border rounded-xl max-w-4xl w-full max-h-[90vh] flex flex-col overflow-hidden relative transition-colors ${
-              theme === 'light' ? 'bg-white border-stone-200' : 'bg-stone-900 border-stone-800'
-            }`}
-          >
-            {/* Header: Cố định ở trên, không bao giờ bị cuộn nội dung tràn qua */}
-            <div className={`shrink-0 px-6 py-4 border-b flex items-start justify-between gap-4 transition-colors ${
-              theme === 'light' ? 'bg-stone-50/50 border-stone-200' : 'bg-stone-900 border-stone-800'
-            }`}>
-              <div className="space-y-1.5">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className={`font-mono text-xs font-bold px-2 py-0.5 rounded border ${
-                    theme === 'light'
-                      ? 'bg-red-50 text-[#c51f26] border-red-200'
-                      : 'bg-red-950/30 text-red-400 border-red-900/40'
-                  }`}>
-                    Mã bài: {displayCode}
-                  </span>
-                  <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded border ${
-                    theme === 'light'
-                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                      : 'bg-emerald-950/30 text-emerald-400 border-emerald-900/40'
-                  }`}>
-                    <User className="w-3.5 h-3.5 text-emerald-600" />
-                    Học sinh: {getSubDisplayName(selectedSub)}
-                  </span>
-                  {activeTopic && (
-                    <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded border ${
-                      theme === 'light'
-                        ? 'bg-stone-100 text-stone-700 border-stone-200'
-                        : 'bg-stone-800 text-stone-300 border-stone-700'
-                    }`}>
-                      <Layers className="w-3.5 h-3.5 text-stone-500" />
-                      Chủ đề: {activeTopic.name}
-                    </span>
-                  )}
-                  <span className={`text-xs ${theme === 'light' ? 'text-stone-500' : 'text-stone-400'}`}>
-                    • Nhật ký chấm Themis
-                  </span>
-                </div>
-
-                <div>
-                  <span className={`text-[11px] font-bold uppercase tracking-wider block ${
-                    theme === 'light' ? 'text-stone-500' : 'text-stone-400'
-                  }`}>
-                    Tên bài tập:
-                  </span>
-                  <h3 className={`text-xl font-bold tracking-tight ${
-                    theme === 'light' ? 'text-stone-900' : 'text-white'
-                  }`}>
-                    {displayTitle}
-                  </h3>
-                </div>
-              </div>
-
-              {/* Chỉ 1 nút Đóng duy nhất ở góc trên bên phải */}
-              <button
-                onClick={() => setSelectedSub(null)}
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-colors border shrink-0 cursor-pointer ${
-                  theme === 'light'
-                    ? 'bg-white hover:bg-[#c51f26] hover:text-white text-stone-700 border-stone-200 hover:border-[#c51f26]'
-                    : 'bg-stone-800 hover:bg-[#c51f26] text-stone-300 hover:text-white border-stone-700 hover:border-[#c51f26]'
-                }`}
-                title="Đóng cửa sổ (Phím ESC hoặc click ra ngoài)"
-              >
-                <span className="text-xs font-semibold hidden sm:inline">Đóng</span>
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Scrollable Body: Chứa Bảng điểm Themis và Mã nguồn, cuộn mượt mà bên trong, không bao giờ tràn ra viền */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-6">
-              {/* Themis Table */}
-              <div className="w-full">
-                <ThemisGradingTable
-                  submission={selectedSub}
-                  isGrading={false}
-                />
-              </div>
-
-              {/* Source Code View */}
-              <div className="w-full">
-                <div className="flex items-center justify-between mb-2">
-                  <h4 className={`text-xs font-bold uppercase tracking-wider flex items-center gap-2 ${
-                    theme === 'light' ? 'text-stone-700' : 'text-stone-300'
-                  }`}>
-                    <Code2 className="w-4 h-4 text-[#c51f26]" /> Mã nguồn đã nộp ({(typeof selectedSub.language === 'string' ? selectedSub.language : String(selectedSub.language || '')).toUpperCase()}):
-                  </h4>
-                  <button
-                    type="button"
-                    onClick={() => handleCopySourceCode(typeof selectedSub.sourceCode === 'object' ? JSON.stringify(selectedSub.sourceCode, null, 2) : String(selectedSub.sourceCode || ''))}
-                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold transition-colors border cursor-pointer ${
-                      copiedCode
-                        ? 'bg-emerald-600 text-white border-emerald-500'
-                        : theme === 'light'
-                        ? 'bg-white hover:bg-stone-100 text-stone-700 border-stone-200'
-                        : 'bg-stone-800 hover:bg-stone-700 text-stone-300 border-stone-700'
-                    }`}
-                    title="Sao chép toàn bộ mã nguồn"
-                  >
-                    {copiedCode ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                    <span>{copiedCode ? 'Đã chép' : 'Sao chép code'}</span>
-                  </button>
-                </div>
-                <pre
-                  className="p-4 bg-stone-950 rounded-xl text-emerald-400 font-mono text-xs sm:text-sm overflow-x-auto max-h-80 border border-stone-800 leading-relaxed select-text"
-                  style={{
-                    fontFamily: "'Consolas', 'Courier New', monospace",
-                    fontVariantLigatures: 'none',
-                    fontFeatureSettings: '"liga" 0, "calt" 0',
-                    whiteSpace: 'pre',
-                    tabSize: 4,
-                  }}
-                >
-                  {isLoadingDetail && !selectedSub.sourceCode
-                    ? '// Đang tải mã nguồn từ máy chủ...'
-                    : typeof selectedSub.sourceCode === 'object'
-                    ? JSON.stringify(selectedSub.sourceCode, null, 2)
-                    : String(selectedSub.sourceCode || '// Không có mã nguồn được lưu')}
-                </pre>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Modal Chi tiết bài nộp */}
+      {renderDetailModal()}
     </div>
   );
 };

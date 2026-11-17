@@ -8,24 +8,16 @@ import { TestCaseManagerModal } from './TestCaseManagerModal';
 import { VideoConfigModal } from './VideoConfigModal';
 import { ErrorBoundary } from '../common/ErrorBoundary';
 import {
-  ListTree,
   Plus,
   Edit2,
   Trash2,
-  GripVertical,
   Layers,
-  Check,
   X,
-  ChevronDown,
-  ChevronUp,
-  FileCode2,
   Video,
-  FilePlus,
   Clock,
   HardDrive,
   GraduationCap,
   Globe,
-  Filter,
   Search,
   BookOpen,
   AlertCircle,
@@ -40,7 +32,6 @@ export const TopicManager: React.FC<TopicManagerProps> = ({ initialClassId }) =>
     topics,
     problems,
     classes,
-    getStudentsInClass,
     activeClassId,
     addTopic,
     updateTopic,
@@ -316,561 +307,389 @@ export const TopicManager: React.FC<TopicManagerProps> = ({ initialClassId }) =>
   const displayedTopics = topics.filter((t) => isTopicInClass(t, selectedClassFilter));
 
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+    <div className="space-y-6" style={{ fontFamily: "'Be Vietnam Pro', sans-serif" }}>
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold text-stone-900 dark:text-white flex items-center gap-2">
-            <ListTree className="w-5 h-5 text-[#c51f26] dark:text-red-400" />
-            Quản lý Chủ đề & Bài tập (Topics & Problems)
-          </h2>
-          <p className="text-xs text-stone-500 dark:text-stone-400 mt-1">
-            Tạo chủ đề, tích chọn các lớp học được giao, thêm bài tập cụ thể vào từng chủ đề và quản lý thứ tự giảng dạy
+          <h1 className="text-3xl font-bold text-[#1F1D1A] tracking-tight">
+            Chủ đề & bài tập
+          </h1>
+          <p className="text-sm text-[#6B655C] mt-1">
+            Tạo chủ đề, chọn lớp được giao, thêm bài tập vào từng chủ đề. Kéo thả hàng để đổi thứ tự.
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Nút thêm bài tập mới */}
+        <div className="flex flex-wrap items-center gap-3">
           <button
             onClick={() => setCreatingForTopicId(activeTab === 'topics' ? (topics[0]?.id || '') : '')}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-white dark:bg-stone-900 hover:bg-stone-50 dark:hover:bg-stone-800 text-stone-700 dark:text-stone-200 hover:text-[#c51f26] text-xs font-semibold border border-stone-200 dark:border-stone-700 transition-colors cursor-pointer"
+            className="px-4 py-2 rounded-lg border border-[#D9D2C3] bg-white hover:bg-[#F4EFE6] text-[#1F1D1A] text-sm font-medium transition-colors cursor-pointer"
           >
-            <FilePlus className="w-4 h-4 text-emerald-600" />
-            <span>Thêm bài tập mới</span>
+            Thêm bài tập mới
           </button>
 
-          {/* Nút thêm chủ đề */}
           {activeTab === 'topics' && !isAddingTopic && !editingTopicId && (
             <button
               onClick={handleStartAddTopic}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#c51f26] hover:bg-[#a8181e] text-white text-xs font-bold transition-colors cursor-pointer"
+              className="px-4 py-2 rounded-lg bg-[#B4281F] hover:bg-[#8F1F18] text-white text-sm font-semibold transition-colors cursor-pointer"
             >
-              <Plus className="w-4 h-4" /> Thêm chủ đề mới
+              Thêm chủ đề mới
             </button>
           )}
         </div>
       </div>
 
       {/* Tab Switcher: Danh sách Chủ đề vs Các bài tập */}
-      <div className="flex items-center gap-2 border-b border-stone-200 dark:border-stone-800 pb-1">
+      <div className="flex items-center gap-6 border-b border-[#D9D2C3] pb-0 pt-1">
         <button
           type="button"
           onClick={() => setActiveTab('topics')}
-          className={`pb-2 px-4 text-xs font-bold flex items-center gap-2 border-b-2 transition-colors cursor-pointer ${
+          className={`pb-2.5 text-sm font-bold transition-colors cursor-pointer ${
             activeTab === 'topics'
-              ? 'border-[#c51f26] text-[#c51f26] dark:text-red-400'
-              : 'border-transparent text-stone-500 hover:text-stone-900 dark:text-stone-400 dark:hover:text-stone-200'
+              ? 'border-b-2 border-[#B4281F] text-[#1F1D1A]'
+              : 'border-b-2 border-transparent text-[#6B655C] hover:text-[#1F1D1A]'
           }`}
         >
-          <ListTree className="w-4 h-4" />
-          <span>Danh sách Chủ đề</span>
-          <span className="px-2 py-0.5 rounded-full text-[10px] bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300 font-mono font-semibold">
-            {topics.length}
-          </span>
+          Danh sách chủ đề ({topics.length})
         </button>
 
         <button
           type="button"
           onClick={() => setActiveTab('problems')}
-          className={`pb-2 px-4 text-xs font-bold flex items-center gap-2 border-b-2 transition-colors cursor-pointer ${
+          className={`pb-2.5 text-sm font-bold transition-colors cursor-pointer ${
             activeTab === 'problems'
-              ? 'border-[#c51f26] text-[#c51f26] dark:text-red-400'
-              : 'border-transparent text-stone-500 hover:text-stone-900 dark:text-stone-400 dark:hover:text-stone-200'
+              ? 'border-b-2 border-[#B4281F] text-[#1F1D1A]'
+              : 'border-b-2 border-transparent text-[#6B655C] hover:text-[#1F1D1A]'
           }`}
         >
-          <BookOpen className="w-4 h-4" />
-          <span>Các bài tập</span>
-          <span className="px-2 py-0.5 rounded-full text-[10px] bg-red-50 dark:bg-red-950/20 text-[#c51f26] dark:text-red-400 font-mono font-bold">
-            {problems.length}
-          </span>
-          {unassignedProblemsCount > 0 && (
-            <span
-              className="px-2 py-0.5 rounded-full text-[10px] bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800 font-bold"
-              title={`${unassignedProblemsCount} bài tập chưa phân vào chủ đề`}
-            >
-              {unassignedProblemsCount} chưa gán
-            </span>
-          )}
+          Các bài tập ({problems.length})
         </button>
       </div>
 
       {activeTab === 'topics' && (
         <>
-
-      {/* Bộ lọc chủ đề theo lớp */}
-      <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl">
-        <div className="flex items-center gap-2">
-          <Filter className="w-4 h-4 text-[#c51f26] dark:text-red-400" />
-          <span className="text-xs font-semibold text-stone-700 dark:text-stone-300">Lọc chủ đề theo lớp:</span>
-          <select
-            value={selectedClassFilter}
-            onChange={(e) => setSelectedClassFilter(e.target.value)}
-            className="px-3 py-1.5 bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-lg text-xs text-stone-900 dark:text-white focus:outline-none focus:border-[#c51f26] font-medium cursor-pointer"
-          >
-            <option value="ALL">🌐 Tất cả lớp học ({topics.length} chủ đề)</option>
-            {classes.map((cls) => {
-              const count = topics.filter((t) => isTopicInClass(t, cls.id)).length;
-              return (
-                <option key={cls.id} value={cls.id}>
-                  🏫 {cls.className} ({count} chủ đề)
-                </option>
-              );
-            })}
-          </select>
-        </div>
-
-        <span className="text-xs text-stone-500 dark:text-stone-400">
-          Đang hiển thị <b className="text-stone-900 dark:text-white font-mono">{displayedTopics.length}</b> / <b className="text-stone-700 dark:text-stone-300 font-mono">{topics.length}</b> chủ đề
-        </span>
-      </div>
-
-      {/* Add / Edit Form Box for Topic */}
-      {(isAddingTopic || editingTopicId) && (
-        <div className="bg-white dark:bg-slate-900 border border-red-500/40 rounded-2xl p-6 shadow-xl space-y-4 animate-in fade-in duration-200">
-          <div className="flex items-center justify-between">
-            <h4 className="text-sm font-bold text-red-600 dark:text-red-300 flex items-center gap-2">
-              <Plus className="w-4 h-4" />
-              {isAddingTopic ? 'Tạo chủ đề bài tập mới' : 'Chỉnh sửa chủ đề'}
-            </h4>
-            <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-              Tích chọn 1 hoặc nhiều lớp bên dưới để giao chủ đề cùng lúc
-            </span>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                Tên chủ đề: *
-              </label>
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Ví dụ: Mảng 1 chiều, Quy hoạch động, Số học..."
-                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-red-500"
-              />
+          {/* Bộ lọc chủ đề theo lớp */}
+          <div className="flex flex-wrap items-center justify-between gap-4 pt-1">
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-[#6B655C]">Lọc theo lớp</span>
+              <select
+                value={selectedClassFilter}
+                onChange={(e) => setSelectedClassFilter(e.target.value)}
+                className="px-3 py-1.5 bg-[#FAF7EE] border border-[#D9D2C3] rounded text-sm text-[#1F1D1A] outline-none cursor-pointer"
+              >
+                <option value="ALL">Tất cả lớp học ({topics.length} chủ đề)</option>
+                {classes.map((cls) => {
+                  const count = topics.filter((t) => isTopicInClass(t, cls.id)).length;
+                  return (
+                    <option key={cls.id} value={cls.id}>
+                      {cls.className} ({count} chủ đề)
+                    </option>
+                  );
+                })}
+              </select>
             </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                Mô tả ngắn về chủ đề:
-              </label>
-              <input
-                type="text"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="Ví dụ: Rèn luyện kỹ thuật cơ bản, prefix sum, binary search..."
-                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-red-500"
-              />
+            <div className="text-sm text-[#6B655C]">
+              Đang hiển thị {displayedTopics.length} / {topics.length} chủ đề
             </div>
           </div>
 
-          {/* KHUNG TÍCH CHỌN CÁC LỚP HỌC (MULTI-CLASSROOM CHECKBOX GROUP) */}
-          <div className="space-y-2.5 pt-3 border-t border-slate-200 dark:border-slate-800">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <label className="block text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                <GraduationCap className="w-4 h-4 text-red-500 dark:text-red-400" />
-                <span>Giao vào các Lớp học (Tích chọn một hoặc nhiều lớp): *</span>
-              </label>
-
-              {/* Thao tác chọn nhanh */}
-              <div className="flex items-center gap-2">
+          {/* Add / Edit Form Box for Topic */}
+          {(isAddingTopic || editingTopicId) && (
+            <div className="bg-[#FFFDF8] border border-[#D9D2C3] rounded-2xl p-6 shadow-xl space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-[#E5E0D5]">
+                <h4 className="text-base font-bold text-[#1F1D1A]">
+                  {isAddingTopic ? 'Tạo chủ đề bài tập mới' : 'Chỉnh sửa chủ đề'}
+                </h4>
                 <button
-                  type="button"
-                  onClick={handleSelectAllClasses}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all flex items-center gap-1 cursor-pointer border ${
-                    isAllClasses
-                      ? 'bg-blue-600 text-white border-blue-500 shadow-sm'
-                      : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white border-slate-300 dark:border-slate-700'
-                  }`}
-                  title="Giao cho tất cả học sinh ở mọi lớp học"
+                  onClick={handleCancelTopic}
+                  className="text-[#6B655C] hover:text-[#1F1D1A] cursor-pointer"
                 >
-                  <Globe className="w-3.5 h-3.5" />
-                  <span>Tất cả các lớp</span>
+                  <X className="w-4 h-4" />
                 </button>
+              </div>
 
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-[#1F1D1A] mb-1">
+                    Tên chủ đề: *
+                  </label>
+                  <input
+                    type="text"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="Ví dụ: CĐ1 - NHẬP XUẤT VÀ ĐIỀU KIỆN"
+                    className="w-full px-3.5 py-2 bg-white border border-[#1F1D1A] rounded-lg text-sm text-[#1F1D1A] placeholder-[#9CA3AF] focus:outline-none focus:ring-1 focus:ring-[#1F1D1A]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-[#1F1D1A] mb-1">
+                    Mô tả ngắn:
+                  </label>
+                  <input
+                    type="text"
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    placeholder="Mô tả tóm tắt nội dung chủ đề..."
+                    className="w-full px-3.5 py-2 bg-white border border-[#D9D2C3] rounded-lg text-sm text-[#1F1D1A] placeholder-[#9CA3AF] focus:outline-none focus:border-[#1F1D1A]"
+                  />
+                </div>
+              </div>
+
+              {/* Tích chọn lớp học */}
+              <div className="space-y-2.5 pt-3 border-t border-[#E5E0D5]">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <label className="block text-xs font-bold text-[#1F1D1A]">
+                    Giao vào các Lớp học:
+                  </label>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleSelectAllClasses}
+                      className={`px-2.5 py-1 rounded text-xs font-medium border cursor-pointer ${
+                        isAllClasses
+                          ? 'bg-[#1F1D1A] text-white border-[#1F1D1A]'
+                          : 'bg-white text-[#1F1D1A] border-[#D9D2C3]'
+                      }`}
+                    >
+                      Tất cả các lớp
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleClearAllClasses}
+                      className="px-2.5 py-1 rounded text-xs font-medium text-[#6B655C] bg-white border border-[#D9D2C3] cursor-pointer"
+                    >
+                      Bỏ chọn
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
+                  {classes.map((cls) => {
+                    const isSelected = isAllClasses || selectedClassObjects.some((c: Classroom) => c.id === cls.id);
+                    return (
+                      <div
+                        key={cls.id}
+                        onClick={() => handleToggleClass(cls.id)}
+                        className={`p-3 rounded-lg border transition-all cursor-pointer flex items-center justify-between gap-2 select-none ${
+                          isSelected
+                            ? 'bg-[#FAF7EE] border-[#B4281F] text-[#1F1D1A]'
+                            : 'bg-white border-[#D9D2C3] text-[#6B655C]'
+                        }`}
+                      >
+                        <span className="text-xs font-bold truncate">{cls.className}</span>
+                        {isSelected && (
+                          <span className="text-[10px] font-bold text-[#B4281F]">Đã chọn</span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-[#E5E0D5]">
                 <button
-                  type="button"
-                  onClick={handleClearAllClasses}
-                  className="px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 bg-slate-100 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 transition-colors cursor-pointer"
+                  onClick={handleCancelTopic}
+                  className="px-4 py-2 rounded-lg text-sm font-medium text-[#1F1D1A] hover:text-[#6B655C] cursor-pointer"
                 >
-                  Bỏ chọn tất cả
+                  Hủy
+                </button>
+                <button
+                  onClick={handleSaveTopic}
+                  disabled={!isAllClasses && selectedClassObjects.length === 0}
+                  className="px-5 py-2.5 rounded-lg text-sm font-semibold bg-[#B4281F] hover:bg-[#8F1F18] text-white transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  Lưu chủ đề
                 </button>
               </div>
             </div>
+          )}
 
-            {/* Lưới các thẻ Lớp học kèm Checkbox */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
-              {classes.map((cls) => {
-                const isSelected = isAllClasses || selectedClassObjects.some((c: Classroom) => c.id === cls.id);
-                const studentCount = getStudentsInClass(cls.id).length;
+          {/* Table */}
+          <div className="overflow-x-auto pt-2">
+            <div className="min-w-[760px]">
+              {/* Table Column Headers */}
+              <div className="border-t-2 border-[#1F1D1A] py-3 grid grid-cols-[40px_260px_160px_1fr_100px_160px] items-center gap-3 text-[13px] text-[#6B655C] font-normal">
+                <div>#</div>
+                <div>Tên chủ đề</div>
+                <div>Lớp được giao</div>
+                <div>Mô tả</div>
+                <div>Số bài</div>
+                <div></div>
+              </div>
 
-                return (
-                  <div
-                    key={cls.id}
-                    onClick={() => handleToggleClass(cls.id)}
-                    className={`p-3 rounded-xl border transition-all cursor-pointer flex items-center justify-between gap-3 select-none ${
-                      isSelected
-                        ? 'bg-red-500/15 border-red-500/50 shadow-sm shadow-red-500/10 text-slate-900 dark:text-white'
-                        : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700/80 hover:border-slate-300 dark:hover:border-slate-600 text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      {/* Checkbox Icon */}
-                      <div className={`w-5 h-5 rounded-md flex items-center justify-center border transition-colors shrink-0 ${
-                        isSelected
-                          ? 'bg-red-600 border-red-500 text-white'
-                          : 'border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900'
-                      }`}>
-                        {isSelected && <Check className="w-3.5 h-3.5 stroke-[3]" />}
-                      </div>
-
-                      <div className="truncate">
-                        <div className="text-xs font-bold truncate flex items-center gap-1.5">
-                          <GraduationCap className="w-3.5 h-3.5 text-red-500 dark:text-red-400 shrink-0" />
-                          <span className="truncate">{cls.className}</span>
-                        </div>
-                        <div className="text-[10px] text-slate-500 dark:text-slate-400 font-mono mt-0.5">
-                          Mã: <span className="text-slate-700 dark:text-slate-300 font-bold">{cls.joinCode}</span> • {studentCount} HS
-                        </div>
-                      </div>
-                    </div>
-
-                    {isSelected && (
-                      <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-600 text-white shrink-0">
-                        Đã chọn
-                      </span>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Thanh hiển thị trạng thái số lớp đã chọn */}
-            <div className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 text-xs">
-              {isAllClasses ? (
-                <div className="text-blue-600 dark:text-blue-400 flex items-center gap-1.5 font-medium">
-                  <Globe className="w-4 h-4 text-blue-500 shrink-0" />
-                  <span>Chủ đề này đang được giao công khai cho <b>Tất cả các lớp ({classes.length} lớp học)</b>.</span>
-                </div>
-              ) : selectedClassObjects.length > 0 ? (
-                <div className="text-red-600 dark:text-red-400 flex items-center gap-1.5 font-medium">
-                  <Check className="w-4 h-4 text-red-500 shrink-0" />
-                  <span>
-                    Đang giao cho <b>{selectedClassObjects.length} lớp</b>:{' '}
-                    <span className="text-slate-800 dark:text-slate-200 font-semibold">
-                      {selectedClassObjects.map((c: Classroom) => c.className).join(', ')}
-                    </span>
-                  </span>
-                </div>
-              ) : (
-                <div className="text-amber-600 dark:text-amber-400 flex items-center gap-1.5 font-medium">
-                  <span>⚠️ Bạn chưa tích chọn lớp nào. Vui lòng bấm vào lớp muốn giao bài hoặc chọn "Tất cả các lớp".</span>
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="flex items-center justify-end gap-2 pt-2 border-t border-stone-200 dark:border-stone-800">
-            <button
-              onClick={handleCancelTopic}
-              className="px-3 py-1.5 rounded-lg bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-white border border-stone-200 dark:border-stone-700 text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer"
-            >
-              <X className="w-3.5 h-3.5" /> Hủy
-            </button>
-            <button
-              onClick={handleSaveTopic}
-              disabled={!isAllClasses && selectedClassObjects.length === 0}
-              className={`px-4 py-1.5 rounded-lg text-white text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer ${
-                !isAllClasses && selectedClassObjects.length === 0
-                  ? 'bg-stone-300 dark:bg-stone-700 opacity-50 cursor-not-allowed'
-                  : 'bg-[#c51f26] hover:bg-[#a8181e]'
-              }`}
-            >
-              <Check className="w-4 h-4" /> Lưu chủ đề
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Topics List Table & Drill-down Problems */}
-      <div className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-xs">
-            <thead>
-              <tr className="border-b border-stone-200 dark:border-stone-800 text-[11px] font-bold uppercase text-stone-600 dark:text-stone-400 bg-stone-50 dark:bg-stone-800/50">
-                <th className="py-3 px-4 w-16 text-center" title="Kéo thả hàng để sắp xếp thứ tự">STT</th>
-                <th className="py-3 px-4">Tên chủ đề</th>
-                <th className="py-3 px-4 text-center">Lớp được giao</th>
-                <th className="py-3 px-4">Mô tả</th>
-                <th className="py-3 px-4 text-center">Số bài tập</th>
-                <th className="py-3 px-4 text-right">Thao tác</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-stone-200 dark:divide-stone-800">
               {displayedTopics.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="py-12 text-center text-slate-500">
-                    <Layers className="w-10 h-10 mx-auto text-slate-400 mb-2 opacity-50" />
-                    <p className="font-semibold text-sm">Chưa có chủ đề nào phù hợp</p>
-                    <p className="text-xs text-slate-400 mt-1">
-                      Nhấp vào nút "+ Thêm chủ đề mới" ở trên để bắt đầu tạo chủ đề và giao vào lớp học.
-                    </p>
-                  </td>
-                </tr>
+                <div className="border-t border-[#D9D2C3] py-12 text-center text-[#6B655C]">
+                  <p className="text-base font-bold text-[#1F1D1A]">Chưa có chủ đề nào phù hợp</p>
+                  <p className="text-xs text-[#6B655C] mt-1">
+                    Nhấp vào nút "Thêm chủ đề mới" ở trên để bắt đầu tạo chủ đề.
+                  </p>
+                </div>
               ) : (
-                displayedTopics.map((t, idx) => {
-                const topicProblems = problems.filter((p) => p.topicId === t.id);
-                const isExpanded = expandedTopicId === t.id;
+                <div className="divide-y divide-[#D9D2C3]">
+                  {displayedTopics.map((t, idx) => {
+                    const topicProblems = problems.filter((p) => p.topicId === t.id);
+                    const isExpanded = expandedTopicId === t.id;
 
-                return (
-                  <React.Fragment key={t.id}>
-                    <tr
-                      draggable={!editingTopicId}
-                      onDragStart={(e) => handleDragStart(e, idx)}
-                      onDragOver={(e) => handleDragOver(e, idx)}
-                      onDrop={(e) => handleDrop(e, idx)}
-                      onDragEnd={handleDragEnd}
-                      className={`hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors cursor-pointer select-none ${
-                        isExpanded ? 'bg-slate-100/80 dark:bg-slate-800/60' : ''
-                      } ${draggedIdx === idx ? 'opacity-40 bg-slate-200 dark:bg-slate-800' : ''} ${
-                        dragOverIdx === idx && draggedIdx !== idx
-                          ? 'border-t-2 border-red-500 bg-red-500/10'
-                          : ''
-                      }`}
-                      onClick={() => setExpandedTopicId(isExpanded ? null : t.id)}
-                    >
-                      <td className="py-3 px-4 text-center font-mono font-bold text-slate-500 dark:text-slate-400">
+                    const ids =
+                      t.classIds && t.classIds.length > 0
+                        ? t.classIds
+                        : t.classId
+                        ? [t.classId]
+                        : ['ALL'];
+                    const isAll = ids.includes('ALL');
+                    const targetClasses = classes.filter((c) => ids.includes(c.id));
+                    const assignedLabel = isAll
+                      ? 'Tất cả các lớp'
+                      : targetClasses.length > 0
+                      ? targetClasses.map((c) => c.className).join(', ')
+                      : 'Chưa giao lớp nào';
+
+                    return (
+                      <div key={t.id}>
                         <div
-                          className="flex items-center justify-center gap-1.5 cursor-grab active:cursor-grabbing text-slate-400 hover:text-red-500 transition-colors"
-                          title="Kéo thả hàng này để sắp xếp thứ tự chủ đề"
-                          onClick={(e) => e.stopPropagation()}
+                          draggable={!editingTopicId}
+                          onDragStart={(e) => handleDragStart(e, idx)}
+                          onDragOver={(e) => handleDragOver(e, idx)}
+                          onDrop={(e) => handleDrop(e, idx)}
+                          onDragEnd={handleDragEnd}
+                          onClick={() => setExpandedTopicId(isExpanded ? null : t.id)}
+                          className={`py-3.5 grid grid-cols-[40px_260px_160px_1fr_100px_160px] items-center gap-3 text-sm hover:bg-black/[0.01] transition-colors cursor-pointer select-none ${
+                            draggedIdx === idx ? 'opacity-40' : ''
+                          }`}
                         >
-                          <GripVertical className="w-4 h-4 text-slate-400 hover:text-red-500 shrink-0" />
-                          <span>#{idx + 1}</span>
-                        </div>
-                      </td>
-                      <td className="py-3 px-4 font-bold text-slate-950 dark:text-white">
-                        <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            className="p-1 rounded text-slate-400 hover:text-slate-800 dark:hover:text-white"
-                          >
-                            {isExpanded ? (
-                              <ChevronUp className="w-4 h-4 text-red-500" />
-                            ) : (
-                              <ChevronDown className="w-4 h-4 text-slate-400" />
-                            )}
-                          </button>
-                          <div className="w-7 h-7 rounded-lg bg-red-500/10 text-red-500 flex items-center justify-center shrink-0">
-                            <Layers className="w-3.5 h-3.5" />
+                          {/* # */}
+                          <div className="text-sm text-[#6B655C]">
+                            {idx + 1}
                           </div>
-                          <span className="text-slate-950 dark:text-white font-bold text-sm tracking-tight">{t.name}</span>
+
+                          {/* Tên chủ đề */}
+                          <div>
+                            <span className="font-bold text-[#1F1D1A] text-sm hover:text-[#B4281F]">
+                              {t.name}
+                            </span>
+                          </div>
+
+                          {/* Lớp được giao */}
+                          <div className="text-sm text-[#1F1D1A] truncate" title={assignedLabel}>
+                            {assignedLabel}
+                          </div>
+
+                          {/* Mô tả */}
+                          <div className="text-sm text-[#6B655C] truncate">
+                            {t.description || 'Chưa có mô tả'}
+                          </div>
+
+                          {/* Số bài */}
+                          <div className="text-sm text-[#1F1D1A]">
+                            {topicProblems.length} bài
+                          </div>
+
+                          {/* Thao tác */}
+                          <div className="text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                            <button
+                              onClick={() => setCreatingForTopicId(t.id)}
+                              className="text-sm font-semibold text-[#B4281F] hover:underline cursor-pointer"
+                            >
+                              + Thêm bài
+                            </button>
+                            <button
+                              onClick={() => handleStartEditTopic(t)}
+                              className="text-sm text-[#6B655C] hover:text-[#1F1D1A] cursor-pointer ml-3"
+                            >
+                              Sửa
+                            </button>
+                            <button
+                              onClick={() => {
+                                openConfirmModal({
+                                  title: 'Xác nhận xóa chủ đề',
+                                  message: `Bạn có chắc chắn muốn xóa chủ đề "${t.name}"? Các bài tập trong chủ đề này vẫn được bảo lưu.`,
+                                  confirmLabel: 'Xác nhận xóa',
+                                  onConfirm: () => deleteTopic(t.id),
+                                });
+                              }}
+                              className="text-sm text-[#6B655C] hover:text-[#B4281F] cursor-pointer ml-3"
+                            >
+                              Xóa
+                            </button>
+                          </div>
                         </div>
-                      </td>
-                      <td className="py-3 px-4 text-center" onClick={(e) => e.stopPropagation()}>
-                        {(() => {
-                          const ids = t.classIds && t.classIds.length > 0
-                            ? t.classIds
-                            : (t.classId ? [t.classId] : ['ALL']);
 
-                          if (ids.includes('ALL')) {
-                            return (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20 text-[11px] font-semibold">
-                                <Globe className="w-3 h-3" />
-                                <span>Tất cả các lớp</span>
+                        {/* Expanded Drill-down Problems list */}
+                        {isExpanded && (
+                          <div className="bg-[#FAF7EE] border-t border-[#E5E0D5] p-4 sm:p-5 space-y-3">
+                            <div className="flex items-center justify-between pb-2 border-b border-[#D9D2C3]">
+                              <span className="font-bold text-xs uppercase text-[#1F1D1A]">
+                                Danh sách bài tập trong chủ đề: {t.name}
                               </span>
-                            );
-                          }
-
-                          const targetClasses = classes.filter((c) => ids.includes(c.id));
-                          if (targetClasses.length === 0) {
-                            return (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-800 text-slate-400 border border-slate-700 text-[11px]">
-                                Lớp đã xóa
-                              </span>
-                            );
-                          }
-
-                          return (
-                            <div className="flex flex-wrap items-center justify-center gap-1.5 max-w-xs mx-auto">
-                              {targetClasses.map((c) => (
-                                <span
-                                  key={c.id}
-                                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-red-500/15 text-red-400 border border-red-500/30 text-[11px] font-bold shadow-sm"
-                                  title={`Mã vào lớp: ${c.joinCode}`}
-                                >
-                                  <GraduationCap className="w-3 h-3 shrink-0" />
-                                  <span>{c.className}</span>
-                                </span>
-                              ))}
-                            </div>
-                          );
-                        })()}
-                      </td>
-                      <td className="py-3 px-4 text-slate-600 dark:text-slate-400 max-w-xs truncate">
-                        {t.description || 'Chưa có mô tả'}
-                      </td>
-                      <td className="py-3 px-4 text-center font-mono font-semibold">
-                        <span className="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
-                          {topicProblems.length} bài
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 text-right" onClick={(e) => e.stopPropagation()}>
-                        <div className="inline-flex items-center gap-2">
-                          {/* Nút thêm bài cụ thể vào chủ đề này */}
-                          <button
-                            onClick={() => setCreatingForTopicId(t.id)}
-                            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-rose-50 dark:bg-red-600/20 hover:bg-red-600 text-rose-700 dark:text-red-300 hover:text-white border border-rose-200 dark:border-red-500/30 transition-all font-bold text-xs shadow-sm cursor-pointer"
-                            title="Thêm bài tập mới trực tiếp vào chủ đề này"
-                          >
-                            <Plus className="w-3.5 h-3.5" />
-                            <span>Thêm bài</span>
-                          </button>
-
-                          <button
-                            onClick={() => handleStartEditTopic(t)}
-                            className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-blue-600 text-slate-600 dark:text-slate-300 hover:text-white border border-slate-200 dark:border-slate-700 transition-colors cursor-pointer"
-                            title="Sửa chủ đề"
-                          >
-                            <Edit2 className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            onClick={() => {
-                              openConfirmModal({
-                                title: 'Xác nhận xóa chủ đề',
-                                message: `Bạn có chắc chắn muốn xóa chủ đề "${t.name}"? Các bài tập trong chủ đề này vẫn được bảo lưu.`,
-                                confirmLabel: 'Xác nhận xóa',
-                                onConfirm: () => deleteTopic(t.id),
-                              });
-                            }}
-                            className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-rose-600 text-slate-600 dark:text-slate-300 hover:text-white border border-slate-200 dark:border-slate-700 transition-colors cursor-pointer"
-                            title="Xóa chủ đề"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-
-                    {/* EXPANDED VIEW: Danh sách bài tập cụ thể trong chủ đề này */}
-                    {isExpanded && (
-                      <tr className="bg-slate-50 dark:bg-slate-950/90 border-y border-slate-200 dark:border-slate-800">
-                        <td colSpan={6} className="p-4 sm:p-5">
-                          <div className="space-y-3">
-                            <div className="flex items-center justify-between pb-2 border-b border-slate-200 dark:border-slate-800">
-                              <h5 className="font-bold text-xs uppercase tracking-wider text-slate-800 dark:text-slate-300 flex items-center gap-2">
-                                <FileCode2 className="w-4 h-4 text-red-500 dark:text-red-400" />
-                                Danh sách bài tập trong chủ đề: <span className="text-slate-950 dark:text-white normal-case font-bold">{t.name}</span>
-                              </h5>
+                              <button
+                                onClick={() => setCreatingForTopicId(t.id)}
+                                className="text-xs font-semibold text-[#B4281F] hover:underline"
+                              >
+                                + Thêm bài tập
+                              </button>
                             </div>
 
                             {topicProblems.length === 0 ? (
-                              <div className="py-6 text-center text-slate-500 text-xs">
-                                Chủ đề này chưa có bài tập nào.
+                              <div className="py-4 text-center text-xs text-[#6B655C]">
+                                Chủ đề này chưa có bài tập nào. Bấm "+ Thêm bài" để nạp bài tập mới.
                               </div>
                             ) : (
-                              <div className="divide-y divide-slate-200 dark:divide-slate-800/80">
+                              <div className="divide-y divide-[#E5E0D5]">
                                 {topicProblems.map((prob) => {
                                   const testCount =
                                     prob.testCases && prob.testCases.length > 0
                                       ? prob.testCases.length
-                                      : (asyncTestCounts[prob.id] || 0);
-                                  const hasVideo = prob.videoConfig?.enabled && prob.videoConfig?.url;
-
+                                      : asyncTestCounts[prob.id] || 0;
                                   return (
                                     <div
                                       key={prob.id}
-                                      className="py-3 px-3 flex flex-col md:flex-row md:items-center justify-between gap-3 hover:bg-slate-100 dark:hover:bg-slate-900/60 rounded-xl transition-colors border border-transparent hover:border-slate-200 dark:border-slate-800"
+                                      className="py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
                                     >
-                                      <div className="flex items-start sm:items-center gap-3">
-                                        <span className="font-mono text-xs font-bold text-red-600 dark:text-red-400 bg-red-500/10 px-2.5 py-1 rounded-lg border border-red-500/20 shrink-0">
+                                      <div className="flex items-center gap-3">
+                                        <span className="font-mono font-bold text-[#1F1D1A]">
                                           {prob.code}
                                         </span>
-                                        <div>
-                                          <h6 className="font-bold text-slate-950 dark:text-white text-xs sm:text-sm">
-                                            {prob.title}
-                                          </h6>
-                                          <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                                            <span>
-                                              Thang điểm: <b className="text-amber-600 dark:text-amber-400 font-mono font-semibold">{prob.totalPoints}đ</b>
-                                            </span>
-                                            <span>•</span>
-                                            <span
-                                              className={`font-semibold ${
-                                                prob.difficulty === 'Dễ'
-                                                  ? 'text-emerald-500'
-                                                  : prob.difficulty === 'Trung bình'
-                                                  ? 'text-blue-500'
-                                                  : 'text-amber-500'
-                                              }`}
-                                            >
-                                              {prob.difficulty}
-                                            </span>
-                                            <span>•</span>
-                                            <span className="font-mono flex items-center gap-1">
-                                              <Clock className="w-3 h-3 text-slate-400" /> {prob.timeLimit}s
-                                            </span>
-                                            <span>•</span>
-                                            <span className="font-mono flex items-center gap-1">
-                                              <HardDrive className="w-3 h-3 text-slate-400" /> {prob.memoryLimit}MB
-                                            </span>
-                                          </div>
-                                        </div>
+                                        <span className="font-medium text-[#1F1D1A]">
+                                          {prob.title}
+                                        </span>
+                                        <span className="text-[#6B655C]">
+                                          • {prob.totalPoints}đ
+                                        </span>
                                       </div>
 
-                                      <div className="flex flex-wrap items-center gap-2 shrink-0 self-end md:self-center">
-                                        {/* Nút Test Cases (Themis) */}
+                                      <div className="flex items-center gap-3">
                                         <button
                                           onClick={() => setManagingTestsProblem(prob)}
-                                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition-all shadow-sm cursor-pointer ${
-                                            testCount > 0
-                                              ? 'bg-blue-50 dark:bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-500/30 hover:bg-blue-600 hover:text-white'
-                                              : 'bg-rose-50 dark:bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-500/30 hover:bg-rose-600 hover:text-white'
-                                          }`}
-                                          title="Nhấp để nạp ZIP hoặc chỉnh sửa test case Themis"
+                                          className="text-xs font-semibold text-[#1F1D1A] hover:underline"
                                         >
-                                          <Layers className="w-3.5 h-3.5" />
-                                          <span>{testCount > 0 ? `${testCount} Tests (Themis)` : 'Chưa có Test!'}</span>
+                                          {testCount > 0 ? `${testCount} Tests` : 'Chưa có Test!'}
                                         </button>
-
-                                        {/* Nút Video */}
                                         <button
                                           onClick={() => setConfiguringVideoProblem(prob)}
-                                          className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
-                                            hasVideo
-                                              ? 'bg-rose-50 dark:bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-500/30 hover:bg-rose-600 hover:text-white'
-                                              : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700 hover:bg-slate-200 dark:hover:text-white'
-                                          }`}
-                                          title="Nhấp để cấu hình video chữa bài"
+                                          className="text-xs text-[#6B655C] hover:text-[#1F1D1A]"
                                         >
-                                          <Video className="w-3.5 h-3.5 text-rose-500 dark:text-rose-400" />
-                                          <span>{hasVideo ? 'Đã gắn video' : '+ Gắn video'}</span>
+                                          Video
                                         </button>
-
-                                        {/* Nút Sửa đề */}
                                         <button
                                           onClick={() => setEditingProblem(prob)}
-                                          className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-blue-600 text-slate-600 dark:text-slate-300 hover:text-white border border-slate-200 dark:border-slate-700 transition-colors cursor-pointer"
-                                          title="Sửa nội dung bài"
+                                          className="text-xs text-[#6B655C] hover:text-[#1F1D1A]"
                                         >
-                                          <Edit2 className="w-3.5 h-3.5" />
+                                          Sửa
                                         </button>
-
-                                        {/* Nút Xóa bài */}
                                         <button
                                           onClick={() => {
                                             openConfirmModal({
                                               title: 'Xác nhận xóa bài tập',
-                                              message: `Bạn có chắc chắn muốn xóa bài [${prob.code}] "${prob.title}" khỏi chủ đề "${t.name}"? Tất cả bài nộp liên quan cũng sẽ bị gỡ bỏ.`,
+                                              message: `Bạn có chắc chắn muốn xóa bài [${prob.code}] "${prob.title}"?`,
                                               confirmLabel: 'Xác nhận xóa',
                                               onConfirm: () => deleteProblem(prob.id),
                                             });
                                           }}
-                                          className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-rose-600 text-slate-600 dark:text-slate-300 hover:text-white border border-slate-200 dark:border-slate-700 transition-colors cursor-pointer"
-                                          title="Xóa bài tập này"
+                                          className="text-xs text-[#6B655C] hover:text-[#B4281F]"
                                         >
-                                          <Trash2 className="w-3.5 h-3.5" />
+                                          Xóa
                                         </button>
                                       </div>
                                     </div>
@@ -879,55 +698,51 @@ export const TopicManager: React.FC<TopicManagerProps> = ({ initialClassId }) =>
                               </div>
                             )}
                           </div>
-                        </td>
-                      </tr>
-                    )}
-                  </React.Fragment>
-                );
-              })
-            )}
-          </tbody>
-          </table>
-        </div>
-      </div>
-      </>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </>
       )}
 
       {/* Tab Các bài tập */}
       {activeTab === 'problems' && (
         <div className="space-y-4 animate-in fade-in duration-200">
           {/* Bộ lọc & Tìm kiếm bài tập */}
-          <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xs">
+          <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-[#FAF7EE] border border-[#D9D2C3] rounded-lg">
             <div className="flex flex-wrap items-center gap-3 flex-1 min-w-[280px]">
               {/* Ô tìm kiếm */}
               <div className="relative flex-1 min-w-[200px] max-w-sm">
-                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
                 <input
                   type="text"
                   value={problemSearch}
                   onChange={(e) => setProblemSearch(e.target.value)}
                   placeholder="Tìm theo mã bài, tiêu đề, tác giả..."
-                  className="w-full pl-9 pr-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-red-500 font-medium"
+                  className="w-full pl-9 pr-3 py-1.5 bg-white border border-[#D9D2C3] rounded-lg text-xs text-[#1F1D1A] placeholder-stone-400 focus:outline-none focus:border-[#1F1D1A] font-medium"
                 />
               </div>
 
               {/* Lọc theo chủ đề */}
               <div className="flex items-center gap-1.5">
-                <Layers className="w-4 h-4 text-blue-500 dark:text-blue-400 shrink-0" />
                 <select
                   value={problemTopicFilter}
                   onChange={(e) => setProblemTopicFilter(e.target.value)}
-                  className="px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-red-500 font-medium cursor-pointer"
+                  className="px-3 py-1.5 bg-white border border-[#D9D2C3] rounded-lg text-xs text-[#1F1D1A] focus:outline-none focus:border-[#1F1D1A] font-medium cursor-pointer"
                 >
-                  <option value="ALL">🌐 Tất cả chủ đề ({problems.length} bài)</option>
+                  <option value="ALL">Tất cả chủ đề ({problems.length} bài)</option>
                   <option value="__UNASSIGNED__">
-                    ⚠️ Chưa phân vào chủ đề ({unassignedProblemsCount} bài)
+                    Chưa phân vào chủ đề ({unassignedProblemsCount} bài)
                   </option>
                   {topics.map((t) => {
                     const count = problems.filter((p) => p.topicId === t.id).length;
                     return (
                       <option key={t.id} value={t.id}>
-                        📁 {t.name} ({count} bài)
+                        {t.name} ({count} bài)
                       </option>
                     );
                   })}
@@ -936,13 +751,13 @@ export const TopicManager: React.FC<TopicManagerProps> = ({ initialClassId }) =>
             </div>
 
             <div className="flex items-center gap-3">
-              <span className="text-xs text-slate-500 dark:text-slate-400">
-                Đang hiển thị <b className="text-slate-900 dark:text-white font-mono">{filteredProblems.length}</b> / <b className="text-slate-700 dark:text-slate-300 font-mono">{problems.length}</b> bài tập
+              <span className="text-xs text-[#6B655C]">
+                Đang hiển thị <b className="text-[#1F1D1A] font-mono">{filteredProblems.length}</b> / <b className="text-[#6B655C] font-mono">{problems.length}</b> bài tập
               </span>
               <button
                 type="button"
                 onClick={() => setCreatingForTopicId('')}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold transition-all shadow-md shadow-red-600/20 cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#B4281F] hover:bg-[#8F1F18] text-white text-xs font-bold transition-colors cursor-pointer"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>Thêm bài mới</span>
@@ -951,11 +766,11 @@ export const TopicManager: React.FC<TopicManagerProps> = ({ initialClassId }) =>
           </div>
 
           {/* Bảng danh sách tất cả các bài tập */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+          <div className="border border-[#D9D2C3] bg-white rounded-xl overflow-hidden shadow-xs">
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
-                  <tr className="border-b border-slate-200 dark:border-slate-800 text-[11px] font-bold uppercase text-slate-600 dark:text-slate-400 bg-slate-100/90 dark:bg-slate-800/40">
+                  <tr className="border-b border-[#D9D2C3] text-[11px] font-bold uppercase text-[#6B655C] bg-[#FAF7EE]">
                     <th className="py-3 px-4 w-14 text-center">STT</th>
                     <th className="py-3 px-4">Mã bài</th>
                     <th className="py-3 px-4">Tiêu đề bài tập</th>
