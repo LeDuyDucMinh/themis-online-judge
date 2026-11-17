@@ -1,13 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useJudge } from '../../context/JudgeContext';
-import {
-  UserCheck,
-  X,
-  Check,
-  Loader2,
-  Mail,
-  Sparkles,
-} from 'lucide-react';
+import { X, Loader2 } from 'lucide-react';
 
 export const ChangeNameModal: React.FC = () => {
   const {
@@ -15,7 +8,6 @@ export const ChangeNameModal: React.FC = () => {
     setIsChangeNameModalOpen,
     currentStudent,
     updateStudentName,
-    theme,
   } = useJudge();
 
   const [newName, setNewName] = useState('');
@@ -65,65 +57,58 @@ export const ChangeNameModal: React.FC = () => {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-150"
       onClick={handleClose}
     >
       <div
-        className={`w-full max-w-md rounded-3xl border shadow-2xl p-6 sm:p-7 relative overflow-hidden transition-all duration-200 ${
-          theme === 'light'
-            ? 'bg-white border-slate-200 text-slate-900 shadow-slate-900/10'
-            : 'bg-[#0c1017] border-slate-800 text-white shadow-black/60'
-        }`}
+        className="w-full max-w-[420px] rounded-2xl border border-[#D9D2C3] bg-[#FFFDF8] p-6 text-[#1F1D1A] shadow-2xl relative transition-all"
         onClick={(e) => e.stopPropagation()}
+        style={{ fontFamily: "'Be Vietnam Pro', sans-serif" }}
       >
         {/* Nút đóng */}
         <button
           onClick={handleClose}
           disabled={isUpdating}
-          className="absolute top-4 right-4 p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer disabled:opacity-50"
+          className="absolute top-5 right-5 text-[#6B655C] hover:text-[#1F1D1A] transition-colors cursor-pointer disabled:opacity-50"
           title="Đóng cửa sổ"
         >
           <X className="w-4 h-4" />
         </button>
 
         {/* Tiêu đề Modal */}
-        <div className="flex items-center gap-3 mb-5">
-          <div className="w-10 h-10 rounded-xl bg-red-500/15 text-red-400 border border-red-500/30 flex items-center justify-center shrink-0">
-            <UserCheck className="w-5 h-5" />
-          </div>
-          <div>
-            <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-              <span>Đổi họ và tên</span>
-              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-            </h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              Cập nhật tên hiển thị trong lớp học và bài thi Themis
-            </p>
-          </div>
+        <div className="mb-4 pr-6">
+          <h3 className="text-xl font-bold text-[#1F1D1A] tracking-tight">
+            Đổi họ và tên
+          </h3>
+          <p className="text-[13px] text-[#6B655C] mt-1.5 leading-snug">
+            Tên này hiện trong danh sách lớp, bảng xếp hạng và kết quả chấm bài.
+          </p>
         </div>
 
         {/* Thông tin tài khoản hiện tại */}
-        <div className="mb-4 p-3 rounded-2xl bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 text-xs space-y-1">
-          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
-            <span>Tài khoản:</span>
-            <span className="font-mono font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1">
-              <Mail className="w-3 h-3 text-red-400" />
-              <span>{currentStudent.email || currentStudent.username}</span>
+        <div className="border-t border-[#E5E0D5] text-[13px]">
+          <div className="flex items-center justify-between py-2.5">
+            <span className="text-[#6B655C]">Tài khoản</span>
+            <span
+              className="font-mono text-[#1F1D1A] text-right truncate max-w-[220px]"
+              title={currentStudent.email || currentStudent.username}
+            >
+              {currentStudent.email || currentStudent.username}
             </span>
           </div>
-          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
-            <span>Tên hiện tại:</span>
-            <span className="font-bold text-slate-900 dark:text-white">
+          <div className="flex items-center justify-between py-2.5 border-t border-[#E5E0D5]">
+            <span className="text-[#6B655C]">Tên hiện tại</span>
+            <span className="font-bold text-[#1F1D1A] text-right">
               {currentStudent.fullName}
             </span>
           </div>
         </div>
 
         {/* Form đổi tên */}
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
-              Họ và tên mới <span className="text-red-500">*</span>
+        <form onSubmit={handleSubmit} className="mt-2 space-y-4">
+          <div className="border-t border-[#E5E0D5] pt-4">
+            <label className="block text-[13px] font-bold text-[#1F1D1A] mb-2">
+              Họ và tên mới
             </label>
             <input
               type="text"
@@ -132,50 +117,46 @@ export const ChangeNameModal: React.FC = () => {
                 setNewName(e.target.value);
                 if (error) setError('');
               }}
-              placeholder="Nhập họ và tên đầy đủ (ví dụ: Lê Duy Đức Minh)..."
+              placeholder="Nhập họ và tên..."
               disabled={isUpdating}
               autoFocus
               required
-              className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-[#07090e] border border-slate-300 dark:border-slate-800 rounded-xl text-xs text-slate-900 dark:text-white placeholder-slate-500 focus:outline-none focus:border-red-500 transition-all"
+              className="w-full px-3.5 py-2.5 bg-white border border-[#1F1D1A] rounded-lg text-sm text-[#1F1D1A] placeholder-[#9CA3AF] focus:outline-none focus:ring-1 focus:ring-[#1F1D1A] transition-all font-medium"
             />
+            <p className="text-[12px] text-[#6B655C] mt-2 leading-relaxed">
+              Tên mới có hiệu lực ngay, giáo viên cũng sẽ thấy tên này trong danh sách học sinh.
+            </p>
           </div>
 
           {/* Thông báo lỗi nếu có */}
           {error && (
-            <div className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-500 text-xs">
+            <div className="p-2.5 rounded-lg bg-[#B4281F]/10 border border-[#B4281F]/20 text-[#B4281F] text-xs font-medium">
               {error}
             </div>
           )}
 
-          <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-[11px] text-red-400 leading-relaxed">
-            💡 Tên mới sẽ được cập nhật ngay lập tức và đồng bộ lên hệ thống để Giáo viên nhìn thấy trong danh sách học sinh và kết quả chấm bài.
-          </div>
-
           {/* Nút bấm */}
-          <div className="flex items-center justify-end gap-2 pt-2">
+          <div className="flex items-center justify-end gap-3 pt-3">
             <button
               type="button"
               onClick={handleClose}
               disabled={isUpdating}
-              className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer disabled:opacity-50"
+              className="px-4 py-2 text-sm font-medium text-[#1F1D1A] hover:text-[#6B655C] transition-colors cursor-pointer disabled:opacity-50"
             >
               Hủy
             </button>
             <button
               type="submit"
               disabled={isUpdating || !newName.trim()}
-              className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl text-xs font-bold bg-red-600 hover:bg-red-500 text-white shadow-lg shadow-red-600/25 transition-all cursor-pointer hover:scale-[1.02] disabled:opacity-50"
+              className="inline-flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-lg text-sm font-semibold bg-[#B4281F] hover:bg-[#8F1F18] text-white transition-colors cursor-pointer disabled:opacity-50 min-w-[120px]"
             >
               {isUpdating ? (
                 <>
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  <Loader2 className="w-4 h-4 animate-spin" />
                   <span>Đang lưu...</span>
                 </>
               ) : (
-                <>
-                  <Check className="w-3.5 h-3.5" />
-                  <span>Lưu thay đổi</span>
-                </>
+                <span>Lưu thay đổi</span>
               )}
             </button>
           </div>
