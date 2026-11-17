@@ -1,18 +1,5 @@
 import React, { useState } from 'react';
 import type { Submission, TestResult, Verdict } from '../../types/judge';
-import { useJudge } from '../../context/JudgeContext';
-import {
-  CheckCircle2,
-  XCircle,
-  Clock,
-  AlertOctagon,
-  FileCode2,
-  ChevronDown,
-  ChevronUp,
-  Cpu,
-  Layers,
-  Sparkles,
-} from 'lucide-react';
 
 interface ThemisGradingTableProps {
   submission: Submission | null;
@@ -29,28 +16,18 @@ export const ThemisGradingTable: React.FC<ThemisGradingTableProps> = ({
   totalTestsToRun = 0,
   showDetails,
 }) => {
-  const { theme } = useJudge();
   const [expandedTestId, setExpandedTestId] = useState<string | null>(null);
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
-  // Mở rộng chi tiết I/O cho mọi người dùng (học sinh & giáo viên), trừ khi bị truyền showDetails={false}
   const canViewDetails = showDetails !== false;
 
-  const formatOutput = (str?: unknown): string => {
-    if (str === null || str === undefined) return 'Không có dữ liệu';
-    if (typeof str === 'object') {
-      try {
-        const jsonStr = JSON.stringify(str, null, 2);
-        return jsonStr.length > 1000
-          ? jsonStr.substring(0, 1000) + '\n\n... [Dữ liệu quá dài, đã được ẩn bớt]'
-          : jsonStr;
-      } catch {
-        return String(str);
-      }
-    }
-    const s = String(str);
-    return s.length > 1000
-      ? s.substring(0, 1000) + '\n\n... [Dữ liệu quá dài, đã được ẩn bớt]'
-      : s;
+  const handleCopy = (text: string, key: string) => {
+    if (!text) return;
+    navigator.clipboard.writeText(text);
+    setCopiedKey(key);
+    setTimeout(() => {
+      setCopiedKey((curr) => (curr === key ? null : curr));
+    }, 2000);
   };
 
   const formatPoint = (val: number) => {
@@ -59,50 +36,54 @@ export const ThemisGradingTable: React.FC<ThemisGradingTableProps> = ({
     return Number.isInteger(rounded) ? rounded.toFixed(1) : rounded.toString();
   };
 
+  const formatTime = (val?: number) => {
+    if (typeof val !== 'number' || isNaN(val) || val <= 0) return '0.005';
+    return val.toFixed(3);
+  };
+
+  const formatMemory = (val?: number) => {
+    if (typeof val !== 'number' || isNaN(val) || val <= 0) return '1.0';
+    return val.toFixed(1);
+  };
+
+  const formatLanguage = (lang?: string) => {
+    if (!lang) return 'C++ (CPP)';
+    const l = lang.toLowerCase();
+    if (l.includes('cpp') || l.includes('c++')) return 'C++ (CPP)';
+    if (l.includes('py')) return 'Python 3 (PY3)';
+    if (l.includes('pas')) return 'Pascal (PAS)';
+    return lang.toUpperCase();
+  };
+
+  const formatDate = (dateStr?: string) => {
+    if (!dateStr) return '00:35:37, 11/11/2026';
+    try {
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return dateStr;
+      const timePart = d.toLocaleTimeString('vi-VN', { hour12: false });
+      const datePart = d.toLocaleDateString('vi-VN');
+      return `${timePart}, ${datePart}`;
+    } catch {
+      return dateStr;
+    }
+  };
+
+  // Trạng thái đang chấm điểm Themis
   if (isGrading) {
     const displayTotal = Math.max(totalTestsToRun || 0, currentRunningIndex);
     const percent = displayTotal > 0 ? Math.round((currentRunningIndex / displayTotal) * 100) : 0;
     return (
-      <div className={`rounded-2xl p-6 shadow-xl animate-pulse border ${
-        theme === 'light'
-          ? 'bg-white border-red-300 text-slate-900 shadow-slate-200/50'
-          : 'bg-[#0d121d] border-red-500/30 text-white'
-      }`}>
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <div className={`w-9 h-9 rounded-xl flex items-center justify-center border ${
-              theme === 'light'
-                ? 'bg-red-50 border-red-200 text-red-600'
-                : 'bg-red-500/15 border-red-500/30 text-red-400'
-            }`}>
-              <Cpu className={`w-5 h-5 animate-spin ${theme === 'light' ? 'text-red-600' : 'text-red-400'}`} />
-            </div>
-            <div>
-              <h4 className={`font-bold text-base ${theme === 'light' ? 'text-red-600' : 'text-red-400'}`}>
-                Đang chấm bài theo cơ chế Themis...
-              </h4>
-              <p className={`text-xs ${theme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>
-                Đang thực thi Test #{currentRunningIndex} / {displayTotal}
-              </p>
-            </div>
-          </div>
-          <span className={`font-mono text-sm font-semibold px-3 py-1 rounded-full border ${
-            theme === 'light'
-              ? 'text-red-600 bg-red-50 border-red-200'
-              : 'text-red-400 bg-red-500/10 border-red-500/20'
-          }`}>
+      <div style={{ padding: '24px', background: '#FFFDF8', border: '1px solid #D9D2C3', borderRadius: 8, marginTop: 16 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <b style={{ color: '#B4281F', fontSize: 16 }}>
+            Đang chấm bài theo cơ chế Themis... (Test #{currentRunningIndex} / {displayTotal})
+          </b>
+          <span className="fj-mono" style={{ fontSize: 14, fontWeight: 700, color: '#B4281F' }}>
             {percent}% Hoàn tất
           </span>
         </div>
-
-        {/* Progress Bar */}
-        <div className={`w-full rounded-full h-3 overflow-hidden border ${
-          theme === 'light' ? 'bg-slate-100 border-slate-200' : 'bg-slate-950 border-slate-800'
-        }`}>
-          <div
-            className="bg-gradient-to-r from-red-600 to-rose-500 h-full transition-all duration-200"
-            style={{ width: `${percent}%` }}
-          />
+        <div className="fj-bar" style={{ height: 8 }}>
+          <i style={{ width: `${percent}%`, height: 8 }}></i>
         </div>
       </div>
     );
@@ -110,75 +91,24 @@ export const ThemisGradingTable: React.FC<ThemisGradingTableProps> = ({
 
   if (!submission) {
     return (
-      <div className={`rounded-2xl p-8 text-center border border-dashed ${
-        theme === 'light'
-          ? 'bg-white border-slate-200 text-slate-500'
-          : 'bg-slate-900/50 border-slate-800 text-slate-400'
-      }`}>
-        <Layers className={`w-10 h-10 mx-auto mb-2 ${theme === 'light' ? 'text-slate-400' : 'text-slate-600'}`} />
-        <h5 className={`font-semibold text-sm ${theme === 'light' ? 'text-slate-900' : 'text-slate-300'}`}>
-          Chưa có kết quả chấm bài
-        </h5>
-        <p className={`text-xs mt-1 ${theme === 'light' ? 'text-slate-500' : 'text-slate-500'}`}>
-          Soạn thảo hoặc dán code của bạn ở khung bên phải và nhấn nút <b>"Nộp bài (Chấm điểm)"</b>.
-        </p>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 24, marginTop: 24, padding: '20px 24px', border: '1.5px dashed #BDB5A3', borderRadius: 8, background: '#FFFDF8' }}>
+        <svg viewBox="60 14 230 210" width="96" height="88" aria-hidden="true">
+          <g transform="rotate(-3 175 119)">
+            <rect x="70" y="24" width="210" height="190" rx="6" fill="#FFFDF8" stroke="#1F1D1A" strokeWidth="5"></rect>
+            <path d="M94 62h60M110 86h90M110 110h50M94 134h70M110 158h100" stroke="#1F1D1A" strokeWidth="5" strokeLinecap="round" fill="none"></path>
+          </g>
+        </svg>
+        <div>
+          <b style={{ fontSize: 16 }}>Chưa có kết quả chấm</b>
+          <p className="fj-m" style={{ margin: '4px 0 0', fontSize: 14 }}>
+            Soạn hoặc dán code rồi nhấn “Nộp bài”. Kết quả từng test sẽ hiện ở đây.
+          </p>
+        </div>
       </div>
     );
   }
 
-  const getVerdictBadge = (verdict: Verdict) => {
-    switch (verdict) {
-      case 'AC':
-        return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
-            <CheckCircle2 className="w-3.5 h-3.5" />
-            ĐÚNG (AC)
-          </span>
-        );
-      case 'WA':
-        return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-rose-500/15 text-rose-400 border border-rose-500/30">
-            <XCircle className="w-3.5 h-3.5" />
-            SAI KẾT QUẢ (WA)
-          </span>
-        );
-      case 'TLE':
-        return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30">
-            <Clock className="w-3.5 h-3.5" />
-            QUÁ THỜI GIAN (TLE)
-          </span>
-        );
-      case 'RTE':
-      case 'MLE':
-        return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-orange-500/15 text-orange-400 border border-orange-500/30">
-            <AlertOctagon className="w-3.5 h-3.5" />
-            LỖI THỰC THI ({verdict})
-          </span>
-        );
-      case 'CE':
-        return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-slate-500/20 text-slate-300 border border-slate-500/30">
-            <FileCode2 className="w-3.5 h-3.5" />
-            LỖI BIÊN DỊCH (CE)
-          </span>
-        );
-      case 'SYS':
-        return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-purple-500/15 text-purple-400 border border-purple-500/30">
-            <AlertOctagon className="w-3.5 h-3.5" />
-            LỖI MÁY CHẤM (SYS)
-          </span>
-        );
-      default:
-        return <span className="text-xs text-slate-400">{verdict}</span>;
-    }
-  };
-
-  const isFullAC = submission.passedCount === submission.totalTests && submission.totalTests > 0;
-  const isZero = submission.passedCount === 0;
-
+  // Chuẩn hóa danh sách Test Results
   let testResultsList: TestResult[] = [];
   if (Array.isArray(submission.testResults)) {
     testResultsList = submission.testResults;
@@ -189,19 +119,19 @@ export const ThemisGradingTable: React.FC<ThemisGradingTableProps> = ({
     } catch {}
   }
 
-  // Nếu bài nộp đã có số lượng tests > 0 nhưng mảng testResults chưa kịp nạp xong từ DB, hiển thị ngay danh sách test
   if (testResultsList.length === 0 && submission.totalTests > 0) {
     const total = submission.totalTests;
     const passed = submission.passedCount || 0;
-    const ptsPerTest = +(submission.maxTotalPoints / total).toFixed(2);
+    const maxPts = submission.maxTotalPoints || 10;
+    const ptsPerTest = +(maxPts / total).toFixed(2);
     testResultsList = Array.from({ length: total }, (_, i) => {
       const isTestPassed = i < passed;
       return {
         testId: `test_synth_${i + 1}`,
-        testName: `Test #${String(i + 1).padStart(2, '0')}`,
+        testName: `Test ${String(i + 1).padStart(2, '0')}`,
         verdict: isTestPassed ? ('AC' as Verdict) : (submission.overallVerdict || 'WA'),
         time: typeof submission.executionTime === 'number' && submission.executionTime > 0 ? +(submission.executionTime).toFixed(3) : 0.005,
-        memory: typeof submission.memory === 'number' && submission.memory > 0 ? +(submission.memory).toFixed(1) : 2.1,
+        memory: typeof submission.memory === 'number' && submission.memory > 0 ? +(submission.memory).toFixed(1) : 0.9,
         pointsEarned: isTestPassed ? ptsPerTest : 0,
         maxPoints: ptsPerTest,
         errorMessage: isTestPassed ? undefined : 'Kết quả không khớp với đáp án mẫu',
@@ -209,456 +139,394 @@ export const ThemisGradingTable: React.FC<ThemisGradingTableProps> = ({
     });
   }
 
+  const isFullAC = submission.passedCount === submission.totalTests && submission.totalTests > 0;
+  const isZero = submission.passedCount === 0;
+
+  const earnedPoints = formatPoint(submission.totalPointsEarned);
+  const maxPoints = formatPoint(submission.maxTotalPoints || 10);
+  const problemCode = submission.problemCode || submission.problemTitle || 'BÀI TẬP';
+
+  const toggleExpand = (id: string) => {
+    setExpandedTestId((curr) => (curr === id ? null : id));
+  };
+
   return (
-    <div
-      className={`rounded-2xl border overflow-hidden shadow-2xl transition-all duration-300 shrink-0 w-full min-h-fit ${
-        theme === 'light' ? 'bg-white border-slate-200' : 'bg-[#0d121d] border-slate-800'
-      }`}
-    >
-      {/* Themis Banner Header */}
+    <div style={{ marginTop: 32, color: '#1F1D1A' }}>
+      {/* Tiêu đề Kết quả chấm */}
+      <h2 style={{ fontSize: 32, fontWeight: 700, margin: '0 0 24px', letterSpacing: '-0.02em' }}>
+        Kết quả chấm · {problemCode}
+      </h2>
+
+      {/* Bố cục 2 cột chuẩn thiết kế mới */}
       <div
-        className={`p-5 border-b flex flex-wrap items-center justify-between gap-4 ${
-          theme === 'light'
-            ? isFullAC
-              ? 'bg-emerald-50 border-emerald-200 text-emerald-950'
-              : isZero
-              ? 'bg-rose-50 border-rose-200 text-rose-950'
-              : 'bg-amber-50 border-amber-200 text-amber-950'
-            : isFullAC
-            ? 'bg-emerald-950/40 border-emerald-800/40 text-white'
-            : isZero
-            ? 'bg-rose-950/30 border-rose-800/40 text-white'
-            : 'bg-amber-950/30 border-amber-800/40 text-white'
-        }`}
+        style={{
+          display: 'grid',
+          gridTemplateColumns: '270px 1fr',
+          gap: 48,
+          borderTop: '2px solid #1F1D1A',
+          paddingTop: 24,
+          alignItems: 'start',
+        }}
+        className="grid-cols-1 md:grid-cols-[270px_1fr]"
       >
-        <div className="flex items-center gap-3">
-          <div
-            className={`w-12 h-12 rounded-xl flex items-center justify-center font-black text-xl border shadow-sm ${
-              theme === 'light'
-                ? isFullAC
-                  ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
-                  : isZero
-                  ? 'bg-rose-100 text-rose-800 border-rose-300'
-                  : 'bg-amber-100 text-amber-800 border-amber-300'
-                : isFullAC
-                ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
-                : isZero
-                ? 'bg-rose-500/20 text-rose-400 border-rose-500/40'
-                : 'bg-amber-500/20 text-amber-400 border-amber-500/40'
-            }`}
-          >
-            {isFullAC ? 'AC' : submission.overallVerdict === 'AC' ? 'WA' : submission.overallVerdict}
+        {/* CỘT TRÁI: ĐIỂM SỐ & THÔNG TIN TỔNG QUAN */}
+        <div>
+          <div className="fj-m" style={{ fontSize: 13, marginBottom: 8 }}>
+            Điểm bài nộp
           </div>
+
+          {/* Dấu chấm điểm oval đỏ phong cách viết tay */}
+          <div style={{ margin: '4px 0 2px' }}>
+            <svg viewBox="0 0 170 74" width="170" height="74" style={{ overflow: 'visible' }}>
+              <g transform="rotate(-3 85 37)">
+                {/* Vòng oval nét đỏ viết tay */}
+                <path
+                  d="M 18 37 C 16 16, 52 10, 88 10 C 130 10, 158 18, 156 38 C 154 58, 122 66, 80 66 C 36 66, 14 54, 18 37"
+                  fill="none"
+                  stroke="#B4281F"
+                  strokeWidth="2.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                <text
+                  x="85"
+                  y="47"
+                  textAnchor="middle"
+                  fill="#B4281F"
+                  fontSize="28"
+                  fontWeight="700"
+                  fontFamily="'Be Vietnam Pro', sans-serif"
+                >
+                  {earnedPoints}/{maxPoints}
+                </text>
+              </g>
+            </svg>
+          </div>
+
+          {/* Chữ nhận xét dưới con dấu điểm */}
+          <div style={{ margin: '2px 0 20px' }}>
+            {isFullAC ? (
+              <p style={{ color: '#B4281F', fontWeight: 700, fontSize: 16, margin: 0, fontStyle: 'italic' }}>
+                Đạt điểm tối đa!
+              </p>
+            ) : isZero ? (
+              <p style={{ color: '#B4281F', fontWeight: 700, fontSize: 15, margin: 0 }}>
+                Chưa đạt điểm!
+              </p>
+            ) : (
+              <p style={{ color: '#D97706', fontWeight: 700, fontSize: 15, margin: 0 }}>
+                Đạt {earnedPoints}/{maxPoints} điểm
+              </p>
+            )}
+          </div>
+
+          {/* Bảng Metadata thông tin chi tiết */}
           <div>
-            <div className="flex items-center gap-2">
-              <h4
-                className={`text-lg font-black tracking-wide ${
-                  theme === 'light'
-                    ? isFullAC
-                      ? 'text-emerald-950'
-                      : isZero
-                      ? 'text-rose-950'
-                      : 'text-amber-950'
-                    : 'text-white'
-                }`}
-              >
-                BẢNG ĐIỂM CHẤM THEMIS
-              </h4>
-              {isFullAC && (
-                <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 border border-emerald-500/30">
-                  <Sparkles className="w-3 h-3 text-emerald-600 dark:text-emerald-400" /> TUYỆT ĐỐI 100%
-                </span>
-              )}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderTop: '1px solid #D9D2C3', fontSize: 13 }}>
+              <span className="fj-m">Bài tập</span>
+              <b className="fj-mono">{problemCode}</b>
             </div>
-            <div
-              className={`flex flex-wrap items-center gap-x-2 gap-y-1 text-xs mt-0.5 ${
-                theme === 'light' ? 'text-slate-700 font-medium' : 'text-slate-300'
-              }`}
-            >
-              <span>
-                Bài tập:{' '}
-                <b
-                  className={`font-black ${
-                    theme === 'light'
-                      ? isFullAC
-                        ? 'text-emerald-950'
-                        : isZero
-                        ? 'text-rose-950'
-                        : 'text-amber-950'
-                      : 'text-white'
-                  }`}
-                >
-                  {typeof submission.problemTitle === 'object' ? JSON.stringify(submission.problemTitle) : String(submission.problemTitle || '')}
-                </b>{' '}
-                <span className="font-mono text-red-600 dark:text-red-400 font-bold bg-red-100 dark:bg-red-500/10 px-1.5 py-0.5 rounded border border-red-300 dark:border-red-500/20">
-                  {typeof submission.problemCode === 'object' ? JSON.stringify(submission.problemCode) : String(submission.problemCode || '')}
-                </span>
-              </span>
-              <span className={theme === 'light' ? 'text-slate-400' : 'text-slate-500'}>•</span>
-              <span>
-                Ngôn ngữ:{' '}
-                <span
-                  className={`font-bold uppercase ${
-                    theme === 'light' ? 'text-slate-900' : 'text-slate-200'
-                  }`}
-                >
-                  {typeof submission.language === 'object' ? JSON.stringify(submission.language) : String(submission.language || '')}
-                </span>
-              </span>
-              <span className={theme === 'light' ? 'text-slate-400' : 'text-slate-500'}>•</span>
-              <span className={theme === 'light' ? 'text-slate-600' : 'text-slate-400'}>
-                {(() => {
-                  try {
-                    const d = new Date(submission.submittedAt);
-                    return isNaN(d.getTime()) ? String(submission.submittedAt || '') : d.toLocaleTimeString();
-                  } catch {
-                    return String(submission.submittedAt || '');
-                  }
-                })()}
-              </span>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderTop: '1px solid #D9D2C3', fontSize: 13 }}>
+              <span className="fj-m">Ngôn ngữ</span>
+              <b className="fj-mono">{formatLanguage(submission.language)}</b>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderTop: '1px solid #D9D2C3', fontSize: 13 }}>
+              <span className="fj-m">Nộp lúc</span>
+              <span className="fj-mono">{formatDate(submission.submittedAt)}</span>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderTop: '1px solid #D9D2C3', fontSize: 13 }}>
+              <span className="fj-m">Thời gian chạy</span>
+              <span className="fj-mono">{formatTime(submission.executionTime)}s</span>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderTop: '1px solid #D9D2C3', fontSize: 13 }}>
+              <span className="fj-m">Số test đúng</span>
+              <b className="fj-mono">{submission.passedCount} / {submission.totalTests}</b>
             </div>
           </div>
-        </div>
 
-        {/* Score & Passed stats */}
-        <div className="flex items-center gap-4">
-          <div className="text-right">
-            <span
-              className={`text-xs block font-semibold ${
-                theme === 'light' ? 'text-slate-700' : 'text-slate-400'
-              }`}
-            >
-              Tổng điểm đạt được
-            </span>
-            <div className="text-2xl font-black tracking-tight font-mono">
-              <span
-                className={
-                  isFullAC
-                    ? 'text-emerald-700 dark:text-emerald-400'
-                    : isZero
-                    ? 'text-rose-700 dark:text-rose-400'
-                    : 'text-amber-700 dark:text-amber-400'
-                }
-              >
-                {isFullAC ? submission.maxTotalPoints : submission.totalPointsEarned}
-              </span>
-              <span
-                className={`text-lg font-semibold ${
-                  theme === 'light' ? 'text-slate-700' : 'text-slate-500'
-                }`}
-              >
-                {' '}
-                / {submission.maxTotalPoints}
-              </span>
-            </div>
-          </div>
-          <div
-            className={`h-8 w-px hidden sm:block ${
-              theme === 'light' ? 'bg-slate-300' : 'bg-slate-700/60'
-            }`}
-          />
-          <div className="text-right hidden sm:block">
-            <span
-              className={`text-xs block font-semibold ${
-                theme === 'light' ? 'text-slate-700' : 'text-slate-400'
-              }`}
-            >
-              Số Test đúng
-            </span>
-            <div
-              className={`text-base font-black font-mono ${
-                theme === 'light'
-                  ? isFullAC
-                    ? 'text-emerald-950'
-                    : isZero
-                    ? 'text-rose-950'
-                    : 'text-amber-950'
-                  : 'text-slate-200'
-              }`}
-            >
-              {submission.passedCount} / {submission.totalTests} tests
-            </div>
-          </div>
-        </div>
-      </div>
+          {/* Phần Từng test (Lưới các ô số màu xanh/đỏ) */}
+          <div style={{ marginTop: 20 }}>
+            <p className="fj-m" style={{ margin: '0 0 10px', fontSize: 13, fontWeight: 600 }}>
+              Từng test
+            </p>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {testResultsList.map((test, idx) => {
+                const isPassed = test.verdict === 'AC';
+                const testKey = test.testId || String(idx);
+                const isCurrentExpanded = expandedTestId === testKey;
 
-      {/* Freopen compatibility notice */}
-      {submission.freopenHandled && (
-        <div
-          className={`border-b px-5 py-2.5 flex items-center gap-2 text-xs ${
-            theme === 'light'
-              ? 'bg-indigo-50 border-indigo-200 text-indigo-900'
-              : 'bg-indigo-950/30 border-indigo-900/40 text-indigo-300'
-          }`}
-        >
-          <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse shrink-0" />
-          <span>
-            <b>Tương thích Themis:</b> Hệ thống đã tự động nhận diện và xử lý lệnh đọc/ghi file{' '}
-            <code
-              className={`px-1 py-0.5 rounded font-mono font-semibold ${
-                theme === 'light'
-                  ? 'bg-indigo-100 text-indigo-900 border border-indigo-200'
-                  : 'bg-indigo-900/40 text-indigo-200'
-              }`}
-            >
-              freopen / assign
-            </code>{' '}
-            thành stdin/stdout chuẩn để code không bị lỗi Runtime Error.
-          </span>
-        </div>
-      )}
-
-      {/* Compilation Error Details (if any) */}
-      {submission.compilationMessage && (
-        <div
-          className={`p-5 border-b ${
-            theme === 'light'
-              ? 'border-rose-200 bg-rose-50'
-              : 'border-rose-900/50 bg-rose-950/20'
-          }`}
-        >
-          <h5 className="text-xs font-bold uppercase tracking-wider text-rose-700 dark:text-rose-400 mb-2 flex items-center gap-2">
-            <FileCode2 className="w-4 h-4" /> Chi tiết thông báo lỗi biên dịch (Compilation Log)
-          </h5>
-          <pre
-            className={`p-3 rounded-xl font-mono text-xs overflow-x-auto whitespace-pre-wrap border ${
-              theme === 'light'
-                ? 'bg-white text-rose-800 border-rose-200'
-                : 'bg-black/60 text-rose-300 border-rose-900/40'
-            }`}
-          >
-            {typeof submission.compilationMessage === 'object' ? JSON.stringify(submission.compilationMessage, null, 2) : String(submission.compilationMessage)}
-          </pre>
-        </div>
-      )}
-
-      {/* Test Cases Table */}
-      <div className="overflow-x-auto">
-        <table className="w-full text-left border-collapse">
-          <thead>
-            <tr
-              className={`border-b text-[11px] font-bold uppercase ${
-                theme === 'light'
-                  ? 'border-slate-200 text-slate-700 bg-slate-100/90'
-                  : 'border-slate-800 text-slate-400 bg-slate-800/40'
-              }`}
-            >
-              <th className="py-3 px-4">Tên Test</th>
-              <th className="py-3 px-4">Trạng thái (Verdict)</th>
-              <th className="py-3 px-4">Thời gian</th>
-              <th className="py-3 px-4">Bộ nhớ</th>
-              <th className="py-3 px-4 text-right">Điểm số</th>
-              {canViewDetails && <th className="py-3 px-3 text-center w-16">Chi tiết</th>}
-            </tr>
-          </thead>
-          <tbody
-            className={`divide-y font-mono text-xs ${
-              theme === 'light'
-                ? 'divide-slate-200 bg-white'
-                : 'divide-slate-800/60'
-            }`}
-          >
-            {testResultsList.map((tr: TestResult, idx: number) => {
-              const testKey = tr.testId || `test_${idx}`;
-              const isExpanded = canViewDetails && expandedTestId === testKey;
-              const isPassed = tr.verdict === 'AC';
-              const isError =
-                tr.verdict === 'RTE' ||
-                tr.verdict === 'CE' ||
-                tr.verdict === 'MLE' ||
-                tr.verdict === 'SYS' ||
-                Boolean(tr.errorLog) ||
-                Boolean(tr.errorMessage);
-
-              const handleToggle = () => {
-                if (!canViewDetails) return;
-                setExpandedTestId(isExpanded ? null : testKey);
-              };
-
-              return (
-                <React.Fragment key={testKey}>
-                  <tr
-                    onClick={handleToggle}
-                    className={`transition-colors ${
-                      canViewDetails ? 'cursor-pointer select-none' : ''
-                    } ${
-                      theme === 'light'
-                        ? isPassed
-                          ? 'hover:bg-emerald-50/70 bg-white'
-                          : 'hover:bg-rose-50/70 bg-white'
-                        : isPassed
-                        ? 'hover:bg-slate-800/40 bg-emerald-950/5'
-                        : 'hover:bg-slate-800/40 bg-rose-950/5'
-                    }`}
+                return (
+                  <button
+                    type="button"
+                    key={testKey}
+                    onClick={() => toggleExpand(testKey)}
+                    style={{
+                      width: 26,
+                      height: 26,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      background: isPassed ? '#2F6B3F' : '#B4281F',
+                      color: '#ffffff',
+                      borderRadius: 4,
+                      fontSize: 11,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      border: isCurrentExpanded ? '2px solid #1F1D1A' : 'none',
+                      outline: 'none',
+                    }}
+                    className="fj-mono"
+                    title={`Test ${idx + 1}: ${test.verdict}`}
                   >
-                    <td
-                      className={`py-3 px-4 font-bold ${
-                        theme === 'light' ? 'text-slate-950' : 'text-slate-200'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2">
-                        {canViewDetails && (
-                          <span
-                            className={`p-0.5 rounded transition-transform duration-200 ${
-                              isExpanded
-                                ? 'text-red-400 rotate-180'
-                                : 'text-slate-500'
-                            }`}
-                          >
-                            <ChevronDown className="w-3.5 h-3.5" />
-                          </span>
-                        )}
-                        <span>{typeof tr.testName === 'object' ? JSON.stringify(tr.testName) : String(tr.testName || '')}</span>
-                      </div>
-                    </td>
-                    <td className="py-3 px-4">{getVerdictBadge(tr.verdict)}</td>
-                    <td
-                      className={`py-3 px-4 font-medium ${
-                        theme === 'light' ? 'text-slate-700' : 'text-slate-300'
-                      }`}
-                    >
-                      {(typeof tr.time === 'number' ? tr.time : (typeof (tr as any).executionTime === 'number' ? (tr as any).executionTime : 0)).toFixed(3)}s
-                    </td>
-                    <td
-                      className={`py-3 px-4 ${
-                        theme === 'light' ? 'text-slate-600' : 'text-slate-400'
-                      }`}
-                    >
-                      {(typeof tr.memory === 'number' ? tr.memory : 0).toFixed(1)} MB
-                    </td>
-                    <td className="py-3 px-4 text-right font-bold">
-                      <span
-                        className={
-                          isPassed
-                            ? 'text-emerald-700 dark:text-emerald-400'
-                            : 'text-slate-500'
-                        }
-                      >
-                        {formatPoint(tr.pointsEarned)}
-                      </span>
-                      <span
-                        className={
-                          theme === 'light' ? 'text-slate-500' : 'text-slate-600'
-                        }
-                      >
-                        {' '}
-                        / {formatPoint(tr.maxPoints)}
-                      </span>
-                    </td>
-                    {canViewDetails && (
-                      <td className="py-3 px-3 text-center">
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleToggle();
-                          }}
-                          className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
-                            isExpanded
-                              ? 'bg-red-500/15 text-red-400'
-                              : theme === 'light'
-                              ? 'hover:bg-slate-200 text-slate-500 hover:text-slate-800'
-                              : 'hover:bg-slate-800 text-slate-400 hover:text-white'
-                          }`}
-                          title={isExpanded ? 'Thu gọn chi tiết' : 'Xem chi tiết kết quả test này'}
-                        >
-                          {isExpanded ? (
-                            <ChevronUp className="w-4 h-4 text-red-400" />
-                          ) : (
-                            <ChevronDown className="w-4 h-4" />
-                          )}
-                        </button>
-                      </td>
+                    {idx + 1}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        {/* CỘT PHẢI: CHI TIẾT TỪNG TEST */}
+        <div>
+          <h3 style={{ fontSize: 20, fontWeight: 700, margin: '0 0 16px' }}>
+            Chi tiết từng test
+          </h3>
+
+          {/* Header Bảng chi tiết test */}
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '90px 110px 100px 90px 1fr 50px',
+              gap: 8,
+              alignItems: 'center',
+              borderTop: '2px solid #1F1D1A',
+              padding: '10px 0',
+              fontSize: 13,
+            }}
+            className="fj-m"
+          >
+            <span>Test</span>
+            <span>Kết quả</span>
+            <span>Thời gian</span>
+            <span>Bộ nhớ</span>
+            <span>Điểm</span>
+            <span></span>
+          </div>
+
+          {/* Danh sách từng dòng Test Case */}
+          {testResultsList.map((test, idx) => {
+            const isPassed = test.verdict === 'AC';
+            const testKey = test.testId || String(idx);
+            const isExpanded = expandedTestId === testKey;
+            const testNumStr = String(idx + 1).padStart(2, '0');
+
+            return (
+              <div key={testKey} style={{ borderTop: '1px solid #D9D2C3' }}>
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: '90px 110px 100px 90px 1fr 50px',
+                    gap: 8,
+                    alignItems: 'center',
+                    padding: '12px 0',
+                    fontSize: 13,
+                  }}
+                >
+                  <span className="fj-mono" style={{ fontWeight: 600 }}>
+                    Test {testNumStr}
+                  </span>
+
+                  {/* Trạng thái kết quả */}
+                  <div>
+                    {isPassed ? (
+                      <b style={{ color: '#2F6B3F' }}>
+                        Đúng <span style={{ fontSize: 11 }}>AC</span>
+                      </b>
+                    ) : test.verdict === 'WA' ? (
+                      <b style={{ color: '#B4281F' }}>
+                        Sai <span style={{ fontSize: 11 }}>WA</span>
+                      </b>
+                    ) : test.verdict === 'TLE' ? (
+                      <b style={{ color: '#D97706' }}>
+                        Quá giờ <span style={{ fontSize: 11 }}>TLE</span>
+                      </b>
+                    ) : test.verdict === 'CE' ? (
+                      <b style={{ color: '#6B655C' }}>
+                        Biên dịch <span style={{ fontSize: 11 }}>CE</span>
+                      </b>
+                    ) : (
+                      <b style={{ color: '#DC2626' }}>
+                        Lỗi <span style={{ fontSize: 11 }}>{test.verdict}</span>
+                      </b>
                     )}
-                  </tr>
+                  </div>
 
-                  {/* Expanded Row for viewing Actual vs Expected Output */}
-                  {canViewDetails && isExpanded && (
-                    <tr
-                      className={
-                        theme === 'light'
-                          ? 'bg-slate-50 border-y border-slate-200'
-                          : 'bg-slate-950/80 border-y border-slate-800/80'
-                      }
-                    >
-                      <td colSpan={6} className="p-4 sm:p-5">
-                        <div className="space-y-3.5">
-                          {/* Block Thông báo lỗi (Error Log) nếu là RTE, CE hoặc có errorMessage/errorLog */}
-                          {isError && (
-                            <div
-                              className={`p-3.5 rounded-xl border ${
-                                theme === 'light'
-                                  ? 'bg-rose-50 border-rose-200 text-rose-900'
-                                  : 'bg-rose-950/30 border-rose-900/50 text-rose-300'
-                              }`}
-                            >
-                              <div className="flex items-center gap-1.5 font-bold text-xs uppercase tracking-wide mb-1.5 text-rose-700 dark:text-rose-400">
-                                <AlertOctagon className="w-4 h-4 shrink-0" />
-                                <span>Thông báo lỗi (Error Log)</span>
-                              </div>
-                              <pre className="font-mono text-xs whitespace-pre-wrap break-all overflow-x-auto max-h-40 leading-relaxed">
-                                {formatOutput(tr.errorLog || tr.errorMessage || 'Lỗi thực thi (Runtime Error)')}
-                              </pre>
-                            </div>
-                          )}
+                  <span className="fj-mono">{formatTime(test.time)}s</span>
+                  <span className="fj-mono">{formatMemory(test.memory)} MB</span>
+                  <span className="fj-mono">{formatPoint(test.pointsEarned)} / {formatPoint(test.maxPoints)}</span>
 
-                          {/* Khu vực chi tiết chia làm 2 cột cạnh nhau */}
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {/* Cột trái: Đầu ra của bạn (Actual Output) */}
-                            <div>
-                              <span
-                                className={`text-[11px] font-bold uppercase tracking-wide block mb-1.5 ${
-                                  theme === 'light' ? 'text-slate-700' : 'text-slate-400'
-                                }`}
-                              >
-                                Đầu ra của bạn (Actual Output):
-                              </span>
-                              <pre
-                                className={`p-3 rounded-xl font-mono text-xs overflow-x-auto max-h-48 whitespace-pre-wrap break-all border leading-relaxed ${
-                                  theme === 'light'
-                                    ? `bg-white border-slate-200 ${
-                                        isPassed ? 'text-emerald-800' : 'text-rose-800'
-                                      }`
-                                    : `bg-slate-900 border-slate-800 ${
-                                        isPassed ? 'text-emerald-400' : 'text-rose-400'
-                                      }`
-                                }`}
-                              >
-                                {formatOutput(tr.actualOutput)}
-                              </pre>
-                            </div>
+                  <button
+                    type="button"
+                    onClick={() => toggleExpand(testKey)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#B4281F',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      textAlign: 'right',
+                      font: 'inherit',
+                      padding: 0,
+                    }}
+                  >
+                    {isExpanded ? 'Ẩn' : 'Xem'}
+                  </button>
+                </div>
 
-                            {/* Cột phải: Đầu ra mong muốn (Expected Output) */}
-                            <div>
-                              <span
-                                className={`text-[11px] font-bold uppercase tracking-wide block mb-1.5 ${
-                                  theme === 'light' ? 'text-slate-700' : 'text-slate-400'
-                                }`}
+                {/* Hộp xem chi tiết I/O khi bấm Xem */}
+                {isExpanded && (
+                  <div
+                    style={{
+                      background: '#FFFDF8',
+                      border: '1px solid #D9D2C3',
+                      borderRadius: 8,
+                      padding: 16,
+                      marginBottom: 12,
+                      fontSize: 13,
+                    }}
+                  >
+                    {canViewDetails ? (
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }} className="grid-cols-1 md:grid-cols-2">
+                        {/* Input */}
+                        <div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                            <span className="fj-m" style={{ fontWeight: 600, fontSize: 12 }}>Input Test #{idx + 1}</span>
+                            {(test as any).input && (
+                              <button
+                                type="button"
+                                onClick={() => handleCopy((test as any).input || '', `in-${idx}`)}
+                                style={{ background: 'none', border: 'none', color: '#B4281F', fontSize: 11, cursor: 'pointer', fontWeight: 600 }}
                               >
-                                Đầu ra mong muốn (Expected Output):
-                              </span>
-                              <pre
-                                className={`p-3 rounded-xl font-mono text-xs overflow-x-auto max-h-48 whitespace-pre-wrap break-all border leading-relaxed ${
-                                  theme === 'light'
-                                    ? 'bg-white text-emerald-800 border-slate-200'
-                                    : 'bg-slate-900 text-emerald-400 border-slate-800'
-                                }`}
-                              >
-                                {formatOutput(tr.expectedOutput)}
-                              </pre>
-                            </div>
+                                {copiedKey === `in-${idx}` ? 'Đã chép!' : 'Copy'}
+                              </button>
+                            )}
                           </div>
+                          <pre
+                            className="fj-mono"
+                            style={{
+                              background: '#F4F0E8',
+                              padding: 10,
+                              borderRadius: 6,
+                              fontSize: 12,
+                              margin: 0,
+                              maxHeight: 180,
+                              overflowY: 'auto',
+                              whiteSpace: 'pre-wrap',
+                            }}
+                          >
+                            {(test as any).input || test.errorLog || '(Không có dữ liệu Input)'}
+                          </pre>
                         </div>
-                      </td>
-                    </tr>
-                  )}
-                </React.Fragment>
-              );
-            })}
-          </tbody>
-        </table>
+
+                        {/* Output của bài nộp */}
+                        <div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                            <span className="fj-m" style={{ fontWeight: 600, fontSize: 12 }}>Output của bạn</span>
+                            {test.actualOutput && (
+                              <button
+                                type="button"
+                                onClick={() => handleCopy(test.actualOutput || '', `act-${idx}`)}
+                                style={{ background: 'none', border: 'none', color: '#B4281F', fontSize: 11, cursor: 'pointer', fontWeight: 600 }}
+                              >
+                                {copiedKey === `act-${idx}` ? 'Đã chép!' : 'Copy'}
+                              </button>
+                            )}
+                          </div>
+                          <pre
+                            className="fj-mono"
+                            style={{
+                              background: '#F4F0E8',
+                              padding: 10,
+                              borderRadius: 6,
+                              fontSize: 12,
+                              margin: 0,
+                              maxHeight: 180,
+                              overflowY: 'auto',
+                              whiteSpace: 'pre-wrap',
+                              color: isPassed ? '#2F6B3F' : '#B4281F',
+                            }}
+                          >
+                            {test.actualOutput || '(Không có kết quả trả về)'}
+                          </pre>
+                        </div>
+
+                        {/* Đáp án mẫu nếu có */}
+                        {test.expectedOutput && (
+                          <div style={{ gridColumn: '1 / -1', borderTop: '1px dashed #D9D2C3', paddingTop: 10, marginTop: 4 }}>
+                            <span className="fj-m" style={{ fontWeight: 600, fontSize: 12, display: 'block', marginBottom: 4 }}>
+                              Đáp án đúng (Expected Output):
+                            </span>
+                            <pre
+                              className="fj-mono"
+                              style={{
+                                background: '#F4F0E8',
+                                padding: 10,
+                                borderRadius: 6,
+                                fontSize: 12,
+                                margin: 0,
+                                maxHeight: 140,
+                                overflowY: 'auto',
+                                whiteSpace: 'pre-wrap',
+                                color: '#2F6B3F',
+                              }}
+                            >
+                              {test.expectedOutput}
+                            </pre>
+                          </div>
+                        )}
+
+                        {/* Thông báo lỗi nếu có */}
+                        {test.errorMessage && (
+                          <div style={{ gridColumn: '1 / -1', color: '#B4281F', fontSize: 12, paddingTop: 4 }}>
+                            <b>Chi tiết lỗi: </b> {test.errorMessage}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="fj-m" style={{ textAlign: 'center', padding: '12px 0' }}>
+                        Giáo viên đã ẩn dữ liệu Input/Output chi tiết của bài tập này.
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
+          {/* Dòng Tổng điểm ở dưới cùng */}
+          <div
+            style={{
+              borderTop: '2px solid #1F1D1A',
+              paddingTop: 16,
+              marginTop: 6,
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              fontSize: 16,
+              fontWeight: 700,
+            }}
+          >
+            <span>Tổng điểm</span>
+            <span className="fj-mono" style={{ fontSize: 18 }}>
+              {earnedPoints} / {maxPoints}
+            </span>
+          </div>
+        </div>
       </div>
     </div>
   );
 };
-
