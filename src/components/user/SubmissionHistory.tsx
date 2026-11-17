@@ -142,7 +142,7 @@ export const SubmissionHistory: React.FC = () => {
   }, [topics, selectedTopicId]);
 
   // Lọc danh sách bài nộp theo đúng phân quyền, học sinh trong lớp và chế độ mới nhất:
-  const displayedSubmissions = useMemo(() => {
+  const allFilteredSubmissions = useMemo(() => {
     let list = submissions;
     if (!isAdminAuthenticated) {
       if (!currentStudent) {
@@ -209,13 +209,16 @@ export const SubmissionHistory: React.FC = () => {
       });
     }
 
-    const sorted = [...list].sort(
+    return [...list].sort(
       (a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime()
     );
-
-    // Chỉ hiển thị tối đa 15 lượt nộp bài gần đây nhất (các lượt nộp quá 15 lượt sẽ không hiển thị ở bảng này)
-    return sorted.slice(0, 15);
   }, [submissions, isAdminAuthenticated, currentStudent, selectedClassId, activeClassId, problems, topics, getStudentsInClass]);
+
+  const [displayLimit, setDisplayLimit] = useState<number>(15);
+
+  const displayedSubmissions = useMemo(() => {
+    return allFilteredSubmissions.slice(0, displayLimit);
+  }, [allFilteredSubmissions, displayLimit]);
 
 
   // Dữ liệu cho Chế độ 2: Bảng điểm theo Chủ đề
@@ -491,6 +494,382 @@ export const SubmissionHistory: React.FC = () => {
       </span>
     );
   };
+
+  // 10 lượt gần nhất
+  const recent10Submissions = useMemo(() => {
+    return allFilteredSubmissions.slice(0, 10);
+  }, [allFilteredSubmissions]);
+
+  const recent10FullAcCount = useMemo(() => {
+    return recent10Submissions.filter((s) => checkIsFullAc(s, s.maxTotalPoints || 10)).length;
+  }, [recent10Submissions]);
+
+  const recent10NotFullCount = recent10Submissions.length - recent10FullAcCount;
+
+  // Gom nhóm danh sách bài nộp theo ngày
+  interface DateGroup {
+    dateKey: string;
+    dateLabel: string;
+    items: Submission[];
+  }
+
+  const groupedSubmissions = useMemo(() => {
+    const groups: DateGroup[] = [];
+    const map = new Map<string, DateGroup>();
+
+    displayedSubmissions.forEach((sub) => {
+      const d = new Date(sub.submittedAt);
+      const dateKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+      if (!map.has(dateKey)) {
+        const days = ['Chủ Nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'];
+        const dayName = days[d.getDay()];
+        const day = d.getDate();
+        const month = d.getMonth() + 1;
+        const year = d.getFullYear();
+        const dateLabel = `${dayName}, ${day}/${month}/${year}`;
+        const newGroup = { dateKey, dateLabel, items: [] };
+        map.set(dateKey, newGroup);
+        groups.push(newGroup);
+      }
+      map.get(dateKey)!.items.push(sub);
+    });
+
+    return groups;
+  }, [displayedSubmissions]);
+
+  const formatTimeOnly = (dateStr: string) => {
+    const d = new Date(dateStr);
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  };
+
+  const formatLanguageShort = (lang?: string) => {
+    const l = (lang || '').toUpperCase().trim();
+    if (l === 'CPP' || l === 'C++') return 'C++';
+    if (l === 'PYTHON' || l === 'PY') return 'Python';
+    if (l === 'PASCAL' || l === 'PAS') return 'Pascal';
+    if (l === 'JAVA') return 'Java';
+    return lang || 'C++';
+  };
+
+  const getExecutionTimeStr = (sub: Submission) => {
+    const time =
+      typeof sub.executionTime === 'number'
+        ? sub.executionTime
+        : typeof (sub as any).time === 'number'
+        ? (sub as any).time
+        : 0;
+    return `${time.toFixed(3)}s`;
+  };
+
+  const isSubFullAc = (sub: Submission): boolean => {
+    const maxPts = sub.maxTotalPoints > 0 ? sub.maxTotalPoints : 10;
+    if (sub.totalPointsEarned >= maxPts && maxPts > 0) return true;
+    if (sub.totalTests > 0 && sub.passedCount === sub.totalTests) return true;
+    return sub.overallVerdict === 'AC';
+  };
+
+  const getPillBg = (sub: Submission) => {
+    if (isSubFullAc(sub)) return '#2F6B3F';
+    if (sub.totalPointsEarned > 0 || (sub.passedCount && sub.passedCount > 0)) return '#D97706';
+    return '#B4281F';
+  };
+
+  const renderStudentVerdict = (sub: Submission) => {
+    if (isSubFullAc(sub)) {
+      return (
+        <span className="text-[#2F6B3F] font-semibold text-[13px] flex items-center gap-1.5 whitespace-nowrap">
+          <span className="text-[10px] leading-none">■</span> Full AC
+        </span>
+      );
+    }
+    if (sub.overallVerdict === 'CE') {
+      return (
+        <span className="text-[#6B655C] font-semibold text-[13px] flex items-center gap-1.5 whitespace-nowrap">
+          <span className="text-[10px] leading-none">■</span> Lỗi biên dịch (CE)
+        </span>
+      );
+    }
+    if (sub.overallVerdict === 'TLE') {
+      return (
+        <span className="text-[#D97706] font-semibold text-[13px] flex items-center gap-1.5 whitespace-nowrap">
+          <span className="text-[10px] leading-none">■</span> Quá thời gian (TLE)
+        </span>
+      );
+    }
+    if (sub.overallVerdict === 'RTE') {
+      return (
+        <span className="text-[#DC2626] font-semibold text-[13px] flex items-center gap-1.5 whitespace-nowrap">
+          <span className="text-[10px] leading-none">■</span> Lỗi thực thi (RTE)
+        </span>
+      );
+    }
+    if (sub.totalPointsEarned > 0 || (sub.passedCount && sub.passedCount > 0)) {
+      return (
+        <span className="text-[#D97706] font-semibold text-[13px] flex items-center gap-1.5 whitespace-nowrap">
+          <span className="text-[10px] leading-none">■</span> Một phần ({sub.totalPointsEarned} điểm)
+        </span>
+      );
+    }
+    if (sub.overallVerdict === 'SYS') {
+      return (
+        <span className="text-[#7C3AED] font-semibold text-[13px] flex items-center gap-1.5 whitespace-nowrap">
+          <span className="text-[10px] leading-none">■</span> Lỗi hệ thống (SYS)
+        </span>
+      );
+    }
+    return (
+      <span className="text-[#B4281F] font-semibold text-[13px] flex items-center gap-1.5 whitespace-nowrap">
+        <span className="text-[10px] leading-none">■</span> Sai kết quả (WA)
+      </span>
+    );
+  };
+
+  const renderDetailModal = () => {
+    if (!selectedSub) return null;
+    return (
+      <div
+        onClick={() => setSelectedSub(null)}
+        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150"
+      >
+        <div
+          onClick={(e) => e.stopPropagation()}
+          className="bg-[#FAF7EE] border border-[#D9D2C3] rounded-2xl max-w-4xl w-full max-h-[92vh] flex flex-col overflow-hidden relative shadow-2xl"
+        >
+          {/* Header Modal */}
+          <div className="shrink-0 px-6 py-4 border-b border-[#D9D2C3] bg-[#FAF7EE] flex items-start justify-between gap-4">
+            <div>
+              <div className="flex flex-wrap items-center gap-2 mb-1">
+                <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-[#F3DFD8] text-[#B4281F] border border-[#B4281F]/20">
+                  Mã bài: {displayCode}
+                </span>
+                <span className="font-mono text-xs px-2 py-0.5 rounded bg-white text-[#1F1D1A] border border-[#D9D2C3]">
+                  {formatLanguageShort(selectedSub.language)}
+                </span>
+                {activeTopic && (
+                  <span className="text-xs text-[#6B655C]">
+                    • Chủ đề: {activeTopic.name}
+                  </span>
+                )}
+              </div>
+              <h3 className="text-xl font-bold text-[#1F1D1A] tracking-tight">
+                {displayTitle}
+              </h3>
+            </div>
+            <button
+              onClick={() => setSelectedSub(null)}
+              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-[#D9D2C3] bg-white hover:bg-[#B4281F] hover:text-white text-[#1F1D1A] transition-colors cursor-pointer text-xs font-semibold"
+            >
+              <span>Đóng</span>
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* Body Modal */}
+          <div className="flex-1 overflow-y-auto p-6 space-y-6">
+            <div className="w-full">
+              <ThemisGradingTable
+                submission={selectedSub}
+                isGrading={false}
+              />
+            </div>
+
+            {/* Source code */}
+            <div className="w-full border-t border-[#D9D2C3] pt-5">
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-[#1F1D1A] flex items-center gap-2">
+                  <Code2 className="w-4 h-4 text-[#B4281F]" /> Mã nguồn đã nộp ({formatLanguageShort(selectedSub.language)}):
+                </h4>
+                <button
+                  type="button"
+                  onClick={() =>
+                    handleCopySourceCode(
+                      typeof selectedSub.sourceCode === 'object'
+                        ? JSON.stringify(selectedSub.sourceCode, null, 2)
+                        : String(selectedSub.sourceCode || '')
+                    )
+                  }
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold border border-[#D9D2C3] bg-white hover:bg-[#F4EFE6] text-[#1F1D1A] transition-colors cursor-pointer"
+                >
+                  {copiedCode ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{copiedCode ? 'Đã chép' : 'Sao chép code'}</span>
+                </button>
+              </div>
+              <pre
+                className="p-4 bg-[#1F1D1A] rounded-xl text-emerald-400 font-mono text-xs sm:text-sm overflow-x-auto max-h-80 border border-[#3E3A33] leading-relaxed select-text"
+                style={{
+                  fontFamily: "'JetBrains Mono', 'Consolas', 'Courier New', monospace",
+                  whiteSpace: 'pre',
+                  tabSize: 4,
+                }}
+              >
+                {isLoadingDetail && !selectedSub.sourceCode
+                  ? '// Đang tải mã nguồn từ máy chủ...'
+                  : typeof selectedSub.sourceCode === 'object'
+                  ? JSON.stringify(selectedSub.sourceCode, null, 2)
+                  : String(selectedSub.sourceCode || '// Không có mã nguồn được lưu')}
+              </pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // GIAO DIỆN HỌC SINH (THEO ĐÚNG NGUYÊN BẢN THIẾT KẾ EDITORIAL)
+  if (!isAdminAuthenticated) {
+    return (
+      <div className="fj-w space-y-6" style={{ paddingTop: 32, paddingBottom: 64 }}>
+        {/* Header */}
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+          <div>
+            <h1
+              className="text-3xl md:text-4xl font-bold text-[#1F1D1A] tracking-tight"
+              style={{ fontFamily: "'Be Vietnam Pro', serif" }}
+            >
+              Lịch sử nộp bài
+            </h1>
+            <p className="text-sm text-[#6B655C] mt-1">
+              Kết quả chấm của các lượt nộp gần đây nhất.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <span className="text-[13px] text-[#6B655C] whitespace-nowrap">
+              {displayLimit} lượt nộp gần nhất
+            </span>
+            <select
+              value={selectedClassId}
+              onChange={(e) => setSelectedClassId(e.target.value)}
+              className="px-3 py-1.5 bg-[#FAF7EE] border border-[#D9D2C3] rounded text-[13px] font-sans font-medium text-[#1F1D1A] outline-none cursor-pointer hover:border-[#1F1D1A] transition-colors"
+            >
+              <option value="ALL">Tất cả lớp ({availableClasses.length})</option>
+              {availableClasses.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.className}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* Streak Bar (10 recent submissions) */}
+        {allFilteredSubmissions.length > 0 && (
+          <div className="flex flex-wrap items-center gap-3 pt-1">
+            <div className="flex items-center gap-1">
+              {recent10Submissions.map((sub, idx) => (
+                <div
+                  key={sub.id || idx}
+                  className="w-5 h-4.5 rounded-[3px] transition-transform hover:scale-110 cursor-pointer"
+                  style={{ backgroundColor: getPillBg(sub) }}
+                  title={`${sub.problemCode}: ${isSubFullAc(sub) ? 'Full AC' : `${sub.totalPointsEarned}đ`}`}
+                  onClick={() => handleOpenDetail(sub)}
+                />
+              ))}
+            </div>
+            <span className="text-[13px] text-[#6B655C]">
+              {recent10Submissions.length} lượt gần nhất: {recent10FullAcCount} Full AC
+              {recent10NotFullCount > 0 ? `, ${recent10NotFullCount} chưa đạt điểm tối đa` : ''}
+            </span>
+          </div>
+        )}
+
+        {/* Table or Empty state */}
+        {displayedSubmissions.length === 0 ? (
+          <div className="border-t-2 border-[#1F1D1A] pt-12 pb-16 text-center text-[#6B655C]">
+            <p className="text-lg font-bold text-[#1F1D1A]">Chưa có lượt nộp bài nào</p>
+            <p className="text-sm mt-1">
+              Hãy chọn một bài tập bất kỳ và thử nộp bài để trải nghiệm hệ thống chấm Themis!
+            </p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <div className="min-w-[760px]">
+              {/* Table Column Headers */}
+              <div className="border-t-2 border-[#1F1D1A] py-2.5 grid grid-cols-[100px_180px_80px_180px_90px_120px_1fr] items-center gap-3 text-[12px] text-[#6B655C] font-medium">
+                <div>Giờ nộp</div>
+                <div>Bài tập</div>
+                <div>Ngôn ngữ</div>
+                <div>Kết quả</div>
+                <div>Điểm</div>
+                <div>Thời gian chạy</div>
+                <div></div>
+              </div>
+
+              {/* Date groups */}
+              <div className="space-y-4">
+                {groupedSubmissions.map((group, groupIdx) => (
+                  <div key={group.dateKey} className={groupIdx > 0 ? 'border-t-2 border-[#1F1D1A] pt-4' : ''}>
+                    <div className="flex items-center justify-between pb-2 text-sm">
+                      <span className="font-bold text-[15px] text-[#1F1D1A]">{group.dateLabel}</span>
+                      <span className="text-[13px] text-[#6B655C]">{group.items.length} lượt nộp</span>
+                    </div>
+
+                    <div className="divide-y divide-[#D9D2C3]">
+                      {group.items.map((sub) => (
+                        <div
+                          key={sub.id}
+                          className="py-3 grid grid-cols-[100px_180px_80px_180px_90px_120px_1fr] items-center gap-3 text-[13px] hover:bg-black/[0.02] transition-colors"
+                        >
+                          <div className="font-mono text-[#6B655C]">
+                            {formatTimeOnly(sub.submittedAt)}
+                          </div>
+                          <div className="font-mono font-bold text-[#1F1D1A] truncate" title={sub.problemCode || sub.problemTitle}>
+                            {sub.problemCode || sub.problemTitle}
+                          </div>
+                          <div className="font-mono text-[#6B655C]">
+                            {formatLanguageShort(sub.language)}
+                          </div>
+                          <div>
+                            {renderStudentVerdict(sub)}
+                          </div>
+                          <div className="font-mono font-medium text-[#1F1D1A]">
+                            {sub.totalPointsEarned}/{sub.maxTotalPoints || 10}
+                          </div>
+                          <div className="font-mono text-[#6B655C]">
+                            {getExecutionTimeStr(sub)}
+                          </div>
+                          <div className="text-right">
+                            <button
+                              onClick={() => handleOpenDetail(sub)}
+                              className="text-[#B4281F] font-medium hover:underline cursor-pointer text-[13px] inline-flex items-center"
+                            >
+                              Chi tiết →
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Table Footer */}
+              <div className="border-t border-[#D9D2C3] pt-4 mt-4 flex items-center justify-between text-[13px]">
+                <span className="text-[#6B655C]">
+                  {allFilteredSubmissions.length > displayLimit
+                    ? `Còn ${allFilteredSubmissions.length - displayLimit} lượt nộp cũ hơn`
+                    : 'Đã hiển thị tất cả lượt nộp'}
+                </span>
+                {allFilteredSubmissions.length > displayLimit && (
+                  <button
+                    onClick={() => setDisplayLimit((prev) => prev + 15)}
+                    className="text-[#B4281F] font-medium hover:underline cursor-pointer"
+                  >
+                    Xem thêm →
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal Chi tiết bài nộp */}
+        {renderDetailModal()}
+      </div>
+    );
+  }
 
   return (
     <div className={isAdminAuthenticated ? "max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6" : "fj-w space-y-6"} style={isAdminAuthenticated ? undefined : { paddingTop: 32, paddingBottom: 64 }}>
