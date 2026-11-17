@@ -8,6 +8,7 @@ interface ClassLeaderboardProps {
   classId: string;
   hideSubtitle?: boolean;
   hideCountBadge?: boolean;
+  variant?: 'default' | 'editorial';
 }
 
 interface LeaderboardEntry {
@@ -24,6 +25,7 @@ export const ClassLeaderboard: React.FC<ClassLeaderboardProps> = ({
   classId,
   hideSubtitle,
   hideCountBadge,
+  variant,
 }) => {
   const {
     classes,
@@ -379,6 +381,39 @@ export const ClassLeaderboard: React.FC<ClassLeaderboardProps> = ({
       </div>
     );
   };
+
+  // Giao diện Editorial cho màn học sinh khớp 100% bản mẫu
+  if (variant === 'editorial' || (!isAdminAuthenticated && variant !== 'default')) {
+    const totalProbs = classProblems.length;
+    return (
+      <section>
+        <h2 style={{ fontSize: 22, fontWeight: 700 }}>Bảng xếp hạng</h2>
+        <p className="fj-m" style={{ margin: '4px 0 16px' }}>Số bài Full AC trên {totalProbs} bài</p>
+        {isLoading && leaderboardEntries.length === 0 ? (
+          <div className="fj-r fj-m" style={{ padding: '16px 0', fontSize: 14 }}>Đang tải bảng xếp hạng...</div>
+        ) : leaderboardEntries.length === 0 ? (
+          <div className="fj-r fj-m" style={{ padding: '16px 0', fontSize: 14 }}>Chưa có học sinh nào nộp bài Full AC.</div>
+        ) : (
+          leaderboardEntries.map((entry, idx) => {
+            const rank = idx + 1;
+            return (
+              <div
+                key={entry.studentId}
+                className="fj-r fj-lb"
+                style={entry.isCurrentUser ? { background: '#F3DFD8', borderRadius: 6 } : {}}
+              >
+                <span className="fj-mono fj-m">{rank}</span>
+                <b style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {entry.fullName} {entry.isCurrentUser ? '(bạn)' : ''}
+                </b>
+                <span className="fj-mono">{entry.acCount}/{totalProbs}</span>
+              </div>
+            );
+          })
+        )}
+      </section>
+    );
+  }
 
   return (
     <div

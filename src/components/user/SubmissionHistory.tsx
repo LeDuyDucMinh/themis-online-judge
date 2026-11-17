@@ -493,17 +493,17 @@ export const SubmissionHistory: React.FC = () => {
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+    <div className={isAdminAuthenticated ? "max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6" : "fj-w space-y-6"} style={isAdminAuthenticated ? undefined : { paddingTop: 32, paddingBottom: 64 }}>
       {/* Header & Bộ chuyển đổi chế độ xem (Dành cho Giáo viên) */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-            <Trophy className="w-5 h-5 text-amber-500 dark:text-amber-400" />
-            {viewMode === 'log' ? 'Nhật ký nộp bài & Kết quả chấm' : 'Bảng điểm & Tiến độ theo Chủ đề'}
+          <h2 className="text-2xl font-bold flex items-center gap-2" style={{ color: '#1F1D1A' }}>
+            <Trophy className="w-6 h-6 text-amber-500" />
+            {viewMode === 'log' ? 'Lịch sử nộp bài' : 'Bảng điểm & Tiến độ theo Chủ đề'}
           </h2>
-          <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
+          <p className="text-xs fj-m mt-1">
             {viewMode === 'log'
-              ? 'Theo dõi chi tiết kết quả của 15 lượt nộp bài gần đây nhất'
+              ? 'Theo dõi chi tiết kết quả của các lượt nộp bài gần đây nhất'
               : 'Thống kê tổng điểm và tiến độ hoàn thành từng bài tập của học sinh theo từng chuyên đề'}
           </p>
         </div>
@@ -514,7 +514,7 @@ export const SubmissionHistory: React.FC = () => {
             <select
               value={selectedClassId}
               onChange={(e) => setSelectedClassId(e.target.value)}
-              className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 text-stone-800 dark:text-stone-200 text-xs rounded-lg px-3 py-1.5 focus:outline-none focus:border-[#c51f26] font-medium cursor-pointer"
+              className="fj-f text-xs cursor-pointer"
             >
               <option value="ALL">Tất cả lớp học ({availableClasses.length})</option>
               {availableClasses.map((c) => (

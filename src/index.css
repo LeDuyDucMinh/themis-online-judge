@@ -791,3 +791,174 @@ html[data-theme="light"] .bg-amber-50:not(aside *) b,
 html[data-theme="light"] .bg-amber-50:not(aside *) strong {
   color: #451a03 !important;
 }
+
+/* ====================================================
+   FAMINH JUDGE — STUDENT REDESIGN STYLES (WARM EDITORIAL)
+   Khớp 100% với file HTML mẫu
+   ==================================================== */
+.fj-student-root {
+  background-color: #F4F0E8 !important;
+  color: #1F1D1A !important;
+  font-family: 'Be Vietnam Pro', -apple-system, BlinkMacSystemFont, sans-serif !important;
+  min-height: 100vh;
+}
+
+.fj-student-root a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.fj-student-root a:hover {
+  color: #B4281F;
+}
+
+.fj-student-root h1,
+.fj-student-root h2 {
+  margin: 0;
+  font-weight: 700;
+  letter-spacing: -.02em;
+  font-family: 'Be Vietnam Pro', sans-serif !important;
+}
+
+.fj-w {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding-left: 32px;
+  padding-right: 32px;
+}
+
+.fj-nv {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  height: 64px;
+}
+
+.fj-nv a,
+.fj-nv button.nav-link {
+  height: 64px;
+  display: flex;
+  align-items: center;
+  color: #6B655C;
+  font-weight: 500;
+  text-decoration: none;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: 'Be Vietnam Pro', sans-serif;
+  font-size: 15px;
+  transition: color 0.15s ease;
+}
+
+.fj-nv a:hover,
+.fj-nv button.nav-link:hover {
+  color: #B4281F;
+}
+
+.fj-nv a.on,
+.fj-nv button.nav-link.on {
+  color: #1F1D1A;
+  box-shadow: inset 0 -2px 0 #B4281F;
+  font-weight: 600;
+}
+
+.fj-m {
+  color: #6B655C;
+}
+
+.fj-mono {
+  font-family: "JetBrains Mono", monospace !important;
+}
+
+.fj-r {
+  border-top: 1px solid #D9D2C3;
+  padding: 16px 0;
+}
+
+.fj-bar {
+  height: 6px;
+  background: #E4DDCE;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.fj-bar i {
+  display: block;
+  height: 6px;
+  background: #B4281F;
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.fj-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: #B4281F;
+  color: #ffffff !important;
+  padding: 11px 20px;
+  border-radius: 8px;
+  font-weight: 600;
+  text-decoration: none;
+  border: none;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  font-family: 'Be Vietnam Pro', sans-serif;
+}
+
+.fj-btn:hover {
+  background: #8F1F18;
+  color: #ffffff !important;
+}
+
+.fj-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.fj-f {
+  font: inherit;
+  padding: 10px 12px;
+  border: 1px solid #D9D2C3;
+  border-radius: 8px;
+  background: #FFFDF8;
+  color: #1F1D1A;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.fj-f:focus {
+  border-color: #B4281F;
+}
+
+.fj-t {
+  display: grid;
+  grid-template-columns: 1fr 140px 44px;
+  gap: 20px;
+  align-items: center;
+  text-decoration: none;
+  color: inherit;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.fj-t:hover b {
+  color: #B4281F;
+}
+
+.fj-lb {
+  display: grid;
+  grid-template-columns: 28px 1fr auto;
+  gap: 12px;
+  padding: 12px 10px;
+  align-items: center;
+}
+
+.fj-g {
+  display: grid;
+  grid-template-columns: 40px 1fr 70px 150px 70px 130px 90px;
+  gap: 16px;
+  align-items: center;
+}
+

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import type { Problem, Submission, TestCase } from '../../types/judge';
 import { useJudge } from '../../context/JudgeContext';
 import { MathRenderer } from '../common/MathRenderer';
@@ -12,18 +12,6 @@ import {
 } from '../../services/judgeEngine';
 import { apiService } from '../../services/apiService';
 import { idbService } from '../../services/db';
-import {
-  Play,
-  RotateCcw,
-  Sparkles,
-  FileCode,
-  ArrowLeft,
-  Download,
-  FileText,
-  Paperclip,
-  Copy,
-  Check,
-} from 'lucide-react';
 
 interface ProblemViewProps {
   problem: Problem;
@@ -31,8 +19,15 @@ interface ProblemViewProps {
 }
 
 export const ProblemView: React.FC<ProblemViewProps> = ({ problem, onBackToList }) => {
-  const { submitCode, submissions, theme, isAdminAuthenticated, currentStudent, activeClass, showToast } = useJudge();
-
+  const {
+    submitCode,
+    submissions,
+    isAdminAuthenticated,
+    currentStudent,
+    activeClass,
+    topics,
+    showToast,
+  } = useJudge();
 
   const [language, setLanguage] = useState<SupportedLanguage>('cpp');
   const [code, setCode] = useState<string>(() => {
@@ -44,6 +39,12 @@ export const ProblemView: React.FC<ProblemViewProps> = ({ problem, onBackToList 
   const [totalTestsRunning, setTotalTestsRunning] = useState<number>(problem.testCases?.length || 0);
   const [latestSubmission, setLatestSubmission] = useState<Submission | null>(null);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+
+  const problemTopicName = useMemo(() => {
+    if (!problem.topicId || problem.topicId === 'NONE') return 'Bài tập lớp';
+    const found = topics.find((t) => t.id === problem.topicId);
+    return found ? found.name : 'Bài tập lớp';
+  }, [problem.topicId, topics]);
 
   const handleCopy = (text: string, key: string) => {
     if (!text) return;
@@ -82,7 +83,6 @@ export const ProblemView: React.FC<ProblemViewProps> = ({ problem, onBackToList 
 
     if (existing) {
       setLatestSubmission((prev) => {
-        // Nếu bài nộp hiện tại trong giao diện đã có testResults và cùng id thì luôn bảo tồn testResults
         if (
           prev &&
           prev.id === existing.id &&
@@ -95,7 +95,6 @@ export const ProblemView: React.FC<ProblemViewProps> = ({ problem, onBackToList 
         return existing;
       });
 
-      // Nếu bài nộp trên danh sách chưa có testResults hoặc rỗng, tự động nạp từ Database
       if ((!existing.testResults || existing.testResults.length === 0) && existing.id) {
         apiService.fetchSubmissionById(existing.id).then((full) => {
           if (isMounted && full?.testResults && full.testResults.length > 0) {
@@ -133,7 +132,7 @@ export const ProblemView: React.FC<ProblemViewProps> = ({ problem, onBackToList 
     }
   };
 
-  // Tự động kiểm tra và nạp test cases thực tế từ IndexedDB hoặc Cloud
+  // Nạp test cases từ IndexedDB hoặc Cloud
   useEffect(() => {
     let isMounted = true;
     (async () => {
@@ -192,7 +191,6 @@ export const ProblemView: React.FC<ProblemViewProps> = ({ problem, onBackToList 
     }
   };
 
-  // Kiểm tra điều kiện mở khóa video theo đúng học sinh hiện tại
   const studentProblemSubs = submissions.filter((s) => {
     if (s.problemId !== problem.id) return false;
     if (isAdminAuthenticated) return true;
@@ -208,455 +206,211 @@ export const ProblemView: React.FC<ProblemViewProps> = ({ problem, onBackToList 
   );
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
-      {/* Top action bar with Breadcrumb */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2 text-xs">
-          <button
-            onClick={onBackToList}
-            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-semibold transition-all border cursor-pointer ${
-              theme === 'light'
-                ? 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200 shadow-sm'
-                : 'bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border-slate-800'
-            }`}
-          >
-            <ArrowLeft className="w-4 h-4 text-red-500" />
-            <span>{activeClass ? `Lớp ${activeClass.className}` : 'Danh sách bài tập'}</span>
-          </button>
-          {activeClass && (
-            <>
-              <span className={theme === 'light' ? 'text-slate-400' : 'text-slate-600'}>/</span>
-              <span className={`font-mono font-bold px-2 py-0.5 rounded-lg border ${
-                theme === 'light'
-                  ? 'text-red-600 bg-red-50 border-red-200'
-                  : 'text-red-400 bg-red-500/10 border-red-500/20'
-              }`}>
-                {problem.code}
-              </span>
-            </>
-          )}
-        </div>
+    <main className="fj-w" style={{ paddingTop: 32, paddingBottom: 64 }}>
+      {/* Breadcrumb */}
+      <p className="fj-m" style={{ margin: '0 0 16px' }}>
+        <a href="javascript:void(0)" onClick={onBackToList}>
+          Lớp {activeClass?.className || 'CPP04'}
+        </a>{' '}
+        /{' '}
+        <a href="javascript:void(0)" onClick={onBackToList}>
+          {problemTopicName}
+        </a>{' '}
+        / {problem.code || problem.title}
+      </p>
 
-        <div className="flex items-center gap-2">
-          <span className={`text-xs ${theme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>Độ khó:</span>
-          <span
-            className={`px-3 py-1 rounded-full text-xs font-bold ${
-              problem.difficulty === 'Dễ'
-                ? theme === 'light'
-                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                  : 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
-                : problem.difficulty === 'Trung bình'
-                ? theme === 'light'
-                  ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                  : 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
-                : theme === 'light'
-                ? 'bg-rose-50 text-rose-700 border border-rose-200'
-                : 'bg-rose-500/15 text-rose-400 border border-rose-500/30'
-            }`}
-          >
-            {problem.difficulty}
-          </span>
-        </div>
+      {/* Tiêu đề & Giới hạn bài */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 28, flexWrap: 'wrap', gap: 16 }}>
+        <h1 style={{ fontSize: 36 }}>{problem.code || problem.title}</h1>
+        <p className="fj-m" style={{ margin: 0 }}>
+          {problem.difficulty} · {problem.timeLimit} giây · {problem.memoryLimit} MB · {problem.totalPoints} điểm
+        </p>
       </div>
 
-      {/* Layout: Đề bài ở TRÊN, Phần nộp bài ở DƯỚI */}
-      <div className="flex flex-col space-y-8">
-        {/* SECTION 1 (TRÊN): KHU VỰC ĐỀ BÀI CHI TIẾT */}
-        <section className={`rounded-2xl p-6 sm:p-8 space-y-6 border ${
-          theme === 'light'
-            ? 'bg-white border-stone-200 shadow-2xs'
-            : 'bg-[#0d121d] border-stone-800'
-        }`}>
-          {/* Header Đề Bài */}
-          <div className={`border-b pb-5 ${theme === 'light' ? 'border-stone-100' : 'border-stone-800'}`}>
-            <div className="flex flex-wrap items-center justify-between gap-3 mb-2">
-              <div className="flex items-center gap-2">
-                <span className={`font-mono text-xs font-bold px-3 py-1 rounded-lg border ${
-                  theme === 'light'
-                    ? 'bg-red-50 text-[#c51f26] border-red-200'
-                    : 'bg-red-950/40 text-red-300 border-red-900/60'
-                }`}>
-                  {problem.code}
-                </span>
-                <span className={`text-xs ${theme === 'light' ? 'text-stone-500' : 'text-stone-400'}`}>
-                  Tác giả / Nguồn đề: <b className={theme === 'light' ? 'text-stone-800' : 'text-stone-200'}>{problem.author || 'FAMINH Judge'}</b>
-                </span>
-              </div>
+      {/* 2 Cột: Đề bài (trái) và Soạn thảo/Chấm (phải) */}
+      <div style={{ display: 'grid', gridTemplateColumns: '320px 1fr', gap: 40, alignItems: 'start' }} className="grid-cols-1 md:grid-cols-[320px_1fr]">
+        {/* CỘT TRÁI: ĐỀ BÀI */}
+        <aside style={{ borderTop: '2px solid #1F1D1A', paddingTop: 16 }}>
+          <h2 style={{ fontSize: 18, marginBottom: 8 }}>Đề bài</h2>
 
-              <div className="flex items-center gap-2">
-                <span className={`text-xs ${theme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>Độ khó:</span>
-                <span
-                  className={`px-3 py-0.5 rounded-full text-xs font-bold ${
-                    problem.difficulty === 'Dễ'
-                      ? theme === 'light'
-                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                        : 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
-                      : problem.difficulty === 'Trung bình'
-                      ? theme === 'light'
-                        ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                        : 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
-                      : theme === 'light'
-                      ? 'bg-rose-50 text-rose-700 border border-rose-200'
-                      : 'bg-rose-500/15 text-rose-400 border border-rose-500/30'
-                  }`}
-                >
-                  {problem.difficulty}
-                </span>
-              </div>
-            </div>
-
-            <h1 className={`text-2xl sm:text-3xl font-black tracking-tight ${
-              theme === 'light' ? 'text-slate-900' : 'text-white'
-            }`}>
-              {problem.title}
-            </h1>
-          </div>
-
-          {/* Attached Document File View or Description */}
+          {/* Đính kèm file tài liệu gốc nếu có */}
           {problem.attachedFile ? (
-            <div className={`border-t pt-5 space-y-4 ${theme === 'light' ? 'border-slate-100' : 'border-slate-800'}`}>
-              <div className={`flex flex-wrap items-center justify-between gap-3 p-3 rounded-2xl border ${
-                theme === 'light'
-                  ? 'bg-slate-50 border-slate-200'
-                  : 'bg-slate-800/80 border-slate-700/60'
-              }`}>
-                <div className="flex items-center gap-2">
-                  <span className="px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 bg-red-600 text-white shadow-md shadow-red-600/30">
-                    <FileText className="w-4 h-4" /> Đề bài gốc ({problem.attachedFile.type.toUpperCase()})
-                  </span>
-                  <span className={`text-xs font-medium hidden sm:inline ${
-                    theme === 'light' ? 'text-slate-700' : 'text-slate-300'
-                  }`}>
-                    {problem.attachedFile.name}
-                  </span>
-                </div>
-
-                <button
-                  onClick={handleDownloadAttached}
-                  className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-colors shadow-sm cursor-pointer border ${
-                    theme === 'light'
-                      ? 'bg-white hover:bg-slate-100 text-red-600 border-slate-200'
-                      : 'bg-slate-900 hover:bg-slate-700 text-red-400 hover:text-red-300 border-slate-700'
-                  }`}
-                  title="Tải file đề bài gốc về máy tính"
-                >
-                  <Download className="w-4 h-4" />
-                  <span>Tải file gốc ({problem.attachedFile.name} - {(problem.attachedFile.size / 1024).toFixed(0)} KB)</span>
-                </button>
-              </div>
-
-              <div className={`border rounded-2xl p-6 overflow-x-auto space-y-4 ${
-                theme === 'light'
-                  ? 'bg-slate-50/70 border-slate-200'
-                  : 'bg-slate-950 border-slate-800'
-              }`}>
-                <div className={`flex items-center gap-2 pb-3 border-b text-xs ${
-                  theme === 'light' ? 'border-slate-200 text-slate-600' : 'border-slate-800 text-slate-400'
-                }`}>
-                  <Paperclip className="w-4 h-4 text-red-500" />
-                  <span>Tài liệu đề thi: <b>{problem.attachedFile.name}</b> (Hiển thị nguyên bản)</span>
-                </div>
-
-                {problem.attachedFile.type === 'docx' && problem.attachedFile.rawHtml ? (
-                  <div
-                    className={`${
-                      theme === 'light'
-                        ? 'prose max-w-none text-slate-800 leading-relaxed font-sans [&_table]:border-collapse [&_table]:w-full [&_table]:my-4 [&_td]:border [&_td]:border-slate-300 [&_td]:p-3 [&_th]:border [&_th]:border-slate-300 [&_th]:p-3 [&_th]:bg-slate-100 [&_h1]:text-xl [&_h1]:font-bold [&_h1]:text-slate-900 [&_h2]:text-lg [&_h2]:font-bold [&_h2]:text-slate-900 [&_p]:my-2'
-                        : 'prose prose-invert max-w-none text-slate-200 leading-relaxed font-sans [&_table]:border-collapse [&_table]:w-full [&_table]:my-4 [&_td]:border [&_td]:border-slate-700 [&_td]:p-3 [&_th]:border [&_th]:border-slate-700 [&_th]:p-3 [&_th]:bg-slate-800 [&_h1]:text-xl [&_h1]:font-bold [&_h1]:text-white [&_h2]:text-lg [&_h2]:font-bold [&_h2]:text-white [&_p]:my-2'
-                    }`}
-                    dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(problem.attachedFile.rawHtml) }}
-                  />
-                ) : problem.attachedFile.type === 'pdf' && problem.attachedFile.dataUrl ? (
-                  <iframe
-                    src={problem.attachedFile.dataUrl}
-                    title={problem.attachedFile.name}
-                    className={`w-full h-[650px] rounded-xl border ${
-                      theme === 'light' ? 'border-slate-300 bg-white' : 'border-slate-800 bg-black'
-                    }`}
-                  />
-                ) : (
-                  <MathRenderer content={problem.description} />
-                )}
-              </div>
+            <div style={{ marginBottom: 16 }}>
+              <button
+                type="button"
+                className="fj-btn"
+                style={{ padding: '8px 14px', fontSize: 13, marginBottom: 12, width: '100%' }}
+                onClick={handleDownloadAttached}
+              >
+                Tải file gốc ({problem.attachedFile.name})
+              </button>
+              {problem.attachedFile.type === 'docx' && problem.attachedFile.rawHtml ? (
+                <div
+                  className="prose max-w-none text-sm text-[#1F1D1A] leading-relaxed font-sans"
+                  dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(problem.attachedFile.rawHtml) }}
+                />
+              ) : (
+                <MathRenderer content={problem.description || ''} />
+              )}
             </div>
           ) : (
-            /* Description with LaTeX */
-            <div className={`border-t pt-5 text-sm leading-relaxed ${
-              theme === 'light' ? 'border-slate-100 text-slate-800' : 'border-slate-800 text-slate-200'
-            }`}>
-              <MathRenderer content={problem.description} />
+            <div style={{ fontSize: 14, lineHeight: 1.6, color: '#1F1D1A', marginBottom: 20 }}>
+              {problem.description ? (
+                <MathRenderer content={problem.description} />
+              ) : (
+                <p className="fj-m" style={{ margin: 0 }}>Chưa có mô tả cho bài này.</p>
+              )}
             </div>
           )}
 
-          {/* Bảng Ví dụ (Sample Input / Sample Output) */}
+          {/* Ví dụ mẫu (Sample Tests) */}
           {problem.samples && problem.samples.length > 0 && (
-            <div className={`border-t pt-6 space-y-4 ${theme === 'light' ? 'border-slate-100' : 'border-slate-800'}`}>
-              <div className="flex items-center gap-2">
-                <span className="w-1.5 h-4 bg-red-600 rounded-full inline-block"></span>
-                <h3 className={`text-base font-bold tracking-wide ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>
-                  Ví dụ (Sample Test)
-                </h3>
-              </div>
-
-              <div className="space-y-4">
-                {problem.samples.map((sample, idx) => (
-                  <div
-                    key={sample.id || idx}
-                    className={`border rounded-2xl overflow-hidden shadow-lg ${
-                      theme === 'light'
-                        ? 'bg-white border-slate-200'
-                        : 'bg-slate-950 border-slate-700/80'
-                    }`}
-                  >
-                    {/* Header 2 cột chuẩn đề thi Tin học kèm nút Copy */}
-                    <div className={`grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x border-b ${
-                      theme === 'light'
-                        ? 'bg-slate-100/90 border-slate-200 divide-slate-200'
-                        : 'bg-slate-800/80 border-slate-800 divide-slate-800'
-                    }`}>
-                      <div className="px-4 py-2.5 flex items-center justify-between">
-                        <span className={`text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 ${
-                          theme === 'light' ? 'text-slate-800' : 'text-slate-300'
-                        }`}>
-                          Ví dụ Input {problem.samples.length > 1 ? `#${idx + 1}` : ''}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => handleCopy(sample.input, `in-${idx}`)}
-                          className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition-all shadow-sm cursor-pointer border ${
-                            copiedKey === `in-${idx}`
-                              ? theme === 'light'
-                                ? 'bg-emerald-50 text-emerald-700 border-emerald-300 font-bold'
-                                : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 font-bold'
-                              : theme === 'light'
-                              ? 'bg-white hover:bg-slate-50 text-slate-800 border-slate-300 hover:border-slate-400 font-bold'
-                              : 'bg-slate-700 hover:bg-slate-600 text-slate-100 border-slate-600'
-                          }`}
-                          title="Sao chép Input"
-                        >
-                          {copiedKey === `in-${idx}` ? (
-                            <>
-                              <Check className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                              <span>Đã chép!</span>
-                            </>
-                          ) : (
-                            <>
-                              <Copy className="w-3.5 h-3.5 text-slate-600 dark:text-slate-300" />
-                              <span>Copy</span>
-                            </>
-                          )}
-                        </button>
-                      </div>
-
-                      <div className="px-4 py-2.5 flex items-center justify-between">
-                        <span className={`text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 ${
-                          theme === 'light' ? 'text-slate-800' : 'text-slate-300'
-                        }`}>
-                          Ví dụ Output {problem.samples.length > 1 ? `#${idx + 1}` : ''}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => handleCopy(sample.output, `out-${idx}`)}
-                          className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition-all shadow-sm cursor-pointer border ${
-                            copiedKey === `out-${idx}`
-                              ? theme === 'light'
-                                ? 'bg-emerald-50 text-emerald-700 border-emerald-300 font-bold'
-                                : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 font-bold'
-                              : theme === 'light'
-                              ? 'bg-white hover:bg-slate-50 text-slate-800 border-slate-300 hover:border-slate-400 font-bold'
-                              : 'bg-slate-700 hover:bg-slate-600 text-slate-100 border-slate-600'
-                          }`}
-                          title="Sao chép Output"
-                        >
-                          {copiedKey === `out-${idx}` ? (
-                            <>
-                              <Check className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                              <span>Đã chép!</span>
-                            </>
-                          ) : (
-                            <>
-                              <Copy className="w-3.5 h-3.5 text-slate-600 dark:text-slate-300" />
-                              <span>Copy</span>
-                            </>
-                          )}
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Nội dung 2 cột Input và Output */}
-                    <div className={`grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x font-mono text-xs ${
-                      theme === 'light' ? 'divide-slate-200' : 'divide-slate-800'
-                    }`}>
-                      <div className={`p-4 overflow-x-auto whitespace-pre leading-relaxed select-all ${
-                        theme === 'light'
-                          ? 'bg-slate-50/70 text-slate-900 font-medium'
-                          : 'bg-slate-900/50 text-emerald-400'
-                      }`}>
-                        {sample.input || ' '}
-                      </div>
-                      <div className={`p-4 overflow-x-auto whitespace-pre leading-relaxed select-all ${
-                        theme === 'light'
-                          ? 'bg-slate-50/70 text-slate-900 font-medium'
-                          : 'bg-slate-900/50 text-blue-400'
-                      }`}>
-                        {sample.output || ' '}
-                      </div>
-                    </div>
-
-                    {/* Giải thích ví dụ nếu có */}
-                    {sample.explanation && (
-                      <div className={`p-3 border-t text-xs flex items-start gap-2 ${
-                        theme === 'light'
-                          ? 'bg-slate-50 border-slate-200 text-slate-800'
-                          : 'bg-slate-900/90 border-slate-800 text-slate-300'
-                      }`}>
-                        <span className={`font-semibold shrink-0 ${
-                          theme === 'light' ? 'text-slate-600' : 'text-slate-400'
-                        }`}>Giải thích:</span>
-                        <div className="flex-1">
-                          <MathRenderer content={sample.explanation} />
-                        </div>
-                      </div>
-                    )}
+            <div style={{ marginTop: 24, borderTop: '1px solid #D9D2C3', paddingTop: 16 }}>
+              <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 12 }}>Ví dụ mẫu</h3>
+              {problem.samples.map((sample, idx) => (
+                <div key={sample.id || idx} style={{ marginBottom: 16, background: '#FFFDF8', border: '1px solid #D9D2C3', borderRadius: 8, padding: 12 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: '#6B655C' }}>Input</span>
+                    <button
+                      type="button"
+                      onClick={() => handleCopy(sample.input, `in-${idx}`)}
+                      style={{ background: 'none', border: 'none', color: copiedKey === `in-${idx}` ? '#2F6B3F' : '#B4281F', fontSize: 12, cursor: 'pointer', fontWeight: 600 }}
+                    >
+                      {copiedKey === `in-${idx}` ? 'Đã chép!' : 'Sao chép'}
+                    </button>
                   </div>
-                ))}
-              </div>
+                  <pre className="fj-mono" style={{ background: '#F4F0E8', padding: 8, borderRadius: 6, fontSize: 13, margin: '0 0 10px', overflowX: 'auto', whiteSpace: 'pre-wrap' }}>
+                    {sample.input || ' '}
+                  </pre>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: '#6B655C' }}>Output</span>
+                    <button
+                      type="button"
+                      onClick={() => handleCopy(sample.output, `out-${idx}`)}
+                      style={{ background: 'none', border: 'none', color: copiedKey === `out-${idx}` ? '#2F6B3F' : '#B4281F', fontSize: 12, cursor: 'pointer', fontWeight: 600 }}
+                    >
+                      {copiedKey === `out-${idx}` ? 'Đã chép!' : 'Sao chép'}
+                    </button>
+                  </div>
+                  <pre className="fj-mono" style={{ background: '#F4F0E8', padding: 8, borderRadius: 6, fontSize: 13, margin: 0, overflowX: 'auto', whiteSpace: 'pre-wrap' }}>
+                    {sample.output || ' '}
+                  </pre>
+
+                  {sample.explanation && (
+                    <div style={{ marginTop: 8, fontSize: 12, color: '#6B655C', borderTop: '1px dashed #D9D2C3', paddingTop: 6 }}>
+                      <b>Giải thích: </b> <MathRenderer content={sample.explanation} />
+                    </div>
+                  )}
+                </div>
+              ))}
             </div>
           )}
-        </section>
 
-        {/* SECTION 2 (DƯỚI): KHU VỰC NỘP BÀI & TRÌNH BIÊN DỊCH CODE */}
-        <section className="space-y-6">
-          <div className={`rounded-2xl overflow-hidden border ${
-            theme === 'light'
-              ? 'bg-white border-stone-200 shadow-2xs'
-              : 'bg-[#0d121d] border-stone-800'
-          }`}>
-            {/* Editor Toolbar */}
-            <div className={`p-3.5 border-b flex flex-wrap items-center justify-between gap-3 ${
-              theme === 'light' ? 'bg-stone-50 border-stone-200' : 'bg-stone-900/80 border-stone-800'
-            }`}>
-              <div className="flex items-center gap-2">
-                <FileCode className="w-5 h-5 text-[#c51f26]" />
-                <span className={`text-xs font-bold uppercase tracking-wider ${
-                  theme === 'light' ? 'text-stone-800' : 'text-white'
-                }`}>
-                  Trình soạn thảo mã nguồn & Nộp bài
-                </span>
-              </div>
+          {/* Video hướng dẫn nếu có */}
+          {problem.videoConfig && (
+            <div style={{ marginTop: 20 }}>
+              <VideoSection
+                videoConfig={problem.videoConfig}
+                hasSubmitted={hasSubmitted}
+                isFullScore={isFullScore}
+              />
+            </div>
+          )}
+        </aside>
 
-              <div className="flex items-center gap-3">
-                {/* Language Selector */}
-                <div className="flex items-center gap-2">
-                  <span className={`text-xs hidden sm:inline ${
-                    theme === 'light' ? 'text-slate-600 font-medium' : 'text-slate-400'
-                  }`}>Ngôn ngữ:</span>
-                  <select
-                    value={language}
-                    onChange={(e) => handleLanguageChange(e.target.value as SupportedLanguage)}
-                    className={`text-xs rounded-xl px-3 py-1.5 focus:outline-none focus:border-red-500 font-semibold border ${
-                      theme === 'light'
-                        ? 'bg-white border-slate-300 text-slate-800 shadow-sm'
-                        : 'bg-slate-900 border-slate-800 text-slate-200'
-                    }`}
-                  >
-                    <option value="cpp">C++ (G++ 10.2 / 17)</option>
-                    <option value="python">Python 3</option>
-                    <option value="pascal">Pascal (FPC 3.2)</option>
-                    <option value="java">Java (OpenJDK 15)</option>
-                  </select>
-                </div>
-
-                {/* Reset button */}
-                <button
-                  onClick={handleResetCode}
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-medium transition-colors cursor-pointer ${
-                    theme === 'light'
-                      ? 'bg-white hover:bg-slate-200 text-slate-700 border-slate-300 shadow-sm'
-                      : 'bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border-slate-800'
-                  }`}
-                  title="Khôi phục code mẫu mặc định"
-                >
-                  <RotateCcw className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">Khôi phục mẫu</span>
-                </button>
-              </div>
+        {/* CỘT PHẢI: TRÌNH SOẠN THẢO CODE & KẾT QUẢ CHẤM */}
+        <div>
+          {/* Hộp soạn code */}
+          <div style={{ border: '1px solid #D9D2C3', borderRadius: 8, overflow: 'hidden' }}>
+            {/* Top Toolbar */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', background: '#FFFDF8' }}>
+              <select
+                className="fj-f"
+                aria-label="Ngôn ngữ"
+                value={language}
+                onChange={(e) => handleLanguageChange(e.target.value as SupportedLanguage)}
+              >
+                <option value="cpp">C++ (G++ 10.2 / 17)</option>
+                <option value="python">Python 3</option>
+                <option value="pascal">Pascal</option>
+              </select>
+              <button
+                type="button"
+                className="fj-m"
+                onClick={handleResetCode}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', font: 'inherit', textDecoration: 'underline' }}
+              >
+                Khôi phục mẫu
+              </button>
             </div>
 
-            {/* Monaco Editor Container */}
-            <div className={`h-[480px] w-full ${theme === 'light' ? 'bg-[#fffffe]' : 'bg-[#1e1e1e]'}`}>
+            {/* Trình soạn Monaco Editor nền #23201C */}
+            <div style={{ background: '#23201C', padding: '6px 0' }}>
               <Editor
-                height="100%"
-                language={LANGUAGE_CONFIG[language].monacoLang}
-                theme={theme === 'light' ? 'light' : 'vs-dark'}
+                height="420px"
+                language={language === 'cpp' ? 'cpp' : language === 'python' ? 'python' : 'pascal'}
+                theme="vs-dark"
                 value={code}
                 onChange={(val) => setCode(val || '')}
                 options={{
                   fontSize: 14,
-                  fontFamily: "'Consolas', 'Fira Code', 'Cascadia Code', monospace",
+                  fontFamily: 'JetBrains Mono, monospace',
                   fontLigatures: false,
                   minimap: { enabled: false },
                   scrollBeyondLastLine: false,
-                  automaticLayout: true,
-                  tabSize: 4,
-                  wordWrap: 'on',
                   lineNumbers: 'on',
-                  cursorBlinking: 'smooth',
-                  smoothScrolling: true,
+                  roundedSelection: true,
+                  padding: { top: 12, bottom: 12 },
+                  tabSize: 4,
+                  automaticLayout: true,
                 }}
               />
             </div>
 
-            {/* Bottom Bar & Submit Action */}
-            <div className={`p-4 sm:p-5 border-t flex flex-wrap items-center justify-between gap-4 ${
-              theme === 'light' ? 'bg-stone-50 border-stone-200' : 'bg-stone-900/80 border-stone-800'
-            }`}>
-              <div className={`text-xs flex items-center gap-2 ${theme === 'light' ? 'text-stone-600' : 'text-stone-400'}`}>
-                <Sparkles className="w-4 h-4 text-[#c51f26] shrink-0" />
-                <span>
-                  Hệ thống tự động hỗ trợ lệnh đọc/ghi file kiểu Themis:{' '}
-                  <code className={`px-1.5 py-0.5 rounded font-mono border ${
-                    theme === 'light'
-                      ? 'text-[#c51f26] bg-white border-red-200 font-semibold'
-                      : 'text-red-400 bg-red-950/40 border-red-900/60'
-                  }`}>
-                    freopen(&quot;{problem.code}.INP&quot;, &quot;r&quot;, stdin);
-                  </code>
-                </span>
-              </div>
-
+            {/* Bottom Toolbar & Nút Nộp bài */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16, padding: '14px 16px', background: '#FFFDF8', flexWrap: 'wrap' }}>
+              <span className="fj-m" style={{ fontSize: 13 }}>
+                Hệ thống tự hỗ trợ đọc/ghi file kiểu Themis (freopen).
+              </span>
               <button
+                className="fj-btn"
                 onClick={handleSubmit}
                 disabled={isGrading}
-                className={`inline-flex items-center gap-2.5 px-7 py-2.5 rounded-xl font-bold text-xs sm:text-sm text-white shadow-2xs transition-all cursor-pointer ${
-                  isGrading
-                    ? 'bg-[#c51f26]/50 cursor-not-allowed'
-                    : 'bg-[#c51f26] hover:bg-[#a8181e]'
-                }`}
               >
-                <Play className={`w-4 h-4 ${isGrading ? 'animate-spin' : 'fill-white'}`} />
-                {isGrading ? 'Đang chạy chấm bài...' : 'Nộp bài (Chấm điểm)'}
+                {isGrading ? `Đang chấm test ${currentRunningIndex}/${totalTestsRunning}...` : 'Nộp bài'}
               </button>
             </div>
           </div>
 
-          {/* Themis Result Table */}
-          <ThemisGradingTable
-            submission={latestSubmission}
-            isGrading={isGrading}
-            currentRunningIndex={currentRunningIndex}
-            totalTestsToRun={totalTestsRunning || problem.testCases?.length || (latestSubmission?.totalTests || 0)}
-          />
-        </section>
+          {/* Vùng Kết quả chấm bài */}
+          {!latestSubmission && !isGrading ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 24, marginTop: 24, padding: '20px 24px', border: '1.5px dashed #BDB5A3', borderRadius: 8, background: '#FFFDF8' }}>
+              <svg viewBox="60 14 230 210" width="96" height="88" aria-hidden="true">
+                <g transform="rotate(-3 175 119)">
+                  <rect x="70" y="24" width="210" height="190" rx="6" fill="#FFFDF8" stroke="#1F1D1A" strokeWidth="5"></rect>
+                  <path d="M94 62h60M110 86h90M110 110h50M94 134h70M110 158h100" stroke="#1F1D1A" strokeWidth="5" strokeLinecap="round" fill="none"></path>
+                </g>
+              </svg>
+              <div>
+                <b style={{ fontSize: 16 }}>Chưa có kết quả chấm</b>
+                <p className="fj-m" style={{ margin: '4px 0 0', fontSize: 14 }}>
+                  Soạn hoặc dán code rồi nhấn “Nộp bài”. Kết quả từng test sẽ hiện ở đây.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div style={{ marginTop: 24 }}>
+              <ThemisGradingTable
+                submission={latestSubmission}
+                isGrading={isGrading}
+                currentRunningIndex={currentRunningIndex}
+                totalTestsToRun={totalTestsRunning}
+              />
+            </div>
+          )}
+        </div>
       </div>
-
-      {/* Video Guide Section at the bottom */}
-      <VideoSection
-        videoConfig={problem.videoConfig}
-        hasSubmitted={hasSubmitted}
-        isFullScore={isFullScore}
-      />
-    </div>
+    </main>
   );
 };
-

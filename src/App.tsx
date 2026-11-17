@@ -25,7 +25,6 @@ function MainApp() {
     isAdminAuthenticated,
     isAuthLoading,
     setIsAuthModalOpen,
-    theme,
     activeClassId,
     setActiveClassId,
     isServerConfigModalOpen,
@@ -339,8 +338,8 @@ function MainApp() {
           )}
         </AdminLayout>
       ) : (
-        /* GIAO DIỆN HỌC SINH (USER): GIỮ NGUYÊN GIAO DIỆN TOP NAVBAR & CHỨC NĂNG CŨ */
-        <div className={`min-h-screen flex flex-col font-sans selection:bg-red-600 selection:text-white transition-colors duration-150 ${theme === 'light' ? 'bg-slate-50 text-slate-900' : 'bg-slate-950 text-slate-100'}`}>
+        /* GIAO DIỆN HỌC SINH (USER): THIẾT KẾ MỚI CHUẨN FAMINH JUDGE */
+        <div className="min-h-screen flex flex-col fj-student-root selection:bg-[#B4281F] selection:text-white">
           {/* Top Navigation cho học sinh */}
           <Navbar
             currentTab={currentTab}
@@ -402,21 +401,20 @@ function MainApp() {
           </main>
 
           {/* Footer FAMINH */}
-          <footer className="border-t border-slate-900 bg-slate-950 py-6 text-center text-xs text-slate-500">
-            <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+          <footer className="border-t border-[#D9D2C3] bg-[#F4F0E8] py-6 text-xs text-[#6B655C]">
+            <div className="fj-w flex flex-col sm:flex-row items-center justify-between gap-3">
               <div className="flex items-center gap-2">
-                <div className="w-5 h-5 rounded-md overflow-hidden bg-slate-800 p-0.5 border border-red-500/30 shrink-0">
-                  <img src="/faminh-logo.jpg" alt="FAMINH" className="w-full h-full object-cover rounded-sm" />
-                </div>
-                <span className="font-bold text-slate-300">FAMINH Online Judge</span>
+                <span className="font-bold text-[#1F1D1A]">
+                  FAMINH <span style={{ color: '#B4281F' }}>Judge</span>
+                </span>
                 <span>— Nền tảng luyện thi & Chấm bài tự động chuẩn Themis</span>
               </div>
 
-              <div className="flex items-center gap-2 text-slate-400">
-                <span className="text-slate-400">Học sinh (User)</span>
-                <span className="text-slate-600">•</span>
+              <div className="flex items-center gap-2 text-[#6B655C]">
+                <span>Học sinh</span>
+                <span>•</span>
                 <span className="flex items-center gap-1">
-                  Bản quyền thuộc <span className="font-semibold text-slate-300">FAMINH</span> <Heart className="w-3 h-3 text-red-500 fill-red-500" />
+                  Bản quyền thuộc <span className="font-semibold text-[#1F1D1A]">FAMINH</span> <Heart className="w-3 h-3 text-[#B4281F] fill-[#B4281F]" />
                 </span>
               </div>
             </div>
