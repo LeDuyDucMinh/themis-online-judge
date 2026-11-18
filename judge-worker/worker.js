@@ -15,6 +15,7 @@
 
 import fs from 'fs';
 import path from 'path';
+import zlib from 'zlib';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -211,16 +212,15 @@ function buildBatchBashScript(batchItems, srcCode, lang, tlSec) {
 
   for (const item of batchItems) {
     const idx = item.idx;
-    const inB64 = Buffer.from(item.tc.input || '', 'utf8').toString('base64');
+    const gzB64 = item.tc.gzB64 || zlib.gzipSync(Buffer.from(item.tc.input || '', 'utf8')).toString('base64');
     lines.push(
       `NOW=$(date +%s%3N)`,
-      `if [ $TLE_STREAK -ge 4 ] || [ $((NOW - START_ALL)) -gt 8500 ]; then`,
+      `if [ $TLE_STREAK -ge 4 ] || [ $((NOW - START_ALL)) -gt 13500 ]; then`,
       `  echo "===THEMIS_TEST:${idx}:124:${tlMs}::===END_TEST==="`,
       `else`,
-      `  echo '${inB64}' | base64 -d > in.txt`,
       `  T1=$(date +%s%3N)`,
-      `  timeout ${clampedTl}s ${runCmd} < in.txt > out.txt 2> err.txt`,
-      `  EC=$?`,
+      `  echo '${gzB64}' | base64 -d | gzip -d | timeout ${clampedTl}s ${runCmd} > out.txt 2> err.txt`,
+      `  EC=\${PIPESTATUS[3]}`,
       `  T2=$(date +%s%3N)`,
       `  EL=$((T2 - T1))`,
       `  if [ $EC -eq 124 ] || [ $EC -eq 137 ]; then TLE_STREAK=$((TLE_STREAK + 1)); else TLE_STREAK=0; fi`,
@@ -234,13 +234,21 @@ function buildBatchBashScript(batchItems, srcCode, lang, tlSec) {
   return lines.join('\n');
 }
 
+function truncateDisplay(str, maxLen = 1000) {
+  if (!str) return '';
+  const s = String(str);
+  return s.length > maxLen ? s.slice(0, maxLen) + '\n... (Dữ liệu lớn đã được rút gọn)' : s;
+}
+
+const memoryProblemCache = new Map();
+
 // Gọi Judge0 nội bộ (127.0.0.1:2358)
 async function callJudge0(payload) {
   const MAX_ATTEMPTS = 3;
   let lastErr = new Error('Judge0 không phản hồi');
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 20000);
+    const timer = setTimeout(() => controller.abort(), 22000);
     try {
       const res = await fetch(`${JUDGE0_URL}/submissions?base64_encoded=false&wait=true`, {
         method: 'POST',
@@ -266,9 +274,14 @@ async function callJudge0(payload) {
   throw lastErr;
 }
 
-// Cache bộ Test Case trên ổ đĩa VPS để đọc siêu tốc (0ms mạng)
+// Cache bộ Test Case trên RAM + ổ đĩa VPS để đọc siêu tốc (0ms mạng)
 async function getProblemAndTests(problemId) {
-  const cacheFile = path.join(CACHE_DIR, `problem_${problemId}.json`);
+  const memCached = memoryProblemCache.get(problemId);
+  if (memCached && Date.now() - memCached.ts < 30 * 60 * 1000) {
+    return memCached.data;
+  }
+
+  const cacheFile = path.join(CACHE_DIR, `problem_${problemId}_v2.json`);
   if (fs.existsSync(cacheFile)) {
     try {
       const stats = fs.statSync(cacheFile);
@@ -276,6 +289,7 @@ async function getProblemAndTests(problemId) {
       if (Date.now() - stats.mtimeMs < 30 * 60 * 1000) {
         const cached = JSON.parse(fs.readFileSync(cacheFile, 'utf8'));
         if (cached && cached.problem && Array.isArray(cached.testCases) && cached.testCases.length > 0) {
+          memoryProblemCache.set(problemId, { ts: Date.now(), data: cached });
           return cached;
         }
       }
@@ -346,15 +360,20 @@ async function getProblemAndTests(problemId) {
       const equalPts = +(targetTotal / arr.length).toFixed(2);
       pts = idx === arr.length - 1 ? +(targetTotal - equalPts * (arr.length - 1)).toFixed(2) : equalPts;
     }
+    const cleanIn = tc.input.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    const cleanExp = tc.expectedOutput.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    const gzB64 = zlib.gzipSync(Buffer.from(cleanIn, 'utf8')).toString('base64');
     return {
       ...tc,
-      input: tc.input.replace(/\r\n/g, '\n').replace(/\r/g, '\n'),
-      expectedOutput: tc.expectedOutput.replace(/\r\n/g, '\n').replace(/\r/g, '\n'),
+      input: cleanIn,
+      expectedOutput: cleanExp,
+      gzB64,
       points: pts,
     };
   });
 
   const payload = { problem, testCases, targetTotal };
+  memoryProblemCache.set(problemId, { ts: Date.now(), data: payload });
   try {
     fs.writeFileSync(cacheFile, JSON.stringify(payload), 'utf8');
   } catch {}
@@ -374,10 +393,11 @@ async function processSubmission(sub) {
     const batches = [];
     let currentBatch = [];
     let currentBytes = Buffer.byteLength(cleanedCode, 'utf8') * 2 + 2048;
-    const MAX_BATCH_SCRIPT_BYTES = 400 * 1024;
+    const MAX_BATCH_SCRIPT_BYTES = 6 * 1024 * 1024; // 6MB Gzip+Base64 (~12MB dữ liệu thô trong 1 lô duy nhất)
 
     for (let i = 0; i < testCases.length; i++) {
-      const estItemBytes = Buffer.byteLength(testCases[i].input || '', 'utf8') * 2 + 512;
+      const gzLen = (testCases[i].gzB64 || '').length || Buffer.byteLength(testCases[i].input || '', 'utf8');
+      const estItemBytes = gzLen + 512;
       if (currentBatch.length > 0 && currentBytes + estItemBytes > MAX_BATCH_SCRIPT_BYTES) {
         batches.push(currentBatch);
         currentBatch = [];
@@ -391,7 +411,8 @@ async function processSubmission(sub) {
     const resultsMap = new Map();
     let compileFailedResult = null;
 
-    for (const batch of batches) {
+    async function executeBatch(batch) {
+      if (compileFailedResult) return;
       const bashScript = buildBatchBashScript(batch, cleanedCode, sub.language || 'cpp', timeLimit);
       const data = await callJudge0({
         source_code: bashScript,
@@ -400,6 +421,7 @@ async function processSubmission(sub) {
         cpu_time_limit: 15,
         wall_time_limit: 20,
         memory_limit: 512000, // 512MB RAM - Đảm bảo g++ đủ bộ nhớ biên dịch an toàn
+        max_file_size: 4096, // 4MB file size limit
         max_processes_and_or_threads: 120,
       });
 
@@ -410,7 +432,7 @@ async function processSubmission(sub) {
         const m = stdout.match(/===THEMIS_CE_B64===([A-Za-z0-9+/=]*)===END_CE===/);
         const ceMsg = m ? Buffer.from(m[1], 'base64').toString('utf8') : stderr || 'Lỗi biên dịch chương trình (Compilation Error)';
         compileFailedResult = { verdict: 'CE', errorMessage: ceMsg };
-        break;
+        return;
       }
 
       const regex = /===THEMIS_TEST:(\d+):(\d+):(\d+):([A-Za-z0-9+/=]*):([A-Za-z0-9+/=]*)===END_TEST===/g;
@@ -453,13 +475,15 @@ async function processSubmission(sub) {
           memory: memoryMb,
           pointsEarned,
           maxPoints: tc.points,
-          input: tc.isHidden ? '(Ẩn theo yêu cầu đề thi)' : tc.input,
-          expectedOutput: tc.isHidden ? '(Ẩn theo yêu cầu đề thi)' : tc.expectedOutput,
-          actualOutput: tc.isHidden ? (verdict === 'AC' ? '(Chính xác)' : '(Sai khác output)') : actualStdout,
+          input: tc.isHidden ? '(Ẩn theo yêu cầu đề thi)' : truncateDisplay(tc.input),
+          expectedOutput: tc.isHidden ? '(Ẩn theo yêu cầu đề thi)' : truncateDisplay(tc.expectedOutput),
+          actualOutput: tc.isHidden ? (verdict === 'AC' ? '(Chính xác)' : '(Sai khác output)') : truncateDisplay(actualStdout),
           errorMessage,
         });
       }
     }
+
+    await Promise.all(batches.map((b) => executeBatch(b)));
 
     const testResults = [];
     let totalPointsEarned = 0;
@@ -481,8 +505,8 @@ async function processSubmission(sub) {
           memory: 0,
           pointsEarned: 0,
           maxPoints: tc.points,
-          input: tc.isHidden ? '(Ẩn theo yêu cầu đề thi)' : tc.input,
-          expectedOutput: tc.isHidden ? '(Ẩn theo yêu cầu đề thi)' : tc.expectedOutput,
+          input: tc.isHidden ? '(Ẩn theo yêu cầu đề thi)' : truncateDisplay(tc.input),
+          expectedOutput: tc.isHidden ? '(Ẩn theo yêu cầu đề thi)' : truncateDisplay(tc.expectedOutput),
           actualOutput: '',
           errorMessage: compilationMessage,
         });
@@ -498,8 +522,8 @@ async function processSubmission(sub) {
           memory: 1.5,
           pointsEarned: 0,
           maxPoints: testCases[i].points,
-          input: testCases[i].isHidden ? '(Ẩn theo yêu cầu đề thi)' : testCases[i].input,
-          expectedOutput: testCases[i].isHidden ? '(Ẩn theo yêu cầu đề thi)' : testCases[i].expectedOutput,
+          input: testCases[i].isHidden ? '(Ẩn theo yêu cầu đề thi)' : truncateDisplay(testCases[i].input),
+          expectedOutput: testCases[i].isHidden ? '(Ẩn theo yêu cầu đề thi)' : truncateDisplay(testCases[i].expectedOutput),
           actualOutput: '',
           errorMessage: 'Chưa có kết quả kiểm thử',
         };

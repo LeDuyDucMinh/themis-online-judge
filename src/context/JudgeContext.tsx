@@ -2270,13 +2270,17 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
                 } catch {}
               }, 800);
 
-              // C. Tự phục hồi: Nếu sau 3.5s chưa có Worker VPS chấm, kích hoạt Serverless fallback tự chấm
+              // C. Tự phục hồi: Nếu sau 4.5s bài nộp vẫn ở trạng thái PENDING (chưa có Worker VPS nhận),
+              // mới kích hoạt Serverless fallback tự chấm. Nếu Worker đã nhận (RUNNING) thì chờ Worker hoàn tất.
               fallbackTriggerTimer = setTimeout(async () => {
                 if (isFinished) return;
                 try {
                   const check = await apiService.fetchSubmissionById(targetSubId);
                   if (check && (check.status === 'COMPLETED' || check.status === 'ERROR')) {
                     handleCompleted(check);
+                    return;
+                  }
+                  if (check && check.status === 'RUNNING') {
                     return;
                   }
                   const fallbackGradeRes = await fetch('/api/grade', {
@@ -2305,7 +2309,7 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
                 } catch (fbErr) {
                   console.warn('[Self-Healing Fallback Error]:', fbErr);
                 }
-              }, 3500);
+              }, 4500);
 
               // Timeout tối đa 30 giây để tránh treo UI
               setTimeout(() => {

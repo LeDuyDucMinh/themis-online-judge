@@ -1,5 +1,12 @@
 // api/grade.js - Vercel Serverless Function: Chấm điểm bảo mật phía Server (Server-Side Grading)
 // Khắc phục triệt để VULN-01 & VULN-03: Che giấu toàn bộ Test Case ẩn, không cho phép học sinh F12 xem trộm
+import zlib from 'zlib';
+
+function truncateDisplay(str, maxLen = 1000) {
+  if (!str) return '';
+  const s = String(str);
+  return s.length > maxLen ? s.slice(0, maxLen) + '\n... (Dữ liệu lớn đã được rút gọn)' : s;
+}
 
 const SUPABASE_URL = (process.env.SUPABASE_URL || 'https://wsccqtgnwejupfucfqtg.supabase.co').trim().replace(/\/+$/, '');
 const SUPABASE_KEY = (
@@ -212,6 +219,8 @@ export default async function handler(req, res) {
 
     // 1 + 2. Tải thông tin bài tập, toàn bộ Test Case bí mật và xác thực JWT SONG SONG từ Supabase
     // (học sinh KHÔNG THỂ nhìn thấy các request này). Không tải mô tả/file đính kèm vì chấm bài không cần.
+    const isAsyncEnqueue = body.async === true || body.mode === 'enqueue';
+    const tcSelect = isAsyncEnqueue ? '&select=id,order_index,points' : '';
     const sbHeaders = { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` };
     const [probRes, tcRes, verifiedUser] = await Promise.all([
       fetch(
@@ -219,7 +228,7 @@ export default async function handler(req, res) {
         { headers: sbHeaders }
       ),
       fetch(
-        `${SUPABASE_URL}/rest/v1/test_cases?problem_id=eq.${encodeURIComponent(problemId)}&order=order_index.asc,updated_at.desc`,
+        `${SUPABASE_URL}/rest/v1/test_cases?problem_id=eq.${encodeURIComponent(problemId)}${tcSelect}&order=order_index.asc,updated_at.desc`,
         { headers: sbHeaders }
       ),
       hasUserJwt
@@ -580,16 +589,15 @@ export default async function handler(req, res) {
 
       for (const item of batchItems) {
         const idx = item.idx;
-        const inB64 = Buffer.from(item.tc.input || '', 'utf8').toString('base64');
+        const gzB64 = item.tc.gzB64 || zlib.gzipSync(Buffer.from(item.tc.input || '', 'utf8')).toString('base64');
         lines.push(
           `NOW=$(date +%s%3N)`,
-          `if [ $TLE_STREAK -ge 4 ] || [ $((NOW - START_ALL)) -gt 8500 ]; then`,
+          `if [ $TLE_STREAK -ge 4 ] || [ $((NOW - START_ALL)) -gt 13500 ]; then`,
           `  echo "===THEMIS_TEST:${idx}:124:${tlMs}::===END_TEST==="`,
           `else`,
-          `  echo '${inB64}' | base64 -d > in.txt`,
           `  T1=$(date +%s%3N)`,
-          `  timeout ${clampedTl}s ${runCmd} < in.txt > out.txt 2> err.txt`,
-          `  EC=$?`,
+          `  echo '${gzB64}' | base64 -d | gzip -d | timeout ${clampedTl}s ${runCmd} > out.txt 2> err.txt`,
+          `  EC=\${PIPESTATUS[3]}`,
           `  T2=$(date +%s%3N)`,
           `  EL=$((T2 - T1))`,
           `  if [ $EC -eq 124 ] || [ $EC -eq 137 ]; then TLE_STREAK=$((TLE_STREAK + 1)); else TLE_STREAK=0; fi`,
@@ -606,14 +614,15 @@ export default async function handler(req, res) {
     const resultsMap = new Map();
     let compileFailedResult = null;
 
-    // Chia các test case thành các lô có kích thước script <= 400KB (thông thường toàn bộ 20 test chỉ ~10KB nên nằm gọn trong 1 lô duy nhất)
+    // Chia các test case thành các lô có kích thước script Gzip+Base64 <= 6MB (~12MB dữ liệu thô trong 1 lô duy nhất)
     const batches = [];
     let currentBatch = [];
     let currentBytes = Buffer.byteLength(cleanedCode, 'utf8') * 2 + 2048;
-    const MAX_BATCH_SCRIPT_BYTES = 400 * 1024;
+    const MAX_BATCH_SCRIPT_BYTES = 6 * 1024 * 1024;
 
     for (let i = 0; i < testCases.length; i++) {
-      const estItemBytes = Buffer.byteLength(testCases[i].input || '', 'utf8') * 2 + 512;
+      testCases[i].gzB64 = zlib.gzipSync(Buffer.from(testCases[i].input || '', 'utf8')).toString('base64');
+      const estItemBytes = testCases[i].gzB64.length + 512;
       if (currentBatch.length > 0 && currentBytes + estItemBytes > MAX_BATCH_SCRIPT_BYTES) {
         batches.push(currentBatch);
         currentBatch = [];
@@ -634,6 +643,7 @@ export default async function handler(req, res) {
         wall_time_limit: 20,
         max_processes_and_or_threads: 120,
         memory_limit: 512000,
+        max_file_size: 4096,
       });
 
       const stdout = data.stdout || '';
@@ -655,8 +665,8 @@ export default async function handler(req, res) {
           memory: 0,
           pointsEarned: 0,
           maxPoints: firstTc.points,
-          input: firstTc.isHidden ? '(Ẩn theo yêu cầu đề thi)' : firstTc.input,
-          expectedOutput: firstTc.isHidden ? '(Ẩn theo yêu cầu đề thi)' : firstTc.expectedOutput,
+          input: firstTc.isHidden ? '(Ẩn theo yêu cầu đề thi)' : truncateDisplay(firstTc.input),
+          expectedOutput: firstTc.isHidden ? '(Ẩn theo yêu cầu đề thi)' : truncateDisplay(firstTc.expectedOutput),
           actualOutput: '',
           errorMessage: compMsg,
           compilationMessage: compMsg,
@@ -712,9 +722,9 @@ export default async function handler(req, res) {
           memory: memoryMb,
           pointsEarned,
           maxPoints: tc.points,
-          input: tc.isHidden ? '(Ẩn theo yêu cầu đề thi)' : tc.input,
-          expectedOutput: tc.isHidden ? '(Ẩn theo yêu cầu đề thi)' : tc.expectedOutput,
-          actualOutput: tc.isHidden ? (verdict === 'AC' ? '(Chính xác)' : '(Sai khác output)') : actualStdout,
+          input: tc.isHidden ? '(Ẩn theo yêu cầu đề thi)' : truncateDisplay(tc.input),
+          expectedOutput: tc.isHidden ? '(Ẩn theo yêu cầu đề thi)' : truncateDisplay(tc.expectedOutput),
+          actualOutput: tc.isHidden ? (verdict === 'AC' ? '(Chính xác)' : '(Sai khác output)') : truncateDisplay(actualStdout),
           errorMessage,
         });
       }
