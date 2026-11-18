@@ -254,7 +254,8 @@ async function callJudge0(payload) {
       if (res.ok) {
         return await res.json();
       }
-      lastErr = new Error(`Judge0 HTTP ${res.status}`);
+      const errBody = await res.text().catch(() => '');
+      lastErr = new Error(`Judge0 HTTP ${res.status}: ${errBody}`);
     } catch (e) {
       lastErr = e;
     } finally {
@@ -396,8 +397,8 @@ async function processSubmission(sub) {
         source_code: bashScript,
         language_id: 46, // Bash 5.0.0
         stdin: '',
-        cpu_time_limit: Math.min(Math.max(timeLimit * batch.length + 5.0, 10.0), 30.0),
-        wall_time_limit: 35,
+        cpu_time_limit: 15,
+        wall_time_limit: 20,
         memory_limit: 512000, // 512MB RAM - Đảm bảo g++ đủ bộ nhớ biên dịch an toàn
         max_processes_and_or_threads: 120,
       });
