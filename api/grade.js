@@ -204,13 +204,19 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Bad Request', message: 'Mã nguồn vượt quá dung lượng tối đa 128KB.' });
     }
 
-    // 1. Tải thông tin bài tập từ Supabase
-    const probRes = await fetch(`${SUPABASE_URL}/rest/v1/problems?id=eq.${encodeURIComponent(problemId)}&limit=1`, {
-      headers: {
-        apikey: SUPABASE_KEY,
-        Authorization: `Bearer ${SUPABASE_KEY}`,
-      },
-    });
+    // 1 + 2. Tải thông tin bài tập và toàn bộ Test Case bí mật SONG SONG từ Supabase
+    // (học sinh KHÔNG THỂ nhìn thấy các request này). Không tải mô tả/file đính kèm vì chấm bài không cần.
+    const sbHeaders = { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` };
+    const [probRes, tcRes] = await Promise.all([
+      fetch(
+        `${SUPABASE_URL}/rest/v1/problems?id=eq.${encodeURIComponent(problemId)}&select=id,code,title,total_points,time_limit,samples&limit=1`,
+        { headers: sbHeaders }
+      ),
+      fetch(
+        `${SUPABASE_URL}/rest/v1/test_cases?problem_id=eq.${encodeURIComponent(problemId)}&order=order_index.asc,updated_at.desc`,
+        { headers: sbHeaders }
+      ),
+    ]);
     if (!probRes.ok) {
       throw new Error(`Không thể tải bài tập từ Database (HTTP ${probRes.status})`);
     }
@@ -220,22 +226,20 @@ export default async function handler(req, res) {
       return res.status(404).json({ error: 'Not Found', message: 'Không tìm thấy bài tập này trong hệ thống.' });
     }
 
-    // 2. Tải toàn bộ Test Case bí mật từ Supabase (Học sinh KHÔNG THỂ nhìn thấy request này)
-    const tcRes = await fetch(
-      `${SUPABASE_URL}/rest/v1/test_cases?problem_id=eq.${encodeURIComponent(problemId)}&order=order_index.asc,updated_at.desc`,
-      {
-        headers: {
-          apikey: SUPABASE_KEY,
-          Authorization: `Bearer ${SUPABASE_KEY}`,
-        },
-      }
-    );
-
     let rawTestCases = [];
     if (tcRes.ok) {
       const tcData = await tcRes.json();
       if (Array.isArray(tcData) && tcData.length > 0) {
-        rawTestCases = tcData.map((d) => ({
+        // Loại hàng trùng order_index (do lỗi merge cũ) để không chấm trùng test
+        const seenOrders = new Set();
+        const unique = [];
+        for (const d of tcData) {
+          const ord = Number(d.order_index) || 0;
+          if (ord > 0 && seenOrders.has(ord)) continue;
+          if (ord > 0) seenOrders.add(ord);
+          unique.push(d);
+        }
+        rawTestCases = unique.map((d) => ({
           id: d.id,
           name: d.test_name || `Test #${d.order_index}`,
           input: d.input || '',
@@ -297,28 +301,50 @@ export default async function handler(req, res) {
     let compilationMessage = null;
     let isCompilationFailed = false;
 
+    // Gọi Judge0 với timeout + tự thử lại khi VPS bận (HTTP 5xx/429) hoặc mất kết nối thoáng qua.
+    // Trước đây 1 lần VPS bận là test đó bị tính RTE "lỗi kết nối" dù code học sinh đúng.
+    async function callJudge0(payload) {
+      const MAX_ATTEMPTS = 3;
+      let lastErr = new Error('Judge0 không phản hồi');
+      for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 20000);
+        let retryable = true;
+        try {
+          const j0Res = await fetch(`${JUDGE0_TARGET}/submissions?base64_encoded=false&wait=true`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Auth-Token': JUDGE0_TOKEN,
+            },
+            body: JSON.stringify(payload),
+            signal: controller.signal,
+          });
+          if (j0Res.ok) {
+            return await j0Res.json();
+          }
+          retryable = j0Res.status >= 500 || j0Res.status === 429;
+          lastErr = new Error(`Judge0 HTTP ${j0Res.status}`);
+        } catch (e) {
+          lastErr = e;
+        } finally {
+          clearTimeout(timer);
+        }
+        if (!retryable || attempt === MAX_ATTEMPTS - 1) break;
+        await new Promise((r) => setTimeout(r, 250 * (attempt + 1)));
+      }
+      throw lastErr;
+    }
+
     // Helper hàm chạy 1 test case trên Judge0 VPS
     async function executeSingleTest(tc) {
       try {
-        const j0Res = await fetch(`${JUDGE0_TARGET}/submissions?base64_encoded=false&wait=true`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Auth-Token': JUDGE0_TOKEN,
-          },
-          body: JSON.stringify({
-            source_code: cleanedCode,
-            language_id: langId,
-            stdin: tc.input,
-            cpu_time_limit: Math.min(Math.max(timeLimit, 0.1), 10.0),
-          }),
+        const data = await callJudge0({
+          source_code: cleanedCode,
+          language_id: langId,
+          stdin: tc.input,
+          cpu_time_limit: Math.min(Math.max(timeLimit, 0.1), 10.0),
         });
-
-        if (!j0Res.ok) {
-          throw new Error(`Judge0 HTTP ${j0Res.status}`);
-        }
-
-        const data = await j0Res.json();
         const statusId = data.status?.id || 0;
         const execTime = data.time ? parseFloat(data.time) : 0;
         const memoryKb = data.memory ? parseInt(data.memory, 10) : 0;
@@ -403,55 +429,54 @@ export default async function handler(req, res) {
       }
     }
 
-    // 4.1. Chạy thử Test Case 1 trước để phát hiện ngay Lỗi biên dịch (CE)
-    const firstResult = await executeSingleTest(testCases[0]);
-    if (firstResult.verdict === 'CE') {
-      isCompilationFailed = true;
-      compilationMessage = firstResult.errorMessage || 'Lỗi biên dịch chương trình (Compilation Error)';
-      testResults.push(firstResult);
-      maxExecutionTime = Math.max(maxExecutionTime, firstResult.time || 0);
-      peakMemory = Math.max(peakMemory, firstResult.memory || 0);
+    // 4. Chạy TẤT CẢ test song song với worker pool (tối đa 8 test cùng lúc).
+    // Trước đây test đầu chạy riêng 1 mình rồi mới chạy 4 test/lượt => 10 test mất ~4 vòng chờ VPS.
+    // Nếu phát hiện lỗi biên dịch (CE) thì dừng không xếp thêm test mới (các test đang chạy tự kết thúc).
+    const resultsMap = new Map();
+    let compileFailedResult = null;
+    let nextIndex = 0;
 
-      for (let i = 1; i < testCases.length; i++) {
-        const tc = testCases[i];
-        testResults.push({
-          testId: tc.id,
-          testName: tc.name,
-          verdict: 'CE',
-          time: 0,
-          executionTime: 0,
-          memory: 0,
-          pointsEarned: 0,
-          maxPoints: tc.points,
-          input: tc.isHidden ? '(Ẩn theo yêu cầu đề thi)' : tc.input,
-          expectedOutput: tc.isHidden ? '(Ẩn theo yêu cầu đề thi)' : tc.expectedOutput,
-          actualOutput: '',
-          errorMessage: compilationMessage,
-        });
+    async function worker() {
+      while (nextIndex < testCases.length && !compileFailedResult) {
+        const idx = nextIndex++;
+        const r = await executeSingleTest(testCases[idx]);
+        resultsMap.set(idx, r);
+        if (r.verdict === 'CE' && !compileFailedResult) compileFailedResult = r;
+      }
+    }
+
+    const CONCURRENCY = Math.min(8, testCases.length);
+    await Promise.all(Array.from({ length: CONCURRENCY }, () => worker()));
+
+    if (compileFailedResult) {
+      isCompilationFailed = true;
+      compilationMessage = compileFailedResult.errorMessage || 'Lỗi biên dịch chương trình (Compilation Error)';
+      testCases.forEach((tc, i) => {
+        const existing = resultsMap.get(i);
+        if (existing && existing.verdict === 'CE') {
+          testResults.push(existing);
+        } else {
+          testResults.push({
+            testId: tc.id,
+            testName: tc.name,
+            verdict: 'CE',
+            time: 0,
+            executionTime: 0,
+            memory: 0,
+            pointsEarned: 0,
+            maxPoints: tc.points,
+            input: tc.isHidden ? '(Ẩn theo yêu cầu đề thi)' : tc.input,
+            expectedOutput: tc.isHidden ? '(Ẩn theo yêu cầu đề thi)' : tc.expectedOutput,
+            actualOutput: '',
+            errorMessage: compilationMessage,
+          });
+        }
+      });
+      for (const r of testResults) {
+        maxExecutionTime = Math.max(maxExecutionTime, r.time || 0);
+        peakMemory = Math.max(peakMemory, r.memory || 0);
       }
     } else {
-      // 4.2. Code biên dịch thành công! Chạy song song các test còn lại với concurrency worker pool (CONCURRENCY = 4)
-      const resultsMap = new Map();
-      resultsMap.set(0, firstResult);
-
-      if (testCases.length > 1) {
-        const CONCURRENCY = 4;
-        let nextIndex = 1;
-
-        async function worker() {
-          while (nextIndex < testCases.length) {
-            const idx = nextIndex++;
-            const tc = testCases[idx];
-            const res = await executeSingleTest(tc);
-            resultsMap.set(idx, res);
-          }
-        }
-
-        const workerCount = Math.min(CONCURRENCY, testCases.length - 1);
-        const workers = Array.from({ length: workerCount }, () => worker());
-        await Promise.all(workers);
-      }
-
       for (let i = 0; i < testCases.length; i++) {
         const r = resultsMap.get(i);
         if (r) {

@@ -56,14 +56,32 @@ export const ProblemView: React.FC<ProblemViewProps> = ({ problem, onBackToList 
   };
 
   const handleDownloadAttached = () => {
-    if (!problem.attachedFile?.dataUrl) return;
+    if (!attachment?.dataUrl) return;
     const a = document.createElement('a');
-    a.href = problem.attachedFile.dataUrl;
-    a.download = problem.attachedFile.name;
+    a.href = attachment.dataUrl;
+    a.download = attachment.name;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
   };
+
+  // Danh sách bài tập chỉ mang tên file đính kèm; nội dung (Word/PDF) được tải riêng khi mở đề
+  const [attachment, setAttachment] = useState<Problem['attachedFile']>(problem.attachedFile);
+  useEffect(() => {
+    const f = problem.attachedFile;
+    setAttachment(f);
+    if (!f || f.dataUrl || f.rawHtml) return;
+    let cancelled = false;
+    apiService
+      .fetchProblemAttachment(problem.id)
+      .then((full) => {
+        if (!cancelled && full) setAttachment(full);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [problem.id, problem.updatedAt, problem.attachedFile?.name]);
 
   // Lấy lịch sử nộp bài gần nhất của bài này (cho đúng học sinh đang đăng nhập)
   useEffect(() => {
@@ -234,20 +252,21 @@ export const ProblemView: React.FC<ProblemViewProps> = ({ problem, onBackToList 
           <h2 style={{ fontSize: 18, marginBottom: 8 }}>Đề bài</h2>
 
           {/* Đính kèm file tài liệu gốc nếu có */}
-          {problem.attachedFile ? (
+          {attachment ? (
             <div style={{ marginBottom: 16 }}>
               <button
                 type="button"
                 className="fj-btn"
                 style={{ padding: '8px 14px', fontSize: 13, marginBottom: 12, width: '100%' }}
                 onClick={handleDownloadAttached}
+                disabled={!attachment.dataUrl}
               >
-                Tải file gốc ({problem.attachedFile.name})
+                {attachment.dataUrl ? `Tải file gốc (${attachment.name})` : `Đang tải file gốc (${attachment.name})...`}
               </button>
-              {problem.attachedFile.type === 'docx' && problem.attachedFile.rawHtml ? (
+              {attachment.type === 'docx' && attachment.rawHtml ? (
                 <div
                   className="prose max-w-none text-sm text-[#1F1D1A] leading-relaxed font-sans"
-                  dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(problem.attachedFile.rawHtml) }}
+                  dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(attachment.rawHtml) }}
                 />
               ) : (
                 <MathRenderer content={problem.description || ''} />

@@ -104,6 +104,24 @@ export const ProblemEditorModal: React.FC<ProblemEditorModalProps> = ({
     problem?.attachedFile
   );
 
+  // Danh sách bài tập chỉ mang tên file đính kèm; tải nội dung gốc khi mở chỉnh sửa
+  // (nếu chưa tải kịp, lúc lưu hệ thống sẽ giữ nguyên file hiện có trên Cloud).
+  useEffect(() => {
+    const f = problem?.attachedFile;
+    if (!problem || !f || f.dataUrl || f.rawHtml) return;
+    let cancelled = false;
+    apiService
+      .fetchProblemAttachment(problem.id)
+      .then((full) => {
+        if (cancelled || !full) return;
+        setAttachedFile((prev) => (prev && !prev.dataUrl && !prev.rawHtml ? full : prev));
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [problem?.id]);
+
   // Bảng ví dụ mẫu (Sample Input / Output)
   const [samples, setSamples] = useState<SampleIO[]>(() => {
     if (problem) {

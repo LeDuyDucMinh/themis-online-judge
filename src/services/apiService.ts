@@ -78,6 +78,78 @@ export function getActiveAuthToken(): string {
   return ENV.SUPABASE_ANON_KEY;
 }
 
+// ============================================================================
+// "Bia mộ" (tombstone) cho bài tập đã xóa.
+// Ngăn bài tập vừa xóa sống lại do: (1) một lượt làm mới đang chạy dở trả về
+// danh sách cũ, (2) dữ liệu cũ còn sót trong IndexedDB/localStorage của máy khác.
+// ============================================================================
+const PROBLEM_TOMBSTONE_KEY = 'faminh_deleted_problems_v1';
+const PROBLEM_TOMBSTONE_TTL_MS = 30 * 60 * 1000;
+
+function readProblemTombstones(): Record<string, number> {
+  try {
+    if (typeof localStorage === 'undefined') return {};
+    const raw = localStorage.getItem(PROBLEM_TOMBSTONE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    const now = Date.now();
+    const out: Record<string, number> = {};
+    for (const [id, ts] of Object.entries(parsed || {})) {
+      if (typeof ts === 'number' && now - ts < PROBLEM_TOMBSTONE_TTL_MS) out[id] = ts;
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+function writeProblemTombstones(map: Record<string, number>): void {
+  try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(PROBLEM_TOMBSTONE_KEY, JSON.stringify(map));
+    }
+  } catch {
+    // bỏ qua lỗi quota
+  }
+}
+
+function markProblemDeleted(id: string): void {
+  const map = readProblemTombstones();
+  map[id] = Date.now();
+  writeProblemTombstones(map);
+}
+
+function clearProblemTombstones(ids: string[]): void {
+  if (ids.length === 0) return;
+  const map = readProblemTombstones();
+  let changed = false;
+  for (const id of ids) {
+    if (id in map) {
+      delete map[id];
+      changed = true;
+    }
+  }
+  if (changed) writeProblemTombstones(map);
+}
+
+/** File đính kèm chỉ có tên/kích thước (nội dung được tải riêng khi cần, tránh tải hàng MB mỗi lần làm mới). */
+export function isAttachmentStub(f?: Problem['attachedFile']): boolean {
+  return Boolean(f && !f.dataUrl && !f.rawHtml);
+}
+
+const attachmentCache = new Map<string, { at: number; value: Problem['attachedFile'] }>();
+const ATTACHMENT_CACHE_TTL_MS = 60 * 1000;
+
+// Gộp các lượt gọi fetchResourceOwners (lớp học, chủ đề, bài tập đều gọi) thành 1 request.
+let ownersCache: { at: number; value: ResourceOwnersMap } | null = null;
+let ownersInflight: Promise<ResourceOwnersMap> | null = null;
+const OWNERS_CACHE_TTL_MS = 4000;
+
+// Bộ nhớ đệm bài nộp để các lượt làm mới định kỳ chỉ tải phần mới.
+let submissionsCache: Map<string, Submission> | null = null;
+let submissionsFullFetchAt = 0;
+const SUBMISSIONS_FULL_REFRESH_MS = 5 * 60 * 1000;
+
 /**
  * Service API Database tập trung: Hỗ trợ cả Supabase Cloud REST API và IndexedDB dự phòng bền vững
  */
@@ -108,6 +180,22 @@ export const apiService = {
    * Lấy bản đồ chủ sở hữu tài nguyên (Lớp học, Chủ đề, Bài tập của từng Giáo viên) từ Supabase Cloud
    */
   async fetchResourceOwners(): Promise<ResourceOwnersMap> {
+    if (ownersCache && Date.now() - ownersCache.at < OWNERS_CACHE_TTL_MS) {
+      return ownersCache.value;
+    }
+    if (ownersInflight) return ownersInflight;
+    ownersInflight = this.fetchResourceOwnersUncached()
+      .then((value) => {
+        ownersCache = { at: Date.now(), value };
+        return value;
+      })
+      .finally(() => {
+        ownersInflight = null;
+      });
+    return ownersInflight;
+  },
+
+  async fetchResourceOwnersUncached(): Promise<ResourceOwnersMap> {
     const localOwners = storageService.getResourceOwners();
     if (isSupabaseConfigured()) {
       try {
@@ -142,6 +230,7 @@ export const apiService = {
    * Lưu bản đồ chủ sở hữu tài nguyên (Lớp học, Chủ đề, Bài tập) lên Supabase Cloud
    */
   async saveResourceOwners(owners: ResourceOwnersMap): Promise<void> {
+    ownersCache = null;
     storageService.saveResourceOwners(owners);
     if (!isSupabaseConfigured()) return;
     try {
@@ -330,13 +419,16 @@ export const apiService = {
   async fetchClassrooms(): Promise<Classroom[]> {
     if (isSupabaseConfigured()) {
       try {
-        const owners = await this.fetchResourceOwners();
+        // Tải song song bản đồ chủ sở hữu và danh sách lớp (trước đây chạy nối đuôi nhau)
         // Bảo mật: Lọc ngay từ phía máy chủ Supabase, tuyệt đối không trả các bản ghi __system_ về mạng của người dùng
         const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/classrooms?id=not.like.__system_%25&order=created_at.asc`;
-        const res = await fetch(targetUrl, {
-          headers: this.getAntiCacheHeaders(),
-          cache: 'no-store',
-        });
+        const [owners, res] = await Promise.all([
+          this.fetchResourceOwners(),
+          fetch(targetUrl, {
+            headers: this.getAntiCacheHeaders(),
+            cache: 'no-store',
+          }),
+        ]);
         if (res.ok) {
           const data = await res.json();
           if (Array.isArray(data)) {
@@ -970,12 +1062,14 @@ export const apiService = {
   async fetchTopics(): Promise<Topic[]> {
     if (isSupabaseConfigured()) {
       try {
-        const owners = await this.fetchResourceOwners();
         const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/classrooms?id=eq.__system_topics__`;
-        const res = await fetch(targetUrl, {
-          headers: this.getAntiCacheHeaders(),
-          cache: 'no-store',
-        });
+        const [owners, res] = await Promise.all([
+          this.fetchResourceOwners(),
+          fetch(targetUrl, {
+            headers: this.getAntiCacheHeaders(),
+            cache: 'no-store',
+          }),
+        ]);
         if (res.ok) {
           const rows = await res.json();
           if (Array.isArray(rows) && rows.length > 0 && rows[0].description) {
@@ -1180,16 +1274,8 @@ export const apiService = {
     // 2. Nếu đã cấu hình Supabase Cloud, đồng bộ lên bảng test_cases
     if (isSupabaseConfigured()) {
       try {
-        // Thử xóa test case cũ của bài tập này trên cloud (nếu có quyền DELETE)
-        try {
-          await fetch(`${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/test_cases?problem_id=eq.${encodeURIComponent(problemId)}`, {
-            method: 'DELETE',
-            headers: this.getAntiCacheHeaders(),
-          });
-        } catch (delErr) {
-          console.warn('[apiService] DELETE test_cases warn:', delErr);
-        }
-
+        // GHI TRƯỚC, DỌN SAU: trước đây xóa hết test cũ rồi mới ghi test mới, nếu ghi lỗi giữa chừng
+        // bài tập sẽ mất test; nếu xóa bị chặn thì test cũ còn sót làm chấm sai.
         if (standardizedTests.length > 0) {
           // Luôn Upsert với on_conflict=id và Prefer: resolution=merge-duplicates để đảm bảo thành công 100%
           const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/test_cases?on_conflict=id`;
@@ -1226,6 +1312,17 @@ export const apiService = {
               }
               throw new Error(`Lỗi Supabase (${res.status}): ${errDetail.slice(0, 150)}`);
             }
+          }
+
+          // Dọn các test cũ không còn trong bộ test mới (không gây lỗi nếu bị chặn)
+          try {
+            const keepIds = standardizedTests.map((t) => encodeURIComponent(t.id)).join(',');
+            await fetch(
+              `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/test_cases?problem_id=eq.${encodeURIComponent(problemId)}&id=not.in.(${keepIds})`,
+              { method: 'DELETE', headers: this.getAntiCacheHeaders() }
+            );
+          } catch (delErr) {
+            console.warn('[apiService] Dọn test_cases cũ warn:', delErr);
           }
         }
       } catch (err: unknown) {
@@ -1396,19 +1493,45 @@ export const apiService = {
    * Lấy lịch sử nộp bài (Toàn bộ hoặc theo học sinh) từ Database thực tế
    * Tối ưu hiệu năng: Tải các trường thông tin cần thiết, bỏ trường test_results khổng lồ (giảm từ 7.5MB xuống 12KB)
    */
-  async fetchSubmissions(): Promise<Submission[]> {
-    let cloudSubmissions: Submission[] = [];
+  async fetchSubmissions(options?: { full?: boolean }): Promise<Submission[]> {
+    const sortDesc = (list: Submission[]): Submission[] =>
+      list.sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
+
     if (isSupabaseConfigured()) {
       try {
-        const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/submissions?select=id,problem_id,problem_code,problem_title,user_id,user_name,class_id,language,status,verdict,total_points_earned,max_total_points,passed_count,total_tests,execution_time,memory,compilation_message,submitted_at&order=submitted_at.desc&limit=5000`;
-        const res = await fetch(targetUrl, {
+        const base = ENV.SUPABASE_URL.replace(/\/+$/, '');
+        const select =
+          'id,problem_id,problem_code,problem_title,user_id,user_name,class_id,language,status,verdict,total_points_earned,max_total_points,passed_count,total_tests,execution_time,memory,compilation_message,submitted_at';
+        const now = Date.now();
+
+        // Làm mới ĐỊNH KỲ chỉ tải phần bài nộp mới (vài KB) thay vì 5000 dòng mỗi 90 giây.
+        // Cứ 5 phút (hoặc khi bị ép làm mới) mới tải lại toàn bộ để bắt các thay đổi/xóa.
+        const canIncremental =
+          !options?.full &&
+          submissionsCache !== null &&
+          submissionsCache.size > 0 &&
+          now - submissionsFullFetchAt < SUBMISSIONS_FULL_REFRESH_MS;
+
+        let url = `${base}/rest/v1/submissions?select=${select}&order=submitted_at.desc&limit=5000`;
+        if (canIncremental && submissionsCache) {
+          let latest = 0;
+          submissionsCache.forEach((s) => {
+            const t = Date.parse(s.submittedAt);
+            if (t > latest) latest = t;
+          });
+          const since = new Date(Math.max(0, latest - 2 * 60 * 1000)).toISOString();
+          url = `${base}/rest/v1/submissions?select=${select}&submitted_at=gte.${encodeURIComponent(since)}&order=submitted_at.desc&limit=5000`;
+        }
+
+        const res = await fetch(url, {
           headers: this.getAntiCacheHeaders(),
           cache: 'no-store',
         });
+
         if (res.ok) {
-          const list = await res.json();
-          if (Array.isArray(list)) {
-            // Lấy trước thông tin học sinh hiện tại và danh sách tên tùy chỉnh để đồng bộ tên mới nhất
+          const rows = await res.json();
+          if (Array.isArray(rows)) {
+            // Lấy trước thông tin học sinh hiện tại để đồng bộ tên mới nhất
             let activeStudentName: string | null = null;
             let activeStudentId: string | null = null;
             let activeStudentUsername: string | null = null;
@@ -1424,18 +1547,7 @@ export const apiService = {
               }
             } catch {}
 
-            cloudSubmissions = list.map((item: any): Submission => {
-              let parsedTestResults: TestResult[] = [];
-              if (Array.isArray(item.test_results)) {
-                parsedTestResults = item.test_results;
-              } else if (typeof item.test_results === 'string' && item.test_results.trim()) {
-                try {
-                  const p = JSON.parse(item.test_results);
-                  if (Array.isArray(p)) parsedTestResults = p;
-                } catch {}
-              }
-
-              // Luôn bảo toàn tên mới nhất của học sinh nếu bài nộp thuộc về học sinh hiện tại
+            const mapped = rows.map((item: any): Submission => {
               let resolvedUserName = item.user_name;
               if (
                 activeStudentName &&
@@ -1445,7 +1557,6 @@ export const apiService = {
               ) {
                 resolvedUserName = activeStudentName;
               }
-
               return {
                 id: item.id,
                 problemId: item.problem_id,
@@ -1455,7 +1566,7 @@ export const apiService = {
                 userName: resolvedUserName || item.user_name,
                 classId: item.class_id,
                 language: item.language,
-                sourceCode: item.source_code || '',
+                sourceCode: '',
                 status: (item.status as any) || 'COMPLETED',
                 overallVerdict: item.verdict,
                 totalPointsEarned: Number(item.total_points_earned) || 0,
@@ -1466,49 +1577,35 @@ export const apiService = {
                 memory: Number(item.memory) || 0,
                 compilationMessage: item.compilation_message,
                 submittedAt: item.submitted_at,
-                testResults: parsedTestResults,
+                testResults: [],
               };
             });
+
+            if (canIncremental && submissionsCache) {
+              for (const m of mapped) submissionsCache.set(m.id, m);
+            } else {
+              submissionsCache = new Map(mapped.map((m) => [m.id, m]));
+              submissionsFullFetchAt = now;
+              // Dọn bản sao cục bộ đã bị xóa trên Cloud (chạy nền, rất nhẹ)
+              idbService.pruneSubmissions(new Set(submissionsCache.keys())).catch(() => {});
+            }
+            return sortDesc(Array.from(submissionsCache.values()));
           }
         }
       } catch (err) {
         console.warn('[apiService] Lỗi tải submissions từ Supabase Cloud:', err);
       }
-    }
 
-    if (isSupabaseConfigured() && cloudSubmissions.length >= 0) {
-      // Khi Cloud đã kết nối, Cloud là nguồn chân lý duy nhất cho danh sách nộp bài
-      // Cập nhật đồng bộ ngược vào IndexedDB và localStorage (loại bỏ hoàn toàn Zombie Resurrect bài nộp cũ)
-      try {
-        const existingLocalSubs = await idbService.getAllSubmissions().catch(() => []);
-        const localSubMap = new Map(existingLocalSubs.map((s) => [s.id, s]));
-
-        const enrichedSubmissions = cloudSubmissions.map((cs) => {
-          const localMatch = localSubMap.get(cs.id);
-          return {
-            ...cs,
-            sourceCode: cs.sourceCode || localMatch?.sourceCode || '',
-            testResults: (cs.testResults && cs.testResults.length > 0) ? cs.testResults : (localMatch?.testResults || []),
-          };
-        });
-
-        await idbService.clearSubmissions();
-        if (enrichedSubmissions.length > 0) {
-          await idbService.saveSubmissions(enrichedSubmissions);
-        }
-        storageService.saveSubmissions(enrichedSubmissions);
-        return enrichedSubmissions;
-      } catch (e) {
-        console.warn('[apiService] Đồng bộ submissions vào local cảnh báo:', e);
+      // Cloud lỗi tạm thời: giữ nguyên dữ liệu đã có thay vì trả về danh sách rỗng
+      // (trước đây lỗi mạng khiến toàn bộ lịch sử nộp bài biến mất khỏi màn hình).
+      if (submissionsCache && submissionsCache.size > 0) {
+        return sortDesc(Array.from(submissionsCache.values()));
       }
-      return cloudSubmissions;
     }
 
     // Chỉ dùng bộ nhớ cục bộ làm dự phòng khi không kết nối được Supabase Cloud
     const localSubmissions = await idbService.getAllSubmissions();
-    return localSubmissions.sort(
-      (a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime()
-    );
+    return sortDesc(localSubmissions);
   },
 
   /**
@@ -1618,6 +1715,7 @@ export const apiService = {
       this.saveResourceOwners(owners).catch(() => {});
     }
 
+    attachmentCache.delete(problem.id);
     await idbService.saveProblem(problem);
 
     if (isSupabaseConfigured()) {
@@ -1643,7 +1741,8 @@ export const apiService = {
           samples: problem.samples,
           starter_code: problem.starterCode,
           video_config: problem.videoConfig,
-          attached_file: problem.attachedFile,
+          // Không ghi đè file đính kèm trên Cloud bằng bản rút gọn (chỉ có tên/kích thước)
+          ...(isAttachmentStub(problem.attachedFile) ? {} : { attached_file: problem.attachedFile }),
           created_at: problem.createdAt,
           updated_at: problem.updatedAt,
         };
@@ -1675,16 +1774,20 @@ export const apiService = {
   },
 
   /**
-   * Xóa Bài tập khỏi Database
+   * Xóa Bài tập khỏi Database.
+   * Chỉ báo thành công khi máy chủ THỰC SỰ đã xóa (trước đây nếu quyền bị chặn, Supabase vẫn trả 204
+   * nên giao diện báo "đã xóa" nhưng bài tập tự xuất hiện lại ở lần làm mới sau).
    */
   async deleteProblem(problemId: string): Promise<void> {
-    await idbService.deleteProblem(problemId);
+    if (!problemId) return;
 
     if (isSupabaseConfigured()) {
+      const base = ENV.SUPABASE_URL.replace(/\/+$/, '');
+      const encodedId = encodeURIComponent(problemId);
       try {
-        // 1. Xóa các test cases của bài tập này trên Supabase để giải phóng ràng buộc
+        // 1. Xóa test case của bài (cố gắng hết sức, tránh vướng ràng buộc khóa ngoại)
         try {
-          await fetch(`${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/test_cases?problem_id=eq.${problemId}`, {
+          await fetch(`${base}/rest/v1/test_cases?problem_id=eq.${encodedId}`, {
             method: 'DELETE',
             headers: this.getAntiCacheHeaders(),
           });
@@ -1692,127 +1795,245 @@ export const apiService = {
           // Bỏ qua lỗi xóa test case nếu không tồn tại
         }
 
-        // 2. Xóa bài tập khỏi bảng problems trên Supabase
-        const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/problems?id=eq.${problemId}`;
-        const res = await fetch(targetUrl, {
+        // 2. Xóa bài tập và yêu cầu trả về các dòng đã xóa để xác nhận
+        const res = await fetch(`${base}/rest/v1/problems?id=eq.${encodedId}`, {
           method: 'DELETE',
-          headers: this.getAntiCacheHeaders(),
+          headers: { ...this.getAntiCacheHeaders(), Prefer: 'return=representation' },
         });
         if (!res.ok) {
           const errDetail = await res.text();
           throw new Error(`Lỗi Supabase (${res.status}): ${errDetail.slice(0, 150)}`);
+        }
+
+        let deletedRows: unknown = [];
+        try {
+          deletedRows = await res.json();
+        } catch {
+          deletedRows = [];
+        }
+
+        if (!Array.isArray(deletedRows) || deletedRows.length === 0) {
+          // Không có dòng nào bị xóa: hoặc bài đã mất từ trước, hoặc bị chặn quyền. Kiểm tra lại cho chắc.
+          const check = await fetch(`${base}/rest/v1/problems?id=eq.${encodedId}&select=id&limit=1`, {
+            headers: this.getAntiCacheHeaders(),
+            cache: 'no-store',
+          });
+          if (check.ok) {
+            const stillThere = await check.json();
+            if (Array.isArray(stillThere) && stillThere.length > 0) {
+              throw new Error(
+                'Máy chủ từ chối xóa bài này (phiên đăng nhập giáo viên đã hết hạn hoặc không đủ quyền). Hãy đăng xuất rồi đăng nhập lại.'
+              );
+            }
+          }
         }
       } catch (err: unknown) {
         console.error('[apiService] Lỗi xóa bài tập trên Supabase Cloud:', err);
         throw new Error(`Không thể xóa bài tập trên Database đám mây: ${(err as Error)?.message || 'Lỗi kết nối'}`);
       }
     }
+
+    // Đã xóa thật trên Cloud: ghi "bia mộ" rồi dọn bản sao cục bộ
+    markProblemDeleted(problemId);
+    attachmentCache.delete(problemId);
+    await idbService.deleteProblem(problemId).catch(() => {});
+  },
+
+  /**
+   * Tải nội dung file đính kèm (Word/PDF) của 1 bài tập khi thật sự cần (xem đề, chỉnh sửa).
+   * Danh sách bài tập không còn mang theo nội dung file (có thể vài MB mỗi bài).
+   */
+  async fetchProblemAttachment(problemId: string): Promise<Problem['attachedFile'] | null> {
+    if (!problemId) return null;
+    const cached = attachmentCache.get(problemId);
+    if (cached && Date.now() - cached.at < ATTACHMENT_CACHE_TTL_MS) return cached.value || null;
+
+    if (isSupabaseConfigured()) {
+      try {
+        const base = ENV.SUPABASE_URL.replace(/\/+$/, '');
+        const res = await fetch(
+          `${base}/rest/v1/problems?id=eq.${encodeURIComponent(problemId)}&select=attached_file&limit=1`,
+          { headers: this.getAntiCacheHeaders(), cache: 'no-store' }
+        );
+        if (res.ok) {
+          const rows = await res.json();
+          const file = Array.isArray(rows) && rows.length > 0 ? rows[0]?.attached_file : null;
+          if (file) {
+            attachmentCache.set(problemId, { at: Date.now(), value: file });
+            return file;
+          }
+          return null;
+        }
+      } catch (err) {
+        console.warn('[apiService] Lỗi tải file đính kèm:', err);
+      }
+    }
+
+    try {
+      const locals = await idbService.getAllProblems();
+      const local = locals.find((p) => p.id === problemId)?.attachedFile;
+      if (local && !isAttachmentStub(local)) return local;
+    } catch {
+      // bỏ qua
+    }
+    return null;
   },
 
   /**
    * Lấy danh sách toàn bộ bài tập từ Database (Cloud Single Source of Truth)
+   *
+   * Tối ưu hiệu năng so với trước:
+   *  - Không tải nội dung file đính kèm (base64 vài MB) trong danh sách.
+   *  - Tải song song (chủ sở hữu + bài tập + số test) thay vì nối đuôi nhau.
+   *  - Học sinh không đọc IndexedDB nặng mỗi lần làm mới.
+   * Chống "bài tập ma": KHÔNG còn tự đẩy bài chỉ có ở máy lên lại Cloud.
    */
   async fetchProblems(): Promise<Problem[]> {
     if (isSupabaseConfigured()) {
       try {
-        const owners = await this.fetchResourceOwners();
+        const base = ENV.SUPABASE_URL.replace(/\/+$/, '');
+        const isAdmin = storageService.isAdminSessionActive();
         const topics = storageService.getTopics();
         const topicOwnerMap = new Map(topics.map((t) => [t.id, t.teacherId]));
-        const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/problems?order=code.asc`;
-        const res = await fetch(targetUrl, {
-          headers: this.getAntiCacheHeaders(),
-          cache: 'no-store',
-        });
-        if (res.ok) {
-          const list = await res.json();
-          if (Array.isArray(list)) {
-            const cloudProblems = list.map((item: any): Problem => {
-              const resolvedOwner = normalizeOwnerEmail(
-                owners.problems[item.id] ||
+
+        const slimSelect =
+          'id,code,title,description,difficulty,topic_id,class_id,time_limit,memory_limit,total_points,input_format,output_format,constraints,samples,starter_code,video_config,created_at,updated_at,att_name:attached_file->>name,att_size:attached_file->>size,att_type:attached_file->>type';
+
+        const loadRows = async (): Promise<{ rows: any[]; slim: boolean } | null> => {
+          const headers = this.getAntiCacheHeaders();
+          try {
+            const res = await fetch(`${base}/rest/v1/problems?select=${slimSelect}&order=code.asc`, {
+              headers,
+              cache: 'no-store',
+            });
+            if (res.ok) {
+              const rows = await res.json();
+              if (Array.isArray(rows)) return { rows, slim: true };
+            }
+          } catch {
+            // thử lại bằng truy vấn đầy đủ bên dưới
+          }
+          const res = await fetch(`${base}/rest/v1/problems?order=code.asc`, { headers, cache: 'no-store' });
+          if (!res.ok) return null;
+          const rows = await res.json();
+          return Array.isArray(rows) ? { rows, slim: false } : null;
+        };
+
+        // Siêu nhẹ: chỉ metadata test case (không có input/output) để biết số lượng, điểm, ẩn/hiện
+        const loadTestMeta = async (): Promise<Map<string, TestCase[]>> => {
+          const map = new Map<string, TestCase[]>();
+          try {
+            const tcUrl = `${base}/rest/v1/test_cases?select=id,problem_id,test_name,points,is_hidden,order_index&order=order_index.asc,updated_at.desc`;
+            const tcRes = await fetch(tcUrl, {
+              headers: {
+                ...this.getAntiCacheHeaders(),
+                apikey: ENV.SUPABASE_ANON_KEY,
+                Authorization: `Bearer ${ENV.SUPABASE_ANON_KEY}`,
+              },
+              cache: 'no-store',
+            });
+            if (tcRes.ok) {
+              const allTcRows = await tcRes.json();
+              if (Array.isArray(allTcRows)) {
+                // Deduplicate: Mỗi problem_id chỉ lấy 1 hàng cho mỗi order_index
+                const seenOrdersByPid = new Map<string, Set<number>>();
+                for (const row of allTcRows) {
+                  const pid = row.problem_id;
+                  if (!seenOrdersByPid.has(pid)) seenOrdersByPid.set(pid, new Set());
+                  const orderSet = seenOrdersByPid.get(pid)!;
+                  const ord = Number(row.order_index) || 0;
+                  if (ord > 0 && orderSet.has(ord)) continue;
+                  if (ord > 0) orderSet.add(ord);
+
+                  if (!map.has(pid)) map.set(pid, []);
+                  map.get(pid)!.push({
+                    id: row.id,
+                    name: row.test_name || `Test #${row.order_index}`,
+                    input: row.input || '',
+                    expectedOutput: row.expected_output || '',
+                    points: Number(row.points) || 1,
+                    isHidden: Boolean(row.is_hidden),
+                  });
+                }
+              }
+            }
+          } catch (tcErr) {
+            console.warn('[apiService] Không thể fetch test_cases từ Supabase:', tcErr);
+          }
+          return map;
+        };
+
+        const [owners, loaded, cloudTcMap] = await Promise.all([
+          this.fetchResourceOwners(),
+          loadRows(),
+          loadTestMeta(),
+        ]);
+
+        if (loaded) {
+          // Bia mộ: loại bài vừa xóa khỏi kết quả (phòng lượt tải cũ trả về muộn) và dọn bia mộ đã được Cloud xác nhận
+          const tombstones = readProblemTombstones();
+          const cloudIdSet = new Set<string>(loaded.rows.map((r: any) => String(r.id)));
+          const confirmedGone = Object.keys(tombstones).filter((id) => !cloudIdSet.has(id));
+          if (confirmedGone.length > 0) clearProblemTombstones(confirmedGone);
+          const visibleRows = loaded.rows.filter((r: any) => !tombstones[String(r.id)]);
+
+          const cloudProblems = visibleRows.map((item: any): Problem => {
+            const resolvedOwner = normalizeOwnerEmail(
+              owners.problems[item.id] ||
                 (item.topic_id ? topicOwnerMap.get(item.topic_id) : undefined) ||
                 (item.class_id ? owners.classes[item.class_id] : undefined)
-              );
-              return {
-                id: item.id,
-                code: item.code,
-                title: item.title,
-                description: item.description || '',
-                difficulty: item.difficulty || 'MEDIUM',
-                topicId: item.topic_id,
-                classId: item.class_id || 'NONE',
-                timeLimit: Number(item.time_limit) || 1.0,
-                memoryLimit: Number(item.memory_limit) || 1024,
-                totalPoints: Number(item.total_points) || 10,
-                inputFormat: item.input_format || '',
-                outputFormat: item.output_format || '',
-                constraints: item.constraints || '',
-                samples: item.samples || [],
-                starterCode: item.starter_code,
-                videoConfig: item.video_config || {
-                  enabled: false,
-                  type: 'youtube',
-                  url: '',
-                  unlockRule: 'always',
-                },
-                attachedFile: item.attached_file,
-                author: resolvedOwner,
-                teacherId: resolvedOwner,
-                createdAt: item.created_at || new Date().toISOString(),
-                updatedAt: item.updated_at || new Date().toISOString(),
-                testCases: [],
-              };
-            });
+            );
 
-            // ĐỒNG BỘ CHUẨN TỪ CLOUD (SINGLE SOURCE OF TRUTH):
-            // Supabase Cloud là chân lý. Tự động đẩy các bài tập local chưa có trên Cloud nếu là phiên Admin.
-            const cloudIdSet = new Set(cloudProblems.map((p) => p.id));
+            let attachedFile: Problem['attachedFile'];
+            if (loaded.slim) {
+              attachedFile = item.att_name
+                ? {
+                    name: String(item.att_name),
+                    size: Number(item.att_size) || 0,
+                    type: item.att_type === 'pdf' ? 'pdf' : 'docx',
+                  }
+                : undefined;
+            } else {
+              attachedFile = item.attached_file || undefined;
+            }
+
+            return {
+              id: item.id,
+              code: item.code,
+              title: item.title,
+              description: item.description || '',
+              difficulty: item.difficulty || 'MEDIUM',
+              topicId: item.topic_id,
+              classId: item.class_id || 'NONE',
+              timeLimit: Number(item.time_limit) || 1.0,
+              memoryLimit: Number(item.memory_limit) || 1024,
+              totalPoints: Number(item.total_points) || 10,
+              inputFormat: item.input_format || '',
+              outputFormat: item.output_format || '',
+              constraints: item.constraints || '',
+              samples: item.samples || [],
+              starterCode: item.starter_code,
+              videoConfig: item.video_config || {
+                enabled: false,
+                type: 'youtube',
+                url: '',
+                unlockRule: 'always',
+              },
+              attachedFile,
+              author: resolvedOwner,
+              teacherId: resolvedOwner,
+              createdAt: item.created_at || new Date().toISOString(),
+              updatedAt: item.updated_at || new Date().toISOString(),
+              testCases: [],
+            };
+          });
+
+          if (isAdmin) {
+            // Giáo viên: giữ bộ test có nội dung thật (input/output) đã lưu ở máy để chấm/chỉnh sửa nhanh
             const [idbProblems, storageProblems] = await Promise.all([
               idbService.getAllProblems(),
               Promise.resolve(storageService.getProblems()),
             ]);
-
-            // Tải siêu nhẹ metadata test cases từ Supabase Cloud để gộp số lượng test vào cloudProblems (giảm từ 2.9MB xuống 4.5KB)
-            const cloudTcMap = new Map<string, TestCase[]>();
-            try {
-              const tcUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/test_cases?select=id,problem_id,test_name,points,is_hidden,order_index&order=order_index.asc,updated_at.desc`;
-              const tcRes = await fetch(tcUrl, {
-                headers: {
-                  ...this.getAntiCacheHeaders(),
-                  apikey: ENV.SUPABASE_ANON_KEY,
-                  Authorization: `Bearer ${ENV.SUPABASE_ANON_KEY}`,
-                },
-                cache: 'no-store',
-              });
-              if (tcRes.ok) {
-                const allTcRows = await tcRes.json();
-                if (Array.isArray(allTcRows)) {
-                  // Deduplicate: Mỗi problem_id chỉ lấy 1 hàng cho mỗi order_index
-                  const seenOrdersByPid = new Map<string, Set<number>>();
-                  for (const row of allTcRows) {
-                    const pid = row.problem_id;
-                    if (!seenOrdersByPid.has(pid)) seenOrdersByPid.set(pid, new Set());
-                    const orderSet = seenOrdersByPid.get(pid)!;
-                    const ord = Number(row.order_index) || 0;
-                    if (ord > 0 && orderSet.has(ord)) continue;
-                    if (ord > 0) orderSet.add(ord);
-
-                    if (!cloudTcMap.has(pid)) cloudTcMap.set(pid, []);
-                    cloudTcMap.get(pid)!.push({
-                      id: row.id,
-                      name: row.test_name || `Test #${row.order_index}`,
-                      input: row.input || '',
-                      expectedOutput: row.expected_output || '',
-                      points: Number(row.points) || 1,
-                      isHidden: Boolean(row.is_hidden),
-                    });
-                  }
-                }
-              }
-            } catch (tcErr) {
-              console.warn('[apiService] Không thể fetch test_cases từ Supabase:', tcErr);
-            }
-
-            // Gộp test cases từ Cloud, IndexedDB hoặc LocalStorage vào từng bài tập trong cloudProblems
             const idbMap = new Map(idbProblems.map((p) => [p.id, p]));
             const storageMap = new Map(storageProblems.map((p) => [p.id, p]));
 
@@ -1824,7 +2045,6 @@ export const apiService = {
               const fromIdb = idbMap.get(cp.id)?.testCases;
               const fromStorage = storageMap.get(cp.id)?.testCases;
 
-              // Ưu tiên giữ lại bộ test case có dữ liệu nội dung thật (input/output) từ local IndexedDB hoặc Storage
               let tests: TestCase[] = [];
               if (hasContent(fromIdb)) {
                 tests = fromIdb!;
@@ -1841,42 +2061,21 @@ export const apiService = {
               cp.testCases = tests;
 
               // CHỈ LƯU VÀO IndexedDB KHI TESTS THỰC SỰ CÓ DỮ LIỆU INPUT HOẶC OUTPUT!
-              // TUYỆT ĐỐI KHÔNG GHI ĐÈ BỘ TEST CASE RỖNG CỦA METADATA LÊN IndexedDB!
               if (hasContent(tests)) {
                 idbService.saveTestCases(cp.id, tests).catch(() => {});
               }
             }
-
-            const unSyncedLocalProblems: Problem[] = [];
-            idbProblems.forEach((p) => {
-              if (!cloudIdSet.has(p.id) && !p.id.startsWith('mock_')) unSyncedLocalProblems.push(p);
-            });
-            storageProblems.forEach((p) => {
-              if (!cloudIdSet.has(p.id) && !unSyncedLocalProblems.some((u) => u.id === p.id) && !p.id.startsWith('mock_')) {
-                unSyncedLocalProblems.push(p);
-              }
-            });
-
-            if (unSyncedLocalProblems.length > 0 && storageService.isAdminSessionActive()) {
-              for (const unp of unSyncedLocalProblems) {
-                try {
-                  await this.saveProblem(unp);
-                  let tc = await idbService.getTestCases(unp.id);
-                  if (!tc || tc.length === 0) tc = unp.testCases;
-                  if (tc && tc.length > 0) {
-                    await this.saveTestCases(unp.id, tc);
-                  }
-                  cloudProblems.push(unp);
-                } catch (e) {
-                  console.warn('[apiService] Auto-sync local problem to Cloud warn:', e);
-                }
-              }
+          } else {
+            for (const cp of cloudProblems) {
+              cp.testCases = cloudTcMap.get(cp.id) || [];
             }
-
-            await idbService.saveProblems(cloudProblems);
-            storageService.saveProblems(cloudProblems);
-            return cloudProblems;
           }
+
+          // Dọn bài tập đã bị xóa trên Cloud khỏi IndexedDB của máy này (chạy nền).
+          // Việc lưu danh sách mới vào localStorage/IndexedDB do JudgeContext đảm nhiệm (1 lần duy nhất).
+          idbService.pruneProblems(cloudIdSet).catch(() => {});
+
+          return cloudProblems;
         }
       } catch (err) {
         console.warn('[apiService] Lỗi tải problems từ Supabase Cloud, dùng local cache:', err);
@@ -1888,12 +2087,13 @@ export const apiService = {
       idbService.getAllProblems(),
       Promise.resolve(storageService.getProblems()),
     ]);
+    const tombstones = readProblemTombstones();
     const localMap = new Map<string, Problem>();
     idbProblems.forEach((p) => localMap.set(p.id, p));
     storageProblems.forEach((p) => {
       if (!localMap.has(p.id)) localMap.set(p.id, p);
     });
-    return Array.from(localMap.values());
+    return Array.from(localMap.values()).filter((p) => !tombstones[p.id]);
   },
 
   /**
@@ -1990,9 +2190,17 @@ export const apiService = {
     let syncedProblems = 0;
     let syncedTests = 0;
 
+    // CHỐNG "BÀI TẬP MA": Cloud là nguồn chân lý. Chỉ đẩy bài từ máy lên khi Cloud hoàn toàn trống
+    // (di chuyển dữ liệu lần đầu). Nếu không, bản sao cũ còn sót trên máy này sẽ làm bài đã xóa sống lại.
+    const allowProblemUpload = cloudProblemIds !== null && cloudProblemIds.size === 0;
+    const tombstonedIds = readProblemTombstones();
+
     await runBatches(allProblems, async (p) => {
       try {
-        const problemMissing = !cloudProblemIds || !cloudProblemIds.has(p.id);
+        if (tombstonedIds[p.id]) return;
+        const existsOnCloud = Boolean(cloudProblemIds && cloudProblemIds.has(p.id));
+        if (!existsOnCloud && !allowProblemUpload) return;
+        const problemMissing = !existsOnCloud;
         if (problemMissing) {
           await this.saveProblem(p);
           syncedProblems++;

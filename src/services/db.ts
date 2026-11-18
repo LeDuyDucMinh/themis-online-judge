@@ -75,6 +75,61 @@ function getDB(): Promise<IDBDatabase> {
   return dbPromise;
 }
 
+// Chỉ thử khôi phục từ DB v1 cũ đúng 1 lần cho mỗi trình duyệt.
+// Trước đây mỗi lần làm mới dữ liệu đều mở lại DB v1 (và nạp "bài tập ma" cũ trở lại máy).
+const V1_RECOVERY_FLAG = 'faminh_idb_v1_recovery_done';
+function isV1RecoveryDone(): boolean {
+  try {
+    return typeof localStorage !== 'undefined' && localStorage.getItem(V1_RECOVERY_FLAG) === '1';
+  } catch {
+    return false;
+  }
+}
+function markV1RecoveryDone(): void {
+  try {
+    if (typeof localStorage !== 'undefined') localStorage.setItem(V1_RECOVERY_FLAG, '1');
+  } catch {
+    // bỏ qua
+  }
+}
+
+/**
+ * Xóa các bản ghi trong 1 object store mà khóa không còn nằm trong keepIds.
+ * Dùng getAllKeys nên rất nhẹ (không đọc nội dung bản ghi).
+ */
+async function pruneStoreKeys(storeName: string, keepIds: Set<string>): Promise<void> {
+  if (!isIDBSupported()) return;
+  try {
+    const db = await getDB();
+    if (!db.objectStoreNames.contains(storeName)) return;
+    const keys: IDBValidKey[] = await new Promise((resolve) => {
+      try {
+        const req = db.transaction(storeName, 'readonly').objectStore(storeName).getAllKeys();
+        req.onsuccess = () => resolve(req.result || []);
+        req.onerror = () => resolve([]);
+      } catch {
+        resolve([]);
+      }
+    });
+    const stale = keys.filter((k) => !keepIds.has(String(k)));
+    if (stale.length === 0) return;
+    await new Promise<void>((resolve) => {
+      try {
+        const tx = db.transaction(storeName, 'readwrite');
+        const store = tx.objectStore(storeName);
+        stale.forEach((k) => store.delete(k));
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => resolve();
+        tx.onabort = () => resolve();
+      } catch {
+        resolve();
+      }
+    });
+  } catch {
+    // dọn dẹp thất bại không ảnh hưởng chức năng chính
+  }
+}
+
 /**
  * Tự động phục hồi toàn bộ dữ liệu từ database cũ faminh_judge_idb_v1 (nếu có)
  */
@@ -189,7 +244,8 @@ export const idbService = {
       }
 
       // Nếu v2 chưa có bài hoặc bị thiếu test, tự động kiểm tra và di trú từ v1 cũ
-      if (problems.length === 0 || testMap.size === 0) {
+      if ((problems.length === 0 || testMap.size === 0) && !isV1RecoveryDone()) {
+        markV1RecoveryDone();
         const v1Data = await tryRecoverFromV1();
         if (v1Data) {
           if (problems.length === 0 && v1Data.problems.length > 0) {
@@ -252,6 +308,19 @@ export const idbService = {
       console.warn('[idbService] Lỗi lưu problems vào IndexedDB:', err);
       throw err;
     }
+  },
+
+  /** Xóa khỏi IndexedDB mọi bài tập/test đã không còn trên Cloud (chống "bài tập ma" sống lại). */
+  async pruneProblems(keepIds: Set<string>): Promise<void> {
+    if (!keepIds || keepIds.size === 0) return;
+    await pruneStoreKeys(STORES.PROBLEMS, keepIds);
+    await pruneStoreKeys(STORES.TEST_CASES, keepIds);
+  },
+
+  /** Xóa bài nộp cục bộ đã không còn trên Cloud. */
+  async pruneSubmissions(keepIds: Set<string>): Promise<void> {
+    if (!keepIds || keepIds.size === 0) return;
+    await pruneStoreKeys(STORES.SUBMISSIONS, keepIds);
   },
 
   async deleteProblem(problemId: string): Promise<void> {
@@ -453,7 +522,8 @@ export const idbService = {
       });
 
       // Nếu v2 chưa có submission nào, thử khôi phục từ v1
-      if (list.length === 0) {
+      if (list.length === 0 && !isV1RecoveryDone()) {
+        markV1RecoveryDone();
         const v1Data = await tryRecoverFromV1();
         if (v1Data && v1Data.submissions && v1Data.submissions.length > 0) {
           list = v1Data.submissions;

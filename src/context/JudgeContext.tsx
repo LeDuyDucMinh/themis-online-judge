@@ -681,6 +681,12 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const [stats, setStats] = useState<UserStats>(() => storageService.getUserStats());
 
   const isHydratedRef = useRef(false);
+  // Luôn trỏ tới state mới nhất: các hàm chạy ngầm (setInterval, sự kiện focus) được tạo 1 lần
+  // nên nếu đọc trực tiếp allProblems/allSubmissions sẽ chỉ thấy giá trị cũ ở lần render đầu.
+  const allProblemsRef = useRef<Problem[]>(allProblems);
+  allProblemsRef.current = allProblems;
+  const allSubmissionsRef = useRef<Submission[]>(allSubmissions);
+  allSubmissionsRef.current = allSubmissions;
   const [isRefreshing, setIsRefreshing] = useState(false);
   const activeRefreshPromiseRef = useRef<Promise<void> | null>(null);
   const lastRefreshTimestampRef = useRef<number>(0);
@@ -689,7 +695,7 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
    * TẢI MỚI DỮ LIỆU TOÀN DIỆN TỪ SUPABASE CLOUD DATABASE (ANTI-CACHE REAL-TIME)
    * Có cơ chế chống trùng lặp (in-flight deduplication) và điều tiết (throttling) để tránh nghẽn mạng & giật lag
    */
-  const refreshAllData = async (force: boolean = false): Promise<void> => {
+  const refreshAllData = async (force: boolean = false, silent: boolean = false): Promise<void> => {
     // 1. Nếu đang có một lượt fetch đang chạy dở, trả về luôn Promise đó để tái sử dụng, tránh bắn thêm 6 request song song
     if (activeRefreshPromiseRef.current) {
       return activeRefreshPromiseRef.current;
@@ -702,7 +708,8 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     }
 
     const executeRefresh = async () => {
-      setIsRefreshing(true);
+      // Làm mới ngầm (định kỳ/khi quay lại tab) không bật cờ "đang đồng bộ" để tránh render lại toàn bộ ứng dụng
+      if (!silent) setIsRefreshing(true);
       try {
         const [cloudClasses, cloudRelations, cloudStudents, cloudTopics, cloudProblems, cloudSubs] = await Promise.all([
           apiService.fetchClassrooms(),
@@ -710,15 +717,24 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
           apiService.fetchStudents(),
           apiService.fetchTopics(),
           apiService.fetchProblems(),
-          apiService.fetchSubmissions(),
+          apiService.fetchSubmissions({ full: force }),
         ]);
 
+      // Chỉ cập nhật state khi dữ liệu thực sự thay đổi: tránh render lại toàn bộ ứng dụng mỗi 90 giây
+      const sameJson = (a: unknown, b: unknown) => {
+        try {
+          return JSON.stringify(a) === JSON.stringify(b);
+        } catch {
+          return false;
+        }
+      };
+
       if (cloudClasses) {
-        setAllClasses(cloudClasses);
+        setAllClasses((prev) => (sameJson(prev, cloudClasses) ? prev : cloudClasses));
         storageService.saveClasses(cloudClasses);
       }
       if (cloudRelations) {
-        setClassStudents(cloudRelations);
+        setClassStudents((prev) => (sameJson(prev, cloudRelations) ? prev : cloudRelations));
         storageService.saveClassStudents(cloudRelations);
       }
       if (cloudStudents || storageService.getStudents().length > 0) {
@@ -763,7 +779,7 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
           if (!s.username) return false;
           return Boolean((s.email && s.email.includes('@')) || (s.username && s.username.includes('@')));
         });
-        setStudents(mergedStudents);
+        setStudents((prev) => (sameJson(prev, mergedStudents) ? prev : mergedStudents));
         storageService.saveStudents(mergedStudents);
 
         // Luôn bảo vệ và cập nhật họ tên tùy chỉnh của học sinh từ Cloud nếu có
@@ -784,24 +800,33 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         }
       }
       if (cloudTopics) {
-        setAllTopics(cloudTopics);
+        setAllTopics((prev) => (sameJson(prev, cloudTopics) ? prev : cloudTopics));
         storageService.saveTopics(cloudTopics);
       }
       if (cloudProblems) {
+        const prevProblems = allProblemsRef.current;
+        const prevProblemMap = new Map(prevProblems.map((p) => [p.id, p]));
         const enrichedProblems = cloudProblems.map((cp) => {
           if (cp.testCases && cp.testCases.length > 0) return cp;
-          const current = allProblems.find((p) => p.id === cp.id);
+          const current = prevProblemMap.get(cp.id);
           if (current?.testCases && current.testCases.length > 0) {
             return { ...cp, testCases: current.testCases };
           }
           return cp;
         });
-        setAllProblems(enrichedProblems);
-        setActiveProblem((curr) => {
-          if (!curr) return enrichedProblems[0] || null;
-          const updated = enrichedProblems.find((p) => p.id === curr.id);
-          return updated || enrichedProblems[0] || null;
-        });
+        const problemSig = (p: Problem) =>
+          [p.id, p.updatedAt, p.code, p.title, p.classId, p.topicId, p.testCases?.length || 0, p.attachedFile?.name || ''].join('|');
+        const problemsUnchanged =
+          prevProblems.length === enrichedProblems.length &&
+          prevProblems.every((p, i) => problemSig(p) === problemSig(enrichedProblems[i]));
+        if (!problemsUnchanged) {
+          setAllProblems(enrichedProblems);
+          setActiveProblem((curr) => {
+            if (!curr) return enrichedProblems[0] || null;
+            const updated = enrichedProblems.find((p) => p.id === curr.id);
+            return updated || enrichedProblems[0] || null;
+          });
+        }
       }
       if (cloudSubs) {
         // Tự động làm sạch bài nộp của các tài khoản đã bị xóa khỏi hệ thống
@@ -830,7 +855,8 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
           return matchId || matchUser || matchEmail || matchName;
         });
 
-        const currentSubMap = new Map(allSubmissions.map((s) => [s.id, s]));
+        const prevSubs = allSubmissionsRef.current;
+        const currentSubMap = new Map(prevSubs.map((s) => [s.id, s]));
         const enrichedSubs = activeSubs.map((sub) => {
           let updatedUserName = sub.userName;
           // Đồng bộ với tên mới nhất của học sinh hiện tại nếu bài nộp thuộc học sinh này
@@ -857,13 +883,20 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
           return res;
         });
 
-        setAllSubmissions(enrichedSubs);
-        storageService.saveSubmissions(enrichedSubs);
+        const subSig = (s: Submission) =>
+          [s.id, s.userName, s.totalPointsEarned, s.passedCount, s.overallVerdict, s.testResults?.length || 0].join('|');
+        const subsUnchanged =
+          prevSubs.length === enrichedSubs.length &&
+          prevSubs.every((s, i) => subSig(s) === subSig(enrichedSubs[i]));
+        if (!subsUnchanged) {
+          setAllSubmissions(enrichedSubs);
+          storageService.saveSubmissions(enrichedSubs);
+        }
       }
     } catch (err) {
       console.warn('[JudgeContext] Lỗi refreshAllData:', err);
     } finally {
-      setIsRefreshing(false);
+      if (!silent) setIsRefreshing(false);
       isHydratedRef.current = true;
       lastRefreshTimestampRef.current = Date.now();
       activeRefreshPromiseRef.current = null;
@@ -1220,7 +1253,7 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       const now = Date.now();
       if (now - lastFocusTime < 25000) return; // Không spam refresh quá dồn dập khi click chuột qua lại giữa các cửa sổ
       lastFocusTime = now;
-      refreshAllData().catch(() => {});
+      refreshAllData(false, true).catch(() => {});
 
       // Kiểm tra xem tài khoản học sinh có bị xóa trên Supabase Auth Dashboard không
       if (currentStudent && (currentStudent.email || currentStudent.username?.includes('@')) && apiService.isConfigured()) {
@@ -1237,7 +1270,9 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     };
     window.addEventListener('focus', handleWindowFocus);
     const periodicSync = setInterval(() => {
-      refreshAllData().catch(() => {});
+      // Tab đang ẩn thì không cần tải (tiết kiệm mạng/CPU); khi quay lại tab sự kiện focus sẽ làm mới ngay
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+      refreshAllData(false, true).catch(() => {});
     }, 90000);
 
     return () => {
@@ -1246,14 +1281,18 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     };
   }, []);
 
+  // Ghi cục bộ được gộp lại (debounce): trước đây mỗi lần state đổi là ghi đồng bộ toàn bộ bài tập
+  // (kèm test case, file đính kèm) vào localStorage + IndexedDB ngay trên luồng chính gây giật lag.
   useEffect(() => {
     if (!isHydratedRef.current) return;
-    storageService.saveTopics(allTopics);
+    const timer = window.setTimeout(() => storageService.saveTopics(allTopics), 800);
+    return () => window.clearTimeout(timer);
   }, [allTopics]);
 
   useEffect(() => {
     if (!isHydratedRef.current) return;
-    storageService.saveProblems(allProblems);
+    const timer = window.setTimeout(() => storageService.saveProblems(allProblems), 1200);
+    return () => window.clearTimeout(timer);
   }, [allProblems]);
 
   useEffect(() => {
@@ -1991,13 +2030,14 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     try {
       // 1. BẮT BUỘC AWAIT XÓA TRONG DATABASE THỰC TẾ TRƯỚC
       await apiService.deleteProblem(id);
-      const nextList = allProblems.filter((p) => p.id !== id);
-      await storageService.saveProblems(nextList);
+      const remaining = allProblemsRef.current.filter((p) => p.id !== id);
+      // Dùng cập nhật dạng hàm (prev) để không ghi đè nhầm bởi state cũ khi có lượt làm mới đang chạy song song
+      setAllProblems((prev) => prev.filter((p) => p.id !== id));
+      storageService.saveProblems(remaining);
 
       // 2. UPDATE STATE TRÊN GIAO DIỆN
-      setAllProblems(nextList);
       if (activeProblem?.id === id) {
-        setActiveProblem(nextList[0] || null);
+        setActiveProblem(remaining[0] || null);
       }
       showToast('Đã xóa', 'Đã xóa bài tập khỏi hệ thống', 'info');
     } catch (err: unknown) {
