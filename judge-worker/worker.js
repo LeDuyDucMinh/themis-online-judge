@@ -275,23 +275,39 @@ async function callJudge0(payload) {
 }
 
 // Cache bộ Test Case trên RAM + ổ đĩa VPS để đọc siêu tốc (0ms mạng)
+// Lấy "dấu vân tay phiên bản" của bộ test (chỉ metadata ~1KB, không tải input/output)
+// để phát hiện ngay khi giáo viên cập nhật test -> tự động bỏ cache cũ.
+async function getTestsVersion(problemId) {
+  const sbHeaders = { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` };
+  try {
+    const [pRes, tRes] = await Promise.all([
+      fetch(`${SUPABASE_URL}/rest/v1/problems?id=eq.${encodeURIComponent(problemId)}&select=updated_at,time_limit,total_points&limit=1`, { headers: sbHeaders }),
+      fetch(`${SUPABASE_URL}/rest/v1/test_cases?problem_id=eq.${encodeURIComponent(problemId)}&select=id,updated_at,points,is_hidden&order=order_index.asc`, { headers: sbHeaders }),
+    ]);
+    if (!pRes.ok || !tRes.ok) return null;
+    const p = (await pRes.json())?.[0] || {};
+    const t = await tRes.json();
+    return JSON.stringify([p.updated_at, p.time_limit, p.total_points, (t || []).map((r) => [r.id, r.updated_at, r.points, r.is_hidden])]);
+  } catch {
+    return null;
+  }
+}
+
 async function getProblemAndTests(problemId) {
+  const version = await getTestsVersion(problemId);
+
   const memCached = memoryProblemCache.get(problemId);
-  if (memCached && Date.now() - memCached.ts < 30 * 60 * 1000) {
+  if (memCached && version && memCached.version === version) {
     return memCached.data;
   }
 
-  const cacheFile = path.join(CACHE_DIR, `problem_${problemId}_v2.json`);
-  if (fs.existsSync(cacheFile)) {
+  const cacheFile = path.join(CACHE_DIR, `problem_${problemId}_v3.json`);
+  if (version && fs.existsSync(cacheFile)) {
     try {
-      const stats = fs.statSync(cacheFile);
-      // Cache hợp lệ trong 30 phút
-      if (Date.now() - stats.mtimeMs < 30 * 60 * 1000) {
-        const cached = JSON.parse(fs.readFileSync(cacheFile, 'utf8'));
-        if (cached && cached.problem && Array.isArray(cached.testCases) && cached.testCases.length > 0) {
-          memoryProblemCache.set(problemId, { ts: Date.now(), data: cached });
-          return cached;
-        }
+      const cached = JSON.parse(fs.readFileSync(cacheFile, 'utf8'));
+      if (cached && cached.version === version && cached.problem && Array.isArray(cached.testCases) && cached.testCases.length > 0) {
+        memoryProblemCache.set(problemId, { version, data: cached });
+        return cached;
       }
     } catch {}
   }
@@ -372,8 +388,8 @@ async function getProblemAndTests(problemId) {
     };
   });
 
-  const payload = { problem, testCases, targetTotal };
-  memoryProblemCache.set(problemId, { ts: Date.now(), data: payload });
+  const payload = { problem, testCases, targetTotal, version };
+  memoryProblemCache.set(problemId, { version, data: payload });
   try {
     fs.writeFileSync(cacheFile, JSON.stringify(payload), 'utf8');
   } catch {}
