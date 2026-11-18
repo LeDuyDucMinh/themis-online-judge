@@ -2135,36 +2135,69 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
                 if (isFinished) return;
                 cleanup();
 
-                const rawResults = Array.isArray(subData.test_results)
-                  ? subData.test_results
-                  : (Array.isArray(subData.testResults) ? subData.testResults : []);
+                let rawResults: any[] = [];
+                if (Array.isArray(subData.test_results)) {
+                  rawResults = subData.test_results;
+                } else if (Array.isArray(subData.testResults)) {
+                  rawResults = subData.testResults;
+                } else if (typeof subData.test_results === 'string' && subData.test_results.trim()) {
+                  try {
+                    const parsed = JSON.parse(subData.test_results);
+                    if (Array.isArray(parsed)) rawResults = parsed;
+                  } catch {}
+                } else if (typeof subData.testResults === 'string' && subData.testResults.trim()) {
+                  try {
+                    const parsed = JSON.parse(subData.testResults);
+                    if (Array.isArray(parsed)) rawResults = parsed;
+                  } catch {}
+                }
+
                 const normalizedTestResults = rawResults.map((tr: any) => ({
                   ...tr,
-                  time: typeof tr.time === 'number' ? tr.time : (typeof tr.executionTime === 'number' ? tr.executionTime : 0),
-                  executionTime: typeof tr.executionTime === 'number' ? tr.executionTime : (typeof tr.time === 'number' ? tr.time : 0),
-                  memory: typeof tr.memory === 'number' ? tr.memory : 0,
-                  pointsEarned: typeof tr.pointsEarned === 'number' ? tr.pointsEarned : 0,
-                  maxPoints: typeof tr.maxPoints === 'number' ? tr.maxPoints : 0,
+                  time: typeof tr.time === 'number' ? tr.time : (typeof tr.executionTime === 'number' ? tr.executionTime : 0.005),
+                  executionTime: typeof tr.executionTime === 'number' ? tr.executionTime : (typeof tr.time === 'number' ? tr.time : 0.005),
+                  memory: typeof tr.memory === 'number' ? tr.memory : 1.0,
+                  pointsEarned: typeof tr.pointsEarned === 'number' ? tr.pointsEarned : (typeof tr.points_earned === 'number' ? tr.points_earned : (typeof tr.points === 'number' && tr.verdict === 'AC' ? tr.points : 0)),
+                  maxPoints: typeof tr.maxPoints === 'number' ? tr.maxPoints : (typeof tr.max_points === 'number' ? tr.max_points : (typeof tr.points === 'number' ? tr.points : 1)),
+                  verdict: tr.verdict || (tr.statusId === 3 ? 'AC' : 'WA'),
                 }));
+
+                const earnedPts = subData.totalPointsEarned !== undefined
+                  ? Number(subData.totalPointsEarned)
+                  : (subData.total_points_earned !== undefined ? Number(subData.total_points_earned) : 0);
+
+                const maxPts = subData.maxTotalPoints !== undefined
+                  ? Number(subData.maxTotalPoints)
+                  : (subData.max_total_points !== undefined ? Number(subData.max_total_points) : (activeProblem.totalPoints || 10));
+
+                const passed = subData.passedCount !== undefined
+                  ? Number(subData.passedCount)
+                  : (subData.passed_count !== undefined ? Number(subData.passed_count) : normalizedTestResults.filter(r => r.verdict === 'AC').length);
+
+                const total = subData.totalTests !== undefined
+                  ? Number(subData.totalTests)
+                  : (subData.total_tests !== undefined ? Number(subData.total_tests) : (normalizedTestResults.length || actualTotalTests));
+
+                const finalVerdict = subData.overallVerdict || subData.verdict || (passed === total && total > 0 ? 'AC' : 'WA');
 
                 const finalSub: Submission = {
                   id: subData.id || targetSubId,
-                  problemId: subData.problem_id || activeProblem.id,
-                  problemCode: subData.problem_code || activeProblem.code,
-                  problemTitle: subData.problem_title || activeProblem.title,
-                  userId: subData.user_id || targetUserId,
-                  userName: subData.user_name || targetUserName,
-                  classId: subData.class_id || targetClassId,
+                  problemId: subData.problem_id || subData.problemId || activeProblem.id,
+                  problemCode: subData.problem_code || subData.problemCode || activeProblem.code,
+                  problemTitle: subData.problem_title || subData.problemTitle || activeProblem.title,
+                  userId: subData.user_id || subData.userId || targetUserId,
+                  userName: subData.user_name || subData.userName || targetUserName,
+                  classId: subData.class_id || subData.classId || targetClassId,
                   language: subData.language || language,
-                  sourceCode: subData.source_code || code,
-                  submittedAt: subData.submitted_at || new Date().toISOString(),
+                  sourceCode: subData.source_code || subData.sourceCode || code,
+                  submittedAt: subData.submitted_at || subData.submittedAt || new Date().toISOString(),
                   status: 'COMPLETED',
-                  totalPointsEarned: Number(subData.total_points_earned) || 0,
-                  maxTotalPoints: Number(subData.max_total_points) || (activeProblem.totalPoints || 10),
-                  passedCount: Number(subData.passed_count) || 0,
-                  totalTests: Number(subData.total_tests) || actualTotalTests,
-                  overallVerdict: subData.verdict || subData.overallVerdict || 'WA',
-                  executionTime: Number(subData.execution_time) || Number(subData.time) || 0,
+                  totalPointsEarned: earnedPts,
+                  maxTotalPoints: maxPts,
+                  passedCount: passed,
+                  totalTests: total,
+                  overallVerdict: finalVerdict,
+                  executionTime: Number(subData.execution_time) || Number(subData.executionTime) || Number(subData.time) || 0,
                   memory: Number(subData.memory) || 0,
                   compilationMessage: subData.compilation_message || subData.compilationMessage,
                   testResults: normalizedTestResults,

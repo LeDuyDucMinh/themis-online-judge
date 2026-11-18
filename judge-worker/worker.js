@@ -163,7 +163,7 @@ function buildBatchBashScript(batchItems, srcCode, lang, tlSec) {
   if (lang === 'cpp') {
     compileStep = [
       `echo '${codeB64}' | base64 -d > solution.cpp`,
-      `g++ -O2 -std=c++17 solution.cpp -o solution 2> compile.err`,
+      `g++ -O2 -std=c++14 solution.cpp -o solution 2> compile.err`,
     ].join('\n');
     runCmd = './solution';
   } else if (lang === 'c') {
@@ -193,7 +193,7 @@ function buildBatchBashScript(batchItems, srcCode, lang, tlSec) {
   } else {
     compileStep = [
       `echo '${codeB64}' | base64 -d > solution.cpp`,
-      `g++ -O2 -std=c++17 solution.cpp -o solution 2> compile.err`,
+      `g++ -O2 -std=c++14 solution.cpp -o solution 2> compile.err`,
     ].join('\n');
     runCmd = './solution';
   }
@@ -396,7 +396,10 @@ async function processSubmission(sub) {
         source_code: bashScript,
         language_id: 46, // Bash 5.0.0
         stdin: '',
-        cpu_time_limit: Math.min(Math.max(timeLimit * batch.length + 3.0, 5.0), 15.0),
+        cpu_time_limit: Math.min(Math.max(timeLimit * batch.length + 5.0, 10.0), 30.0),
+        wall_time_limit: 35,
+        memory_limit: 512000, // 512MB RAM - Đảm bảo g++ đủ bộ nhớ biên dịch an toàn
+        max_processes_and_or_threads: 120,
       });
 
       const stdout = data.stdout || '';
