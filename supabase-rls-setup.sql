@@ -228,7 +228,9 @@ CREATE POLICY "problems_modify_policy" ON public.problems
 -- ==============================================================================
 DROP POLICY IF EXISTS "test_cases_select_policy" ON public.test_cases;
 CREATE POLICY "test_cases_select_policy" ON public.test_cases
-  FOR SELECT USING (true);
+  FOR SELECT USING (
+    public.is_admin() OR is_hidden = false OR auth.role() = 'service_role'
+  );
 
 DROP POLICY IF EXISTS "test_cases_modify_policy" ON public.test_cases;
 CREATE POLICY "test_cases_modify_policy" ON public.test_cases

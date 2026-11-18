@@ -72,9 +72,10 @@ export default async function handler(req, res) {
       }
     } catch {}
   } else {
-    // Không có origin lẫn referer (ví dụ direct fetch cùng domain)
+    // Chỉ cho phép khi trình duyệt gửi Sec-Fetch-Site: same-origin kèm header nhận diện client hợp lệ
     const secFetchSite = req.headers['sec-fetch-site'];
-    if (!secFetchSite || secFetchSite === 'same-origin' || secFetchSite === 'none') {
+    const clientHeader = req.headers['x-themis-client'];
+    if (secFetchSite === 'same-origin' && clientHeader === 'themis-web-oj') {
       isOriginAllowed = true;
       responseOrigin = 'https://faminh.io.vn';
     }

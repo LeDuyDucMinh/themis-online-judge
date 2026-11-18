@@ -151,7 +151,8 @@ export default async function handler(req, res) {
     } catch {}
   } else {
     const secFetch = req.headers['sec-fetch-site'];
-    if (!secFetch || secFetch === 'same-origin' || secFetch === 'none') {
+    const clientHeader = req.headers['x-themis-client'];
+    if (secFetch === 'same-origin' && clientHeader === 'themis-web-oj') {
       isOriginAllowed = true;
       responseOrigin = 'https://faminh.io.vn';
     }
@@ -204,10 +205,15 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Bad Request', message: 'Mã nguồn vượt quá dung lượng tối đa 128KB.' });
     }
 
-    // 1 + 2. Tải thông tin bài tập và toàn bộ Test Case bí mật SONG SONG từ Supabase
+    // Xác thực JWT người nộp (nếu có) song song với tải bài tập và test case (0ms độ trễ tăng thêm)
+    const rawAuth = req.headers.authorization || '';
+    const callerJwt = rawAuth.startsWith('Bearer ') ? rawAuth.slice(7).trim() : '';
+    const hasUserJwt = Boolean(callerJwt && callerJwt !== SUPABASE_KEY);
+
+    // 1 + 2. Tải thông tin bài tập, toàn bộ Test Case bí mật và xác thực JWT SONG SONG từ Supabase
     // (học sinh KHÔNG THỂ nhìn thấy các request này). Không tải mô tả/file đính kèm vì chấm bài không cần.
     const sbHeaders = { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` };
-    const [probRes, tcRes] = await Promise.all([
+    const [probRes, tcRes, verifiedUser] = await Promise.all([
       fetch(
         `${SUPABASE_URL}/rest/v1/problems?id=eq.${encodeURIComponent(problemId)}&select=id,code,title,total_points,time_limit,samples&limit=1`,
         { headers: sbHeaders }
@@ -216,7 +222,32 @@ export default async function handler(req, res) {
         `${SUPABASE_URL}/rest/v1/test_cases?problem_id=eq.${encodeURIComponent(problemId)}&order=order_index.asc,updated_at.desc`,
         { headers: sbHeaders }
       ),
+      hasUserJwt
+        ? fetch(`${SUPABASE_URL}/auth/v1/user`, {
+            headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${callerJwt}` },
+          })
+            .then((r) => (r.ok ? r.json() : null))
+            .catch(() => null)
+        : Promise.resolve(null),
     ]);
+
+    // Chống giả mạo danh tính (Identity Spoofing Protection):
+    // - Nếu người gọi có Supabase Auth JWT hợp lệ (học sinh), bắt buộc khóa userId vào đúng ID thực của token đó.
+    // - Nếu không có JWT hợp lệ nhưng cố tình mạo danh UUID của học sinh thật trên Supabase Auth, từ chối 401.
+    let effectiveUserId = String(userId || 'student_01');
+    let effectiveUserName = String(userName || 'Học sinh');
+    const isUuidFormat = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(effectiveUserId);
+
+    if (verifiedUser && verifiedUser.id) {
+      if (effectiveUserId !== 'admin_faminh') {
+        effectiveUserId = String(verifiedUser.id);
+      }
+    } else if (isUuidFormat) {
+      return res.status(401).json({
+        error: 'Unauthorized',
+        message: 'Phiên đăng nhập không hợp lệ hoặc đã hết hạn. Vui lòng đăng nhập lại trước khi nộp bài.',
+      });
+    }
     if (!probRes.ok) {
       throw new Error(`Không thể tải bài tập từ Database (HTTP ${probRes.status})`);
     }
@@ -716,8 +747,8 @@ export default async function handler(req, res) {
       problem_id: problem.id,
       problem_code: problem.code,
       problem_title: problem.title,
-      user_id: String(userId),
-      user_name: String(userName),
+      user_id: effectiveUserId,
+      user_name: effectiveUserName,
       class_id: classId || null,
       language,
       source_code: code,
@@ -735,12 +766,13 @@ export default async function handler(req, res) {
     };
 
     // 6. Tự động lưu submission trực tiếp vào Supabase từ phía Server
+    const writeBearer = process.env.SUPABASE_SERVICE_ROLE_KEY || (verifiedUser ? callerJwt : SUPABASE_KEY);
     try {
       await fetch(`${SUPABASE_URL}/rest/v1/submissions?on_conflict=id`, {
         method: 'POST',
         headers: {
           apikey: SUPABASE_KEY,
-          Authorization: `Bearer ${SUPABASE_KEY}`,
+          Authorization: `Bearer ${writeBearer}`,
           'Content-Type': 'application/json',
           Prefer: 'resolution=merge-duplicates',
         },
@@ -756,8 +788,8 @@ export default async function handler(req, res) {
       problemId: problem.id,
       problemCode: problem.code,
       problemTitle: problem.title,
-      userId: String(userId),
-      userName: String(userName),
+      userId: effectiveUserId,
+      userName: effectiveUserName,
       classId: classId || undefined,
       language,
       sourceCode: code,

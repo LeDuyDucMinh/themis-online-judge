@@ -39,18 +39,22 @@ export const VideoSection: React.FC<VideoSectionProps> = ({
     lockReason = 'Bạn cần đạt điểm tối đa (Full AC 100%) để mở khóa video bài giảng chuyên sâu này.';
   }
 
-  // Chuyển link YouTube thông thường thành link embed
+  // Chuyển link YouTube thông thường thành link embed và bắt buộc kiểm tra giao thức https:/http: an toàn
   const getEmbedUrl = (url: string) => {
-    if (!url) return '';
+    if (!url || typeof url !== 'string') return '';
     try {
+      const parsed = new URL(url.trim());
+      if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+        return '';
+      }
       if (url.includes('youtube.com/watch')) {
-        const urlParams = new URLSearchParams(new URL(url).search);
+        const urlParams = new URLSearchParams(parsed.search);
         const v = urlParams.get('v');
-        return `https://www.youtube.com/embed/${v}`;
+        return v ? `https://www.youtube.com/embed/${encodeURIComponent(v)}` : '';
       }
       if (url.includes('youtu.be/')) {
         const id = url.split('youtu.be/')[1]?.split('?')[0];
-        return `https://www.youtube.com/embed/${id}`;
+        return id ? `https://www.youtube.com/embed/${encodeURIComponent(id)}` : '';
       }
       if (url.includes('drive.google.com/file/d/')) {
         const match = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
@@ -58,13 +62,16 @@ export const VideoSection: React.FC<VideoSectionProps> = ({
           return `https://drive.google.com/file/d/${match[1]}/preview`;
         }
       }
+      return parsed.toString();
     } catch {
-      return url;
+      return '';
     }
-    return url;
   };
 
   const embedUrl = getEmbedUrl(videoConfig.url);
+  if (!embedUrl) {
+    return null;
+  }
 
   return (
     <div className={`mt-8 rounded-3xl overflow-hidden shadow-2xl border ${
@@ -118,7 +125,7 @@ export const VideoSection: React.FC<VideoSectionProps> = ({
             theme === 'light' ? 'border-slate-200' : 'border-slate-800'
           }`}>
             {videoConfig.type === 'direct' ? (
-              <video src={videoConfig.url} controls className="w-full h-full object-contain" />
+              <video src={embedUrl} controls className="w-full h-full object-contain" />
             ) : (
               <iframe
                 src={embedUrl}

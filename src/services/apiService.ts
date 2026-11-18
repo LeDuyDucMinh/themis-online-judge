@@ -26,7 +26,7 @@ export const ENV = {
   JUDGE0_TOKEN: cleanStr(
     (typeof process !== 'undefined' && (process.env.JUDGE0_API_TOKEN || process.env.VITE_JUDGE0_API_TOKEN)) ||
     (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_JUDGE0_API_TOKEN),
-    'faminh_secret_api_token'
+    ''
   ),
   SUPABASE_URL: cleanStr(
     (typeof process !== 'undefined' && (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL)) ||
@@ -1342,11 +1342,7 @@ export const apiService = {
       try {
         const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/test_cases?problem_id=eq.${encodeURIComponent(problemId)}&order=order_index.asc,updated_at.desc`;
         const res = await fetch(targetUrl, {
-          headers: {
-            ...this.getAntiCacheHeaders(),
-            apikey: ENV.SUPABASE_ANON_KEY,
-            Authorization: `Bearer ${ENV.SUPABASE_ANON_KEY}`,
-          },
+          headers: this.getAntiCacheHeaders(),
           cache: 'no-store',
         });
         if (res.ok) {

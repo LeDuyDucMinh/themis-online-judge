@@ -489,7 +489,7 @@ export const DEFAULT_JUDGE0_URL = cleanJudge0Str(
 export const DEFAULT_JUDGE0_TOKEN = cleanJudge0Str(
   (typeof process !== 'undefined' && (process.env.JUDGE0_API_TOKEN || process.env.VITE_JUDGE0_API_TOKEN)) ||
   (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_JUDGE0_API_TOKEN),
-  'faminh_secret_api_token'
+  ''
 );
 
 export const JUDGE0_LANGUAGE_MAP: Record<SupportedLanguage, number> = {
