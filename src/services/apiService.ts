@@ -1919,42 +1919,57 @@ export const apiService = {
           return Array.isArray(rows) ? { rows, slim: false } : null;
         };
 
-        // Siêu nhẹ: chỉ metadata test case (không có input/output) để biết số lượng, điểm, ẩn/hiện
+        // Siêu nhẹ: chỉ metadata test case (không có input/output) để biết số lượng, điểm, ẩn/hiện.
+        // Lưu ý quan trọng: Supabase giới hạn tối đa 1.000 dòng / 1 request (0-999). Khi hệ thống có >50 bài
+        // (ví dụ 66 bài × 20 test = 1.320 dòng), nếu chỉ gọi 1 request thì các test thứ 20 bị cắt mất khiến
+        // giao diện hiển thị sai thành 19 test! Do đó ta tải phân trang song song (1.000 dòng/trang).
         const loadTestMeta = async (): Promise<Map<string, TestCase[]>> => {
           const map = new Map<string, TestCase[]>();
           try {
-            const tcUrl = `${base}/rest/v1/test_cases?select=id,problem_id,test_name,points,is_hidden,order_index&order=order_index.asc,updated_at.desc`;
-            const tcRes = await fetch(tcUrl, {
-              headers: {
-                ...this.getAntiCacheHeaders(),
-                apikey: ENV.SUPABASE_ANON_KEY,
-                Authorization: `Bearer ${ENV.SUPABASE_ANON_KEY}`,
-              },
-              cache: 'no-store',
-            });
-            if (tcRes.ok) {
-              const allTcRows = await tcRes.json();
-              if (Array.isArray(allTcRows)) {
-                // Deduplicate: Mỗi problem_id chỉ lấy 1 hàng cho mỗi order_index
-                const seenOrdersByPid = new Map<string, Set<number>>();
-                for (const row of allTcRows) {
-                  const pid = row.problem_id;
-                  if (!seenOrdersByPid.has(pid)) seenOrdersByPid.set(pid, new Set());
-                  const orderSet = seenOrdersByPid.get(pid)!;
-                  const ord = Number(row.order_index) || 0;
-                  if (ord > 0 && orderSet.has(ord)) continue;
-                  if (ord > 0) orderSet.add(ord);
+            const tcHeaders = {
+              ...this.getAntiCacheHeaders(),
+              apikey: ENV.SUPABASE_ANON_KEY,
+              Authorization: `Bearer ${ENV.SUPABASE_ANON_KEY}`,
+            };
+            const fetchPage = async (offset: number): Promise<any[]> => {
+              const tcUrl = `${base}/rest/v1/test_cases?select=id,problem_id,test_name,points,is_hidden,order_index&order=order_index.asc,updated_at.desc&limit=1000&offset=${offset}`;
+              const tcRes = await fetch(tcUrl, { headers: tcHeaders, cache: 'no-store' });
+              if (!tcRes.ok) return [];
+              const rows = await tcRes.json();
+              return Array.isArray(rows) ? rows : [];
+            };
 
-                  if (!map.has(pid)) map.set(pid, []);
-                  map.get(pid)!.push({
-                    id: row.id,
-                    name: row.test_name || `Test #${row.order_index}`,
-                    input: row.input || '',
-                    expectedOutput: row.expected_output || '',
-                    points: Number(row.points) || 1,
-                    isHidden: Boolean(row.is_hidden),
-                  });
-                }
+            const [page0, page1] = await Promise.all([fetchPage(0), fetchPage(1000)]);
+            const allTcRows = [...page0, ...page1];
+            let nextOffset = 2000;
+            let lastLen = page1.length;
+            while (lastLen === 1000 && nextOffset <= 10000) {
+              const more = await fetchPage(nextOffset);
+              allTcRows.push(...more);
+              lastLen = more.length;
+              nextOffset += 1000;
+            }
+
+            if (allTcRows.length > 0) {
+              // Deduplicate: Mỗi problem_id chỉ lấy 1 hàng cho mỗi order_index
+              const seenOrdersByPid = new Map<string, Set<number>>();
+              for (const row of allTcRows) {
+                const pid = row.problem_id;
+                if (!seenOrdersByPid.has(pid)) seenOrdersByPid.set(pid, new Set());
+                const orderSet = seenOrdersByPid.get(pid)!;
+                const ord = Number(row.order_index) || 0;
+                if (ord > 0 && orderSet.has(ord)) continue;
+                if (ord > 0) orderSet.add(ord);
+
+                if (!map.has(pid)) map.set(pid, []);
+                map.get(pid)!.push({
+                  id: row.id,
+                  name: row.test_name || `Test #${row.order_index}`,
+                  input: row.input || '',
+                  expectedOutput: row.expected_output || '',
+                  points: Number(row.points) || 1,
+                  isHidden: Boolean(row.is_hidden),
+                });
               }
             }
           } catch (tcErr) {
@@ -2045,10 +2060,11 @@ export const apiService = {
               const fromIdb = idbMap.get(cp.id)?.testCases;
               const fromStorage = storageMap.get(cp.id)?.testCases;
 
+              const cloudLen = fromCloud?.length || 0;
               let tests: TestCase[] = [];
-              if (hasContent(fromIdb)) {
+              if (hasContent(fromIdb) && fromIdb!.length >= cloudLen) {
                 tests = fromIdb!;
-              } else if (hasContent(fromStorage)) {
+              } else if (hasContent(fromStorage) && fromStorage!.length >= cloudLen) {
                 tests = fromStorage!;
               } else if (fromCloud && fromCloud.length > 0) {
                 tests = fromCloud;

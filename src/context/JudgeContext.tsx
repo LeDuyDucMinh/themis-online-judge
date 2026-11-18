@@ -2078,7 +2078,7 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     if (typeof window !== 'undefined' && window.location.protocol.startsWith('http')) {
       let progressTimer: any = null;
       try {
-        const estTotal = problem.testCases?.length || 10;
+        const estTotal = problem.testCases?.length || 20;
         let estIndex = 1;
         const dummyResult: TestResult = {
           testId: 'test_temp',
@@ -2095,7 +2095,7 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
             estIndex++;
             onProgress?.(estIndex, estTotal, dummyResult);
           }
-        }, 200);
+        }, 140);
 
         const gradeRes = await fetch('/api/grade', {
           method: 'POST',
@@ -2132,6 +2132,19 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
             if (normalizedTestResults.length > 0) {
               const lastTr = normalizedTestResults[normalizedTestResults.length - 1];
               onProgress?.(normalizedTestResults.length, normalizedTestResults.length, lastTr);
+              if ((problem.testCases?.length || 0) !== normalizedTestResults.length) {
+                const syncedMeta: TestCase[] = normalizedTestResults.map((tr: any, idx: number) => ({
+                  id: tr.testId || `${problem!.id}_tc_${idx + 1}`,
+                  name: tr.testName || `Test #${String(idx + 1).padStart(2, '0')}`,
+                  input: '',
+                  expectedOutput: '',
+                  points: Number(tr.maxPoints) || 1,
+                  isHidden: true,
+                }));
+                setAllProblems((prev) =>
+                  prev.map((p) => (p.id === problemId && (p.testCases?.length || 0) < syncedMeta.length ? { ...p, testCases: syncedMeta } : p))
+                );
+              }
             }
 
             submission = {

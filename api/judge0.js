@@ -6,8 +6,8 @@ const JUDGE0_TOKEN = (process.env.JUDGE0_API_TOKEN || 'faminh_secret_api_token')
 
 // Cấu hình giới hạn tần suất (Rate Limiting) in-memory theo IP
 const RATE_LIMIT_WINDOW_MS = 60 * 1000;
-const MAX_SUBMISSIONS_PER_WINDOW = 30; // tối đa 30 lần nộp / phút / IP
-const MAX_REQUESTS_PER_WINDOW = 120;   // tối đa 120 lần truy vấn / phút / IP
+const MAX_SUBMISSIONS_PER_WINDOW = 150; // hỗ trợ chấm nhiều bài / batch không bị 429
+const MAX_REQUESTS_PER_WINDOW = 300;   // tối đa 300 lần truy vấn / phút / IP
 const ipRateLimits = new Map();
 
 function cleanExpiredRateLimits(now) {
@@ -220,10 +220,10 @@ export default async function handler(req, res) {
         if (typeof bodyData.source_code !== 'string' || !bodyData.source_code.trim()) {
           return res.status(400).json({ error: 'Bad Request', message: 'Mã nguồn không được để trống.' });
         }
-        if (bodyData.source_code.length > 131072) {
+        if (bodyData.source_code.length > 1048576) {
           return res.status(400).json({
             error: 'Bad Request',
-            message: 'Mã nguồn vượt quá dung lượng tối đa cho phép (128 KB).',
+            message: 'Mã nguồn vượt quá dung lượng tối đa cho phép (1 MB).',
           });
         }
 
@@ -240,16 +240,21 @@ export default async function handler(req, res) {
 
         // Giới hạn tài nguyên thực thi (ngăn chặn DoS / compute lock trên VPS)
         const cpuLimit = Number(bodyData.cpu_time_limit);
-        bodyData.cpu_time_limit = Number.isFinite(cpuLimit) ? Math.min(Math.max(cpuLimit, 0.1), 10.0) : 1.0;
+        bodyData.cpu_time_limit = Number.isFinite(cpuLimit) ? Math.min(Math.max(cpuLimit, 0.1), 15.0) : 1.0;
 
         if (bodyData.wall_time_limit) {
           const wallLimit = Number(bodyData.wall_time_limit);
-          bodyData.wall_time_limit = Number.isFinite(wallLimit) ? Math.min(Math.max(wallLimit, 0.1), 15.0) : 15.0;
+          bodyData.wall_time_limit = Number.isFinite(wallLimit) ? Math.min(Math.max(wallLimit, 0.1), 20.0) : 20.0;
         }
 
         if (bodyData.memory_limit) {
           const memLimit = Number(bodyData.memory_limit);
           bodyData.memory_limit = Number.isFinite(memLimit) ? Math.min(Math.max(memLimit, 1024), 512000) : 512000;
+        }
+
+        if (bodyData.max_processes_and_or_threads) {
+          const procLimit = Number(bodyData.max_processes_and_or_threads);
+          bodyData.max_processes_and_or_threads = Number.isFinite(procLimit) ? Math.min(Math.max(procLimit, 10), 120) : 60;
         }
 
         // Kiểm tra language_id hợp lệ

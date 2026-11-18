@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import type { Problem, Submission, TestCase } from '../../types/judge';
+import type { Problem, Submission } from '../../types/judge';
 import { useJudge } from '../../context/JudgeContext';
 import { MathRenderer } from '../common/MathRenderer';
 import { ThemisGradingTable } from './ThemisGradingTable';
@@ -11,7 +11,6 @@ import {
   type SupportedLanguage,
 } from '../../services/judgeEngine';
 import { apiService } from '../../services/apiService';
-import { idbService } from '../../services/db';
 
 interface ProblemViewProps {
   problem: Problem;
@@ -150,38 +149,19 @@ export const ProblemView: React.FC<ProblemViewProps> = ({ problem, onBackToList 
     }
   };
 
-  // Nạp test cases từ IndexedDB hoặc Cloud
+  // Đồng bộ số lượng test cases từ metadata đề bài (đã tải phân trang đầy đủ từ Cloud)
   useEffect(() => {
-    let isMounted = true;
-    (async () => {
-      const hasRealContent = (tests?: TestCase[] | null) =>
-        Boolean(tests && tests.length > 0 && tests.some((t) => (t.input && t.input.trim().length > 0) || (t.expectedOutput && t.expectedOutput.trim().length > 0)));
-
-      if (!hasRealContent(problem.testCases)) {
-        let dbTests = await idbService.getTestCases(problem.id);
-        if (!hasRealContent(dbTests)) {
-          dbTests = await apiService.fetchTestCases(problem.id);
-        }
-        if (isMounted && hasRealContent(dbTests)) {
-          setTotalTestsRunning(dbTests!.length);
-        } else if (isMounted && problem.testCases) {
-          setTotalTestsRunning(problem.testCases.length);
-        }
-      } else {
-        setTotalTestsRunning(problem.testCases.length);
-      }
-    })();
-    return () => {
-      isMounted = false;
-    };
-  }, [problem.id, problem.testCases]);
+    if (problem.testCases && problem.testCases.length > 0) {
+      setTotalTestsRunning(problem.testCases.length);
+    }
+  }, [problem.id, problem.testCases?.length]);
 
   // Nộp bài và chạy chấm điểm Themis
   const handleSubmit = async () => {
     if (isGrading) return;
     setIsGrading(true);
-    setCurrentRunningIndex(0);
-    const initialTests = problem.testCases?.length || totalTestsRunning || 0;
+    setCurrentRunningIndex(1);
+    const initialTests = Math.max(problem.testCases?.length || 0, totalTestsRunning || 0);
     setTotalTestsRunning(initialTests);
 
     try {
