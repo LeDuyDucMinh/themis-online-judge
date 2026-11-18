@@ -7,21 +7,7 @@ import { ProblemEditorModal } from './ProblemEditorModal';
 import { TestCaseManagerModal } from './TestCaseManagerModal';
 import { VideoConfigModal } from './VideoConfigModal';
 import { ErrorBoundary } from '../common/ErrorBoundary';
-import {
-  Plus,
-  Edit2,
-  Trash2,
-  Layers,
-  X,
-  Video,
-  Clock,
-  HardDrive,
-  GraduationCap,
-  Globe,
-  Search,
-  BookOpen,
-  AlertCircle,
-} from 'lucide-react';
+import { X, ChevronDown } from 'lucide-react';
 
 interface TopicManagerProps {
   initialClassId?: string;
@@ -303,6 +289,11 @@ export const TopicManager: React.FC<TopicManagerProps> = ({ initialClassId }) =>
     });
   }, [problems, topics, problemSearch, problemTopicFilter]);
 
+  const [problemsLimit, setProblemsLimit] = useState<number>(15);
+  const displayedProblems = useMemo(() => {
+    return filteredProblems.slice(0, problemsLimit);
+  }, [filteredProblems, problemsLimit]);
+
   // Danh sách chủ đề sau khi áp dụng bộ lọc theo lớp
   const displayedTopics = topics.filter((t) => isTopicInClass(t, selectedClassFilter));
 
@@ -320,20 +311,31 @@ export const TopicManager: React.FC<TopicManagerProps> = ({ initialClassId }) =>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          <button
-            onClick={() => setCreatingForTopicId(activeTab === 'topics' ? (topics[0]?.id || '') : '')}
-            className="px-4 py-2 rounded-lg border border-[#D9D2C3] bg-white hover:bg-[#F4EFE6] text-[#1F1D1A] text-sm font-medium transition-colors cursor-pointer"
-          >
-            Thêm bài tập mới
-          </button>
-
-          {activeTab === 'topics' && !isAddingTopic && !editingTopicId && (
+          {activeTab === 'problems' ? (
             <button
-              onClick={handleStartAddTopic}
+              onClick={() => setCreatingForTopicId('')}
               className="px-4 py-2 rounded-lg bg-[#B4281F] hover:bg-[#8F1F18] text-white text-sm font-semibold transition-colors cursor-pointer"
             >
-              Thêm chủ đề mới
+              Thêm bài tập mới
             </button>
+          ) : (
+            <>
+              <button
+                onClick={() => setCreatingForTopicId(topics[0]?.id || '')}
+                className="px-4 py-2 rounded-lg border border-[#D9D2C3] bg-white hover:bg-[#F4EFE6] text-[#1F1D1A] text-sm font-medium transition-colors cursor-pointer"
+              >
+                Thêm bài tập mới
+              </button>
+
+              {!isAddingTopic && !editingTopicId && (
+                <button
+                  onClick={handleStartAddTopic}
+                  className="px-4 py-2 rounded-lg bg-[#B4281F] hover:bg-[#8F1F18] text-white text-sm font-semibold transition-colors cursor-pointer"
+                >
+                  Thêm chủ đề mới
+                </button>
+              )}
+            </>
           )}
         </div>
       </div>
@@ -343,11 +345,10 @@ export const TopicManager: React.FC<TopicManagerProps> = ({ initialClassId }) =>
         <button
           type="button"
           onClick={() => setActiveTab('topics')}
-          className={`pb-2.5 text-sm font-bold transition-colors cursor-pointer ${
-            activeTab === 'topics'
-              ? 'border-b-2 border-[#B4281F] text-[#1F1D1A]'
-              : 'border-b-2 border-transparent text-[#6B655C] hover:text-[#1F1D1A]'
-          }`}
+          className={`pb-2.5 text-sm font-bold transition-colors cursor-pointer ${activeTab === 'topics'
+            ? 'border-b-2 border-[#B4281F] text-[#1F1D1A]'
+            : 'border-b-2 border-transparent text-[#6B655C] hover:text-[#1F1D1A]'
+            }`}
         >
           Danh sách chủ đề ({topics.length})
         </button>
@@ -355,11 +356,10 @@ export const TopicManager: React.FC<TopicManagerProps> = ({ initialClassId }) =>
         <button
           type="button"
           onClick={() => setActiveTab('problems')}
-          className={`pb-2.5 text-sm font-bold transition-colors cursor-pointer ${
-            activeTab === 'problems'
-              ? 'border-b-2 border-[#B4281F] text-[#1F1D1A]'
-              : 'border-b-2 border-transparent text-[#6B655C] hover:text-[#1F1D1A]'
-          }`}
+          className={`pb-2.5 text-sm font-bold transition-colors cursor-pointer ${activeTab === 'problems'
+            ? 'border-b-2 border-[#B4281F] text-[#1F1D1A]'
+            : 'border-b-2 border-transparent text-[#6B655C] hover:text-[#1F1D1A]'
+            }`}
         >
           Các bài tập ({problems.length})
         </button>
@@ -447,11 +447,10 @@ export const TopicManager: React.FC<TopicManagerProps> = ({ initialClassId }) =>
                     <button
                       type="button"
                       onClick={handleSelectAllClasses}
-                      className={`px-2.5 py-1 rounded text-xs font-medium border cursor-pointer ${
-                        isAllClasses
-                          ? 'bg-[#1F1D1A] text-white border-[#1F1D1A]'
-                          : 'bg-white text-[#1F1D1A] border-[#D9D2C3]'
-                      }`}
+                      className={`px-2.5 py-1 rounded text-xs font-medium border cursor-pointer ${isAllClasses
+                        ? 'bg-[#1F1D1A] text-white border-[#1F1D1A]'
+                        : 'bg-white text-[#1F1D1A] border-[#D9D2C3]'
+                        }`}
                     >
                       Tất cả các lớp
                     </button>
@@ -472,11 +471,10 @@ export const TopicManager: React.FC<TopicManagerProps> = ({ initialClassId }) =>
                       <div
                         key={cls.id}
                         onClick={() => handleToggleClass(cls.id)}
-                        className={`p-3 rounded-lg border transition-all cursor-pointer flex items-center justify-between gap-2 select-none ${
-                          isSelected
-                            ? 'bg-[#FAF7EE] border-[#B4281F] text-[#1F1D1A]'
-                            : 'bg-white border-[#D9D2C3] text-[#6B655C]'
-                        }`}
+                        className={`p-3 rounded-lg border transition-all cursor-pointer flex items-center justify-between gap-2 select-none ${isSelected
+                          ? 'bg-[#FAF7EE] border-[#B4281F] text-[#1F1D1A]'
+                          : 'bg-white border-[#D9D2C3] text-[#6B655C]'
+                          }`}
                       >
                         <span className="text-xs font-bold truncate">{cls.className}</span>
                         {isSelected && (
@@ -536,15 +534,15 @@ export const TopicManager: React.FC<TopicManagerProps> = ({ initialClassId }) =>
                       t.classIds && t.classIds.length > 0
                         ? t.classIds
                         : t.classId
-                        ? [t.classId]
-                        : ['ALL'];
+                          ? [t.classId]
+                          : ['ALL'];
                     const isAll = ids.includes('ALL');
                     const targetClasses = classes.filter((c) => ids.includes(c.id));
                     const assignedLabel = isAll
                       ? 'Tất cả các lớp'
                       : targetClasses.length > 0
-                      ? targetClasses.map((c) => c.className).join(', ')
-                      : 'Chưa giao lớp nào';
+                        ? targetClasses.map((c) => c.className).join(', ')
+                        : 'Chưa giao lớp nào';
 
                     return (
                       <div key={t.id}>
@@ -555,9 +553,8 @@ export const TopicManager: React.FC<TopicManagerProps> = ({ initialClassId }) =>
                           onDrop={(e) => handleDrop(e, idx)}
                           onDragEnd={handleDragEnd}
                           onClick={() => setExpandedTopicId(isExpanded ? null : t.id)}
-                          className={`py-3.5 grid grid-cols-[40px_260px_160px_1fr_100px_160px] items-center gap-3 text-sm hover:bg-black/[0.01] transition-colors cursor-pointer select-none ${
-                            draggedIdx === idx ? 'opacity-40' : ''
-                          }`}
+                          className={`py-3.5 grid grid-cols-[40px_260px_160px_1fr_100px_160px] items-center gap-3 text-sm hover:bg-black/[0.01] transition-colors cursor-pointer select-none ${draggedIdx === idx ? 'opacity-40' : ''
+                            }`}
                         >
                           {/* # */}
                           <div className="text-sm text-[#6B655C]">
@@ -713,26 +710,21 @@ export const TopicManager: React.FC<TopicManagerProps> = ({ initialClassId }) =>
       {activeTab === 'problems' && (
         <div className="space-y-4 animate-in fade-in duration-200">
           {/* Bộ lọc & Tìm kiếm bài tập */}
-          <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-[#FAF7EE] border border-[#D9D2C3] rounded-lg">
-            <div className="flex flex-wrap items-center gap-3 flex-1 min-w-[280px]">
-              {/* Ô tìm kiếm */}
-              <div className="relative flex-1 min-w-[200px] max-w-sm">
-                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
-                <input
-                  type="text"
-                  value={problemSearch}
-                  onChange={(e) => setProblemSearch(e.target.value)}
-                  placeholder="Tìm theo mã bài, tiêu đề, tác giả..."
-                  className="w-full pl-9 pr-3 py-1.5 bg-white border border-[#D9D2C3] rounded-lg text-xs text-[#1F1D1A] placeholder-stone-400 focus:outline-none focus:border-[#1F1D1A] font-medium"
-                />
-              </div>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-1">
+            <div className="flex flex-wrap items-center gap-3 flex-1">
+              <input
+                type="text"
+                value={problemSearch}
+                onChange={(e) => setProblemSearch(e.target.value)}
+                placeholder="Tìm theo mã bài, tiêu đề hoặc tác giả"
+                className="flex-1 max-w-xl px-4 py-2 bg-white border border-[#D9D2C3] rounded-lg text-sm text-[#1F1D1A] placeholder-[#9CA3AF] focus:outline-none focus:border-[#1F1D1A]"
+              />
 
-              {/* Lọc theo chủ đề */}
-              <div className="flex items-center gap-1.5">
+              <div className="relative">
                 <select
                   value={problemTopicFilter}
                   onChange={(e) => setProblemTopicFilter(e.target.value)}
-                  className="px-3 py-1.5 bg-white border border-[#D9D2C3] rounded-lg text-xs text-[#1F1D1A] focus:outline-none focus:border-[#1F1D1A] font-medium cursor-pointer"
+                  className="appearance-none bg-white border border-[#D9D2C3] rounded-lg px-3.5 py-2 pr-8 text-sm font-medium text-[#1F1D1A] focus:outline-none focus:border-[#1F1D1A] cursor-pointer"
                 >
                   <option value="ALL">Tất cả chủ đề ({problems.length} bài)</option>
                   <option value="__UNASSIGNED__">
@@ -747,255 +739,164 @@ export const TopicManager: React.FC<TopicManagerProps> = ({ initialClassId }) =>
                     );
                   })}
                 </select>
+                <ChevronDown className="w-4 h-4 text-[#6B655C] absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
               </div>
             </div>
 
-            <div className="flex items-center gap-3">
-              <span className="text-xs text-[#6B655C]">
-                Đang hiển thị <b className="text-[#1F1D1A] font-mono">{filteredProblems.length}</b> / <b className="text-[#6B655C] font-mono">{problems.length}</b> bài tập
-              </span>
-              <button
-                type="button"
-                onClick={() => setCreatingForTopicId('')}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#B4281F] hover:bg-[#8F1F18] text-white text-xs font-bold transition-colors cursor-pointer"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>Thêm bài mới</span>
-              </button>
+            <div className="text-sm text-[#6B655C] whitespace-nowrap">
+              Hiện {filteredProblems.length} / {problems.length} bài
             </div>
           </div>
 
           {/* Bảng danh sách tất cả các bài tập */}
-          <div className="border border-[#D9D2C3] bg-white rounded-xl overflow-hidden shadow-xs">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-xs">
-                <thead>
-                  <tr className="border-b border-[#D9D2C3] text-[11px] font-bold uppercase text-[#6B655C] bg-[#FAF7EE]">
-                    <th className="py-3 px-4 w-14 text-center">STT</th>
-                    <th className="py-3 px-4">Mã bài</th>
-                    <th className="py-3 px-4">Tiêu đề bài tập</th>
-                    <th className="py-3 px-4">Chủ đề</th>
-                    <th className="py-3 px-4 text-center">Lớp được giao</th>
-                    <th className="py-3 px-4">Thông số</th>
-                    <th className="py-3 px-4 text-right">Thao tác</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200 dark:divide-slate-800/60">
-                  {filteredProblems.length === 0 ? (
-                    <tr>
-                      <td colSpan={7} className="py-12 text-center text-slate-500">
-                        <BookOpen className="w-10 h-10 mx-auto text-slate-400 mb-2 opacity-50" />
-                        <p className="font-semibold text-sm">Không tìm thấy bài tập nào phù hợp</p>
-                        <p className="text-xs text-slate-400 mt-1">
-                          Thử thay đổi bộ lọc tìm kiếm hoặc nhấp vào "Thêm bài mới" để tạo bài tập.
-                        </p>
-                      </td>
-                    </tr>
-                  ) : (
-                    filteredProblems.map((prob, idx) => {
-                      const topic = topics.find((t) => t.id === prob.topicId);
-                      const targetClass = classes.find((c) => c.id === prob.classId);
-                      const testCount =
-                        prob.testCases && prob.testCases.length > 0
-                          ? prob.testCases.length
-                          : (asyncTestCounts[prob.id] || 0);
-                      const hasVideo = prob.videoConfig?.enabled && prob.videoConfig?.url;
+          <div className="overflow-x-auto pt-2">
+            <div className="min-w-[760px]">
+              {/* Header */}
+              <div className="border-t-2 border-[#1F1D1A] py-3 grid grid-cols-[40px_160px_180px_100px_160px_100px_1fr] items-center gap-3 text-xs text-[#6B655C] font-normal">
+                <div>#</div>
+                <div>Mã bài</div>
+                <div>Chủ đề</div>
+                <div>Lớp</div>
+                <div>Thông số</div>
+                <div>Test</div>
+                <div></div>
+              </div>
 
-                      return (
-                        <tr
-                          key={prob.id}
-                          className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors"
-                        >
-                          <td className="py-3 px-4 text-center font-mono font-bold text-slate-500 dark:text-slate-400">
-                            #{idx + 1}
-                          </td>
-                          <td className="py-3 px-4 font-mono font-bold">
-                            <span className="text-red-600 dark:text-red-400 bg-red-500/10 px-2.5 py-1 rounded-lg border border-red-500/20 text-xs">
-                              {prob.code}
-                            </span>
-                          </td>
-                          <td className="py-3 px-4">
-                            <div className="font-bold text-slate-950 dark:text-white text-xs sm:text-sm">
-                              {prob.title}
-                            </div>
-                            {prob.author && (
-                              <div className="text-[11px] text-slate-400 mt-0.5">
-                                Nguồn: {prob.author}
-                              </div>
-                            )}
-                          </td>
-                          <td className="py-3 px-4">
-                            {topic ? (
-                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-500/10 text-blue-500 dark:text-blue-400 border border-blue-500/20 text-[11px] font-semibold">
-                                <Layers className="w-3.5 h-3.5 shrink-0" />
-                                <span>{topic.name}</span>
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 text-[11px] font-bold">
-                                <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                                <span>Chưa phân chủ đề</span>
-                              </span>
-                            )}
-                          </td>
-                          <td className="py-3 px-4 text-center">
-                            {(() => {
-                              // 1. Nếu bài tập đã được gán vào 1 chủ đề: hiển thị các lớp được giao chủ đề đó
-                              if (topic) {
-                                const topicClassIds = topic.classIds && topic.classIds.length > 0
-                                  ? topic.classIds
-                                  : (topic.classId ? [topic.classId] : ['ALL']);
+              {filteredProblems.length === 0 ? (
+                <div className="border-t border-[#D9D2C3] py-12 text-center text-[#6B655C]">
+                  <p className="text-base font-bold text-[#1F1D1A]">Không tìm thấy bài tập nào phù hợp</p>
+                  <p className="text-xs text-[#6B655C] mt-1">
+                    Thử thay đổi bộ lọc tìm kiếm hoặc nhấp vào "Thêm bài tập mới" để tạo bài tập.
+                  </p>
+                </div>
+              ) : (
+                <div className="divide-y divide-[#E4DDCE]">
+                  {displayedProblems.map((prob, idx) => {
+                    const topic = topics.find((t) => t.id === prob.topicId);
+                    const targetClass = classes.find((c) => c.id === prob.classId);
+                    const testCount =
+                      prob.testCases && prob.testCases.length > 0
+                        ? prob.testCases.length
+                        : (asyncTestCounts[prob.id] || 0);
 
-                                if (topicClassIds.includes('ALL')) {
-                                  return (
-                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20 text-[11px] font-semibold">
-                                      <Globe className="w-3 h-3" />
-                                      <span>Tất cả các lớp</span>
-                                    </span>
-                                  );
-                                }
+                    // Xác định lớp được giao
+                    let assignedClassLabel = 'Tất cả';
+                    if (topic) {
+                      const topicClassIds = topic.classIds && topic.classIds.length > 0
+                        ? topic.classIds
+                        : (topic.classId ? [topic.classId] : ['ALL']);
+                      if (!topicClassIds.includes('ALL')) {
+                        const targetClasses = classes.filter((c) => topicClassIds.includes(c.id));
+                        assignedClassLabel = targetClasses.length > 0
+                          ? targetClasses.map((c) => c.className).join(', ')
+                          : 'Chưa giao';
+                      }
+                    } else if (prob.classId && prob.classId !== 'ALL' && prob.classId !== 'NONE') {
+                      assignedClassLabel = targetClass?.className || prob.classId;
+                    } else if (prob.classId === 'NONE') {
+                      assignedClassLabel = 'Lưu trữ';
+                    }
 
-                                const targetClasses = classes.filter((c) => topicClassIds.includes(c.id));
-                                if (targetClasses.length === 0) {
-                                  return (
-                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-800 text-slate-400 border border-slate-700 text-[11px]">
-                                      Chưa gán lớp cho chủ đề
-                                    </span>
-                                  );
-                                }
+                    return (
+                      <div
+                        key={prob.id}
+                        className="py-3.5 grid grid-cols-[40px_160px_180px_100px_160px_100px_1fr] items-center gap-3 text-sm hover:bg-[#FAF7EE] transition-colors"
+                      >
+                        {/* # */}
+                        <div className="text-sm text-[#6B655C]">
+                          {idx + 1}
+                        </div>
 
-                                return (
-                                  <div className="flex flex-wrap items-center justify-center gap-1.5 max-w-[200px] mx-auto">
-                                    {targetClasses.map((c) => (
-                                      <span
-                                        key={c.id}
-                                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-red-500/15 text-red-400 border border-red-500/30 text-[11px] font-bold shadow-sm"
-                                        title={`Mã vào lớp: ${c.joinCode}`}
-                                      >
-                                        <GraduationCap className="w-3 h-3 shrink-0" />
-                                        <span>{c.className}</span>
-                                      </span>
-                                    ))}
-                                  </div>
-                                );
-                              }
+                        {/* Mã bài */}
+                        <div>
+                          <span className="font-bold font-mono text-[#1F1D1A] text-sm">
+                            {prob.code}
+                          </span>
+                        </div>
 
-                              // 2. Nếu bài tập chưa phân vào chủ đề: hiển thị lớp trực tiếp của bài hoặc lưu trữ
-                              if (prob.classId === 'ALL') {
-                                return (
-                                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20 text-[11px] font-semibold">
-                                    <Globe className="w-3 h-3" />
-                                    <span>Tất cả các lớp</span>
-                                  </span>
-                                );
-                              }
+                        {/* Chủ đề */}
+                        <div className="text-sm text-[#1F1D1A] truncate" title={topic?.name || 'Chưa phân chủ đề'}>
+                          {topic?.name || 'Chưa phân chủ đề'}
+                        </div>
 
-                              if (prob.classId && prob.classId !== 'NONE') {
-                                return (
-                                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-800 text-slate-300 border border-slate-700 text-[11px] font-medium">
-                                    <GraduationCap className="w-3 h-3 text-red-400" />
-                                    <span>{targetClass?.className || prob.classId}</span>
-                                  </span>
-                                );
-                              }
+                        {/* Lớp */}
+                        <div className="text-sm text-[#1F1D1A] truncate" title={assignedClassLabel}>
+                          {assignedClassLabel}
+                        </div>
 
-                              return (
-                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[11px] font-semibold">
-                                  🔒 Không giao lớp nào (Lưu trữ)
-                                </span>
-                              );
-                            })()}
-                          </td>
-                          <td className="py-3 px-4">
-                            <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-400">
-                              <span className="font-mono font-bold text-amber-500">{prob.totalPoints}đ</span>
-                              <span>•</span>
-                              <span
-                                className={`font-semibold ${
-                                  prob.difficulty === 'Dễ'
-                                    ? 'text-emerald-500'
-                                    : prob.difficulty === 'Trung bình'
-                                    ? 'text-blue-500'
-                                    : 'text-amber-500'
-                                }`}
-                              >
-                                {prob.difficulty}
-                              </span>
-                              <span>•</span>
-                              <span className="font-mono flex items-center gap-0.5">
-                                <Clock className="w-3 h-3" /> {prob.timeLimit}s
-                              </span>
-                              <span>•</span>
-                              <span className="font-mono flex items-center gap-0.5">
-                                <HardDrive className="w-3 h-3" /> {prob.memoryLimit}MB
-                              </span>
-                            </div>
-                          </td>
-                          <td className="py-3 px-4 text-right">
-                            <div className="flex items-center justify-end gap-2">
-                              {/* Tests button */}
-                              <button
-                                type="button"
-                                onClick={() => setManagingTestsProblem(prob)}
-                                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
-                                  testCount > 0
-                                    ? 'bg-blue-50 dark:bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-500/30 hover:bg-blue-600 hover:text-white'
-                                    : 'bg-rose-50 dark:bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-500/30 hover:bg-rose-600 hover:text-white'
-                                }`}
-                                title="Quản lý bộ test Themis"
-                              >
-                                <Layers className="w-3.5 h-3.5" />
-                                <span>{testCount > 0 ? `${testCount} Tests (Themis)` : 'Chưa có Test!'}</span>
-                              </button>
+                        {/* Thông số */}
+                        <div>
+                          <div className="text-sm text-[#1F1D1A] font-medium">
+                            {prob.totalPoints || 10} điểm · {prob.difficulty || 'Dễ'}
+                          </div>
+                          <div className="text-xs text-[#6B655C]">
+                            {prob.timeLimit || 1} giây · {prob.memoryLimit || 1024} MB
+                          </div>
+                        </div>
 
-                              {/* Video button */}
-                              <button
-                                type="button"
-                                onClick={() => setConfiguringVideoProblem(prob)}
-                                className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
-                                  hasVideo
-                                    ? 'bg-rose-50 dark:bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-500/30 hover:bg-rose-600 hover:text-white'
-                                    : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700 hover:bg-slate-200 dark:hover:text-white'
-                                }`}
-                                title="Cấu hình video chữa bài"
-                              >
-                                <Video className="w-3.5 h-3.5 text-rose-500 dark:text-rose-400" />
-                                <span>{hasVideo ? 'Đã gắn video' : '+ Gắn video'}</span>
-                              </button>
+                        {/* Test */}
+                        <div>
+                          <button
+                            type="button"
+                            onClick={() => setManagingTestsProblem(prob)}
+                            className="font-mono font-bold text-sm text-[#B4281F] hover:underline cursor-pointer"
+                          >
+                            {testCount} test
+                          </button>
+                        </div>
 
-                              {/* Sửa button */}
-                              <button
-                                type="button"
-                                onClick={() => setEditingProblem(prob)}
-                                className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-blue-600 text-slate-600 dark:text-slate-300 hover:text-white border border-slate-200 dark:border-slate-700 transition-colors cursor-pointer"
-                                title="Sửa đề bài & chủ đề"
-                              >
-                                <Edit2 className="w-3.5 h-3.5" />
-                              </button>
+                        {/* Thao tác */}
+                        <div className="text-right whitespace-nowrap">
+                          <button
+                            type="button"
+                            onClick={() => setConfiguringVideoProblem(prob)}
+                            className="text-sm text-[#6B655C] hover:text-[#1F1D1A] cursor-pointer"
+                          >
+                            Gắn video
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEditingProblem(prob)}
+                            className="text-sm text-[#6B655C] hover:text-[#1F1D1A] cursor-pointer ml-3"
+                          >
+                            Sửa
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              openConfirmModal({
+                                title: 'Xác nhận xóa bài tập',
+                                message: `Bạn có chắc chắn muốn xóa bài [${prob.code}] "${prob.title}"? Tất cả bài nộp liên quan cũng sẽ bị gỡ bỏ.`,
+                                confirmLabel: 'Xác nhận xóa',
+                                onConfirm: () => deleteProblem(prob.id),
+                              });
+                            }}
+                            className="text-sm text-[#6B655C] hover:text-[#B4281F] cursor-pointer ml-3"
+                          >
+                            Xóa
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
 
-                              {/* Xóa button */}
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  openConfirmModal({
-                                    title: 'Xác nhận xóa bài tập',
-                                    message: `Bạn có chắc chắn muốn xóa bài [${prob.code}] "${prob.title}"? Tất cả bài nộp liên quan cũng sẽ bị gỡ bỏ.`,
-                                    confirmLabel: 'Xác nhận xóa',
-                                    onConfirm: () => deleteProblem(prob.id),
-                                  });
-                                }}
-                                className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-rose-600 text-slate-600 dark:text-slate-300 hover:text-white border border-slate-200 dark:border-slate-700 transition-colors cursor-pointer"
-                                title="Xóa bài tập này"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
+              {/* Footer */}
+              <div className="border-t border-[#D9D2C3] pt-4 mt-2 flex items-center justify-between text-xs text-[#6B655C]">
+                <div>
+                  Hiện {displayedProblems.length} trong {filteredProblems.length} bài
+                </div>
+                {filteredProblems.length > problemsLimit && (
+                  <button
+                    type="button"
+                    onClick={() => setProblemsLimit((prev) => prev + 20)}
+                    className="text-[#B4281F] font-semibold hover:underline cursor-pointer"
+                  >
+                    Xem thêm →
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -1009,13 +910,13 @@ export const TopicManager: React.FC<TopicManagerProps> = ({ initialClassId }) =>
           classId={
             creatingForTopicId
               ? (() => {
-                  const targetTopic = topics.find((t) => t.id === creatingForTopicId);
-                  if (!targetTopic) return undefined;
-                  const ids = targetTopic.classIds && targetTopic.classIds.length > 0
-                    ? targetTopic.classIds
-                    : (targetTopic.classId ? [targetTopic.classId] : ['ALL']);
-                  return ids[0] !== 'ALL' ? ids[0] : undefined;
-                })()
+                const targetTopic = topics.find((t) => t.id === creatingForTopicId);
+                if (!targetTopic) return undefined;
+                const ids = targetTopic.classIds && targetTopic.classIds.length > 0
+                  ? targetTopic.classIds
+                  : (targetTopic.classId ? [targetTopic.classId] : ['ALL']);
+                return ids[0] !== 'ALL' ? ids[0] : undefined;
+              })()
               : undefined
           }
           onClose={() => {

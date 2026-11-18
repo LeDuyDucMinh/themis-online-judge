@@ -1,15 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import {
-  Server,
-  X,
-  CheckCircle2,
-  AlertCircle,
-  RefreshCw,
-  Save,
-  RotateCcw,
-  Zap,
-  ExternalLink,
-} from 'lucide-react';
+import { X } from 'lucide-react';
 import {
   setJudge0Url,
   testJudge0Connection,
@@ -100,161 +90,163 @@ export const ServerConfigModal: React.FC<ServerConfigModalProps> = ({ isOpen, on
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in">
-      <div className="relative w-full max-w-xl bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl shadow-red-500/10 overflow-hidden">
+    <div
+      onClick={onClose}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-150"
+      style={{ fontFamily: "'Be Vietnam Pro', sans-serif" }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="relative w-full max-w-xl bg-white border border-[#D9D2C3] rounded-2xl shadow-2xl overflow-hidden text-[#1F1D1A]"
+      >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-slate-950/40">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-red-500/10 border border-red-500/30 flex items-center justify-center text-red-500 shadow-md shadow-red-500/10">
-              <Server className="w-5 h-5" />
-            </div>
+        <div className="px-6 pt-6 pb-4">
+          <div className="flex items-start justify-between gap-4">
             <div>
-              <h3 className="text-base font-bold text-stone-900 dark:text-white flex items-center gap-2">
-                <span>Cấu hình Máy chủ Chấm bài (VPS)</span>
-                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-red-500/20 text-red-400 border border-red-500/30">
-                  JUDGE0
+              <div className="flex items-center gap-2">
+                <h3 className="text-xl font-bold text-[#1F1D1A] tracking-tight">
+                  Cấu hình máy chủ chấm bài
+                </h3>
+                <span className="text-[11px] font-mono px-2 py-0.5 rounded text-[#6B655C] border border-[#D9D2C3] bg-[#FAF7EE]">
+                  Judge0
                 </span>
-              </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Kết nối hệ thống chấm bài tự động với máy chủ riêng của FAMINH
+              </div>
+              <p className="text-xs text-[#6B655C] mt-1">
+                Kết nối hệ thống chấm tự động với máy chủ riêng của FAMINH.
               </p>
             </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="text-[#6B655C] hover:text-[#1F1D1A] transition-colors cursor-pointer p-1"
+              title="Đóng"
+            >
+              <X className="w-5 h-5" />
+            </button>
           </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-stone-900 dark:hover:text-white rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="border-b border-[#D9D2C3] mt-4" />
         </div>
 
         {/* Body */}
-        <div className="p-6 space-y-5">
+        <div className="px-6 py-2 space-y-5">
           {/* Trạng thái kết nối hiện tại */}
-          <div className="p-4 rounded-xl bg-slate-950/60 border border-slate-800 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div
-                className={`w-3.5 h-3.5 rounded-full ${
+          <div className="p-4 rounded-xl border border-[#D9D2C3] bg-white flex items-center justify-between gap-4">
+            <div className="flex items-start gap-2.5">
+              <span
+                className={`w-3 h-3 rounded-xs shrink-0 mt-0.5 ${
                   isTesting
-                    ? 'bg-amber-400 animate-ping'
+                    ? 'bg-amber-500 animate-pulse'
                     : testStatus.success
-                    ? 'bg-emerald-500 shadow-lg shadow-emerald-500/50'
-                    : 'bg-rose-500 shadow-lg shadow-rose-500/50'
+                    ? 'bg-[#2E7D32]'
+                    : 'bg-[#B4281F]'
                 }`}
               />
               <div>
-                <p className="text-xs font-semibold text-stone-900 dark:text-white flex items-center gap-2">
-                  <span>Trạng thái:</span>
+                <div className="text-sm font-bold text-[#1F1D1A] flex items-center gap-1.5">
                   {isTesting ? (
-                    <span className="text-amber-600 dark:text-amber-400">Đang kiểm tra kết nối...</span>
+                    <span>Đang kiểm tra kết nối...</span>
                   ) : testStatus.success ? (
-                    <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                      <CheckCircle2 className="w-3.5 h-3.5 inline" /> Hoạt động tốt
-                      {testStatus.version && ` (v${testStatus.version})`}
-                    </span>
+                    <>
+                      <span>Hoạt động tốt</span>
+                      {testStatus.version && (
+                        <span className="text-xs font-mono font-normal text-[#6B655C]">
+                          v{testStatus.version}
+                        </span>
+                      )}
+                    </>
                   ) : (
-                    <span className="text-rose-600 dark:text-rose-400 flex items-center gap-1">
-                      <AlertCircle className="w-3.5 h-3.5 inline" /> Mất kết nối
-                    </span>
+                    <span className="text-[#B4281F]">Mất kết nối</span>
                   )}
-                </p>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                </div>
+                <div className="text-xs text-[#6B655C] mt-0.5">
                   {isTesting
                     ? 'Đang gửi gói tin ping đến VPS...'
+                    : testStatus.success
+                    ? `Kết nối máy chủ Judge0 thành công${
+                        testStatus.latencyMs !== undefined ? ` (${testStatus.latencyMs} ms)` : ''
+                      }`
                     : testStatus.message || 'Chưa kiểm tra'}
-                  {testStatus.latencyMs !== undefined && (
-                    <span className="ml-2 text-slate-500">({testStatus.latencyMs} ms)</span>
-                  )}
-                </p>
+                </div>
               </div>
             </div>
 
             <button
+              type="button"
               onClick={() => handleTestConnection()}
               disabled={isTesting}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-slate-800 hover:bg-slate-700 text-stone-700 dark:text-slate-200 border border-slate-700 transition-colors disabled:opacity-50 cursor-pointer"
+              className="px-3.5 py-1.5 text-xs font-semibold rounded-lg border border-[#1F1D1A] text-[#1F1D1A] bg-white hover:bg-[#FAF7EE] transition-colors disabled:opacity-50 cursor-pointer shrink-0"
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${isTesting ? 'animate-spin' : ''}`} />
-              <span>Kiểm tra</span>
+              {isTesting ? 'Đang kiểm tra...' : 'Kiểm tra lại'}
             </button>
           </div>
 
           {/* Ô nhập URL Server */}
           <div className="space-y-1.5">
-            <label className="block text-xs font-semibold text-stone-700 dark:text-slate-300">
-              Địa chỉ IP hoặc URL của Máy chủ Judge0:
+            <label className="block text-xs font-bold text-[#1F1D1A]">
+              Địa chỉ IP hoặc URL của máy chủ
             </label>
-            <div className="relative">
-              <input
-                type="text"
-                value={serverUrl}
-                onChange={(e) => setLocalServerUrl(e.target.value)}
-                placeholder={DEFAULT_JUDGE0_URL}
-                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 focus:border-red-500 focus:ring-1 focus:ring-red-500 text-sm text-stone-900 dark:text-white placeholder-slate-500 font-mono transition-colors outline-none"
-              />
-              <a
-                href={serverUrl ? `${serverUrl.replace(/\/+$/, '')}/about` : '#'}
-                target="_blank"
-                rel="noreferrer"
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1.5 text-slate-400 hover:text-stone-900 dark:hover:text-white rounded hover:bg-slate-800 transition-colors"
-                title="Mở link kiểm tra trong tab mới"
-              >
-                <ExternalLink className="w-4 h-4" />
-              </a>
+            <input
+              type="text"
+              value={serverUrl}
+              onChange={(e) => setLocalServerUrl(e.target.value)}
+              placeholder={DEFAULT_JUDGE0_URL}
+              className="w-full px-3.5 py-2.5 rounded-lg border border-[#D9D2C3] bg-white focus:outline-none focus:border-[#1F1D1A] text-sm text-[#1F1D1A] font-mono transition-colors"
+            />
+            <div className="space-y-0.5 pt-0.5">
+              <p className="text-xs text-[#6B655C]">
+                Mặc định: <span className="font-mono">{DEFAULT_JUDGE0_URL}</span> (VPS riêng của FAMINH).
+              </p>
+              <p className="text-xs text-[#2E7D32]">
+                Đã bật Secure HTTPS Proxy, tự vượt lỗi Mixed Content để kết nối an toàn.
+              </p>
             </div>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400">
-              Mặc định: <code className="text-red-600 dark:text-red-400">{DEFAULT_JUDGE0_URL}</code> (VPS riêng của FAMINH).
-              {typeof window !== 'undefined' && window.location.protocol === 'https:' && (
-                <span className="block mt-1 text-emerald-600 dark:text-emerald-400 font-medium">
-                  🔒 Đã kích hoạt Secure HTTPS Proxy (tự động vượt lỗi Mixed Content để kết nối VPS an toàn).
-                </span>
-              )}
-            </p>
           </div>
 
+          <div className="border-b border-[#D9D2C3]" />
+
           {/* Card ưu điểm hệ thống */}
-          <div className="p-3.5 rounded-xl bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/30 text-xs text-stone-700 dark:text-slate-300 space-y-2">
-            <div className="font-semibold text-red-700 dark:text-red-300 flex items-center gap-1.5">
-              <Zap className="w-4 h-4 text-red-600 dark:text-red-400" />
-              <span>Lợi thế khi dùng Máy chủ VPS riêng:</span>
-            </div>
-            <ul className="space-y-1 text-[11px] text-stone-600 dark:text-slate-400 list-disc list-inside">
+          <div className="space-y-2">
+            <h4 className="text-sm font-bold text-[#1F1D1A]">
+              Vì sao nên dùng máy chủ VPS riêng
+            </h4>
+            <ul className="space-y-1.5 text-xs text-[#1F1D1A]">
               <li>
-                <strong className="text-stone-900 dark:text-slate-200">Tốc độ cực nhanh:</strong> Thời gian chấm chỉ 0.005s - 0.020s / test case.
+                • <strong className="font-bold">Chấm nhanh:</strong> thời gian chấm chỉ 0.005s – 0.020s mỗi test.
               </li>
               <li>
-                <strong className="text-stone-900 dark:text-slate-200">Không lo nghẽn mạng:</strong> Hệ thống tự động xếp hàng và chấm song song khi cả lớp nộp bài.
+                • <strong className="font-bold">Không nghẽn mạng:</strong> tự xếp hàng và chấm song song khi cả lớp nộp bài.
               </li>
               <li>
-                <strong className="text-stone-900 dark:text-slate-200">Cô lập an toàn:</strong> Sandbox cgroup v1 bảo vệ an toàn tuyệt đối cho máy chủ.
+                • <strong className="font-bold">Cô lập an toàn:</strong> sandbox cgroup v1 bảo vệ máy chủ.
               </li>
             </ul>
           </div>
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between px-6 py-4 border-t border-slate-800 bg-slate-950/40">
+        <div className="flex items-center justify-between px-6 py-4 mt-4 border-t border-[#D9D2C3]">
           <button
+            type="button"
             onClick={handleResetDefault}
-            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors cursor-pointer"
+            className="text-xs text-[#6B655C] hover:text-[#1F1D1A] underline cursor-pointer"
           >
-            <RotateCcw className="w-3.5 h-3.5" />
-            <span>Khôi phục mặc định</span>
+            Khôi phục mặc định
           </button>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <button
+              type="button"
               onClick={onClose}
-              className="px-4 py-2 text-xs font-semibold rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors cursor-pointer"
+              className="px-3 py-1.5 text-xs font-semibold text-[#1F1D1A] hover:underline cursor-pointer"
             >
               Đóng
             </button>
             <button
+              type="button"
               onClick={handleSave}
-              className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold rounded-xl bg-red-600 hover:bg-red-500 text-white shadow-lg shadow-red-600/30 transition-all cursor-pointer"
+              className="px-4 py-2 text-xs font-bold rounded-lg bg-[#B4281F] hover:bg-[#8F1F18] text-white transition-colors cursor-pointer shadow-xs"
             >
-              <Save className="w-3.5 h-3.5" />
-              <span>Lưu cấu hình</span>
+              Lưu cấu hình
             </button>
           </div>
         </div>
@@ -262,3 +254,4 @@ export const ServerConfigModal: React.FC<ServerConfigModalProps> = ({ isOpen, on
     </div>
   );
 };
+

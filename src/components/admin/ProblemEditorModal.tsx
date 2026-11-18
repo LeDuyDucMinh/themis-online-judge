@@ -11,24 +11,13 @@ import {
 } from '../../services/fileParserService';
 import {
   X,
-  Check,
   Upload,
-  FileText,
-  Eye,
   Trash2,
-  HelpCircle,
   Paperclip,
-  Bold,
-  Italic,
-  Code,
   Plus,
-  Sparkles,
-  Columns,
-  PenLine,
-  GraduationCap,
   Loader2,
   AlertTriangle,
-  AlertCircle,
+  ChevronDown,
 } from 'lucide-react';
 
 interface ProblemEditorModalProps {
@@ -44,7 +33,7 @@ export const ProblemEditorModal: React.FC<ProblemEditorModalProps> = ({
   classId,
   onClose,
 }) => {
-  const { problems, topics, classes, addProblem, updateProblem, showToast, theme } = useJudge();
+  const { problems, topics, classes, addProblem, updateProblem, showToast } = useJudge();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -425,119 +414,74 @@ Cho dãy số nguyên $A = (a_1, a_2, \\dots, a_n)$. Hãy tìm...
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-150">
-      <div className={`border rounded-3xl max-w-5xl w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden relative ${
-        theme === 'light'
-          ? 'bg-white border-slate-200'
-          : 'bg-slate-900 border-slate-800'
-      }`}>
-        {/* Sticky Header với nút Đóng to rõ */}
-        <div className={`shrink-0 p-4 sm:p-5 border-b flex items-center justify-between backdrop-blur sticky top-0 z-10 ${
-          theme === 'light'
-            ? 'bg-white/95 border-slate-200'
-            : 'bg-slate-800/90 border-slate-800'
-        }`}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-150">
+      <div className="bg-white border border-[#D9D2C3] rounded-2xl max-w-4xl w-full max-h-[92vh] flex flex-col shadow-2xl overflow-hidden relative font-sans">
+        {/* Header matching Mockup */}
+        <div className="shrink-0 px-6 py-5 border-b border-[#D9D2C3] flex items-start justify-between bg-white">
           <div>
-            <h3 className={`text-base sm:text-lg font-bold flex items-center gap-2 ${
-              theme === 'light' ? 'text-slate-900' : 'text-white'
-            }`}>
-              <FileText className="w-5 h-5 text-red-500" />
-              {problem
-                ? `Chỉnh sửa đề bài: [${problem.code}] ${problem.title}`
-                : 'Tạo Đề Bài Mới (Đính kèm file hoặc soạn thảo)'}
+            <h3 className="text-xl font-bold text-[#1F1D1A]">
+              {problem ? 'Chỉnh sửa đề bài' : 'Tạo đề bài mới'}
             </h3>
-            <p className={`text-xs mt-0.5 ${
-              theme === 'light' ? 'text-slate-500' : 'text-slate-400'
-            }`}>
-              Hỗ trợ tự soạn thảo / paste đề thi chuẩn Tin học hoặc đính kèm nguyên file Word / PDF
+            <p className="text-xs text-[#6B655C] mt-1">
+              Soạn đề trực tiếp hoặc đính kèm file Word/PDF.
             </p>
           </div>
-
           <button
+            type="button"
             onClick={onClose}
-            className={`p-2 rounded-xl transition-all flex items-center gap-1 text-xs font-semibold cursor-pointer ${
-              theme === 'light'
-                ? 'bg-slate-100 hover:bg-rose-600 text-slate-600 hover:text-white border border-slate-200'
-                : 'bg-slate-800 hover:bg-rose-600 text-slate-400 hover:text-white'
-            }`}
-            title="Đóng (Phím ESC)"
+            className="p-1.5 text-[#6B655C] hover:text-[#1F1D1A] rounded-lg transition-colors cursor-pointer"
+            title="Đóng (ESC)"
           >
             <X className="w-5 h-5" />
-            <span className="hidden sm:inline">Đóng</span>
           </button>
         </div>
 
-        {/* Scrollable Body */}
-        <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-6">
-          {/* 2 Tabs chuyển đổi chế độ nhập đề bài - Tương thích mượt mà cả Light và Dark Mode */}
-          <div className={`flex items-center gap-2 p-1.5 rounded-2xl border transition-all ${
-            theme === 'light'
-              ? 'bg-slate-100 border-slate-200 shadow-inner'
-              : 'bg-slate-950/70 border-slate-800'
-          }`}>
-            <button
-              type="button"
-              onClick={() => setInputMode('manual')}
-              className={`flex-1 py-2.5 px-4 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
-                inputMode === 'manual'
-                  ? 'bg-red-600 text-white shadow-lg shadow-red-600/25'
-                  : theme === 'light'
-                  ? 'text-slate-600 hover:text-slate-900 hover:bg-white shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-              }`}
-            >
-              <span>✍️ Tự soạn thảo / Paste đề bài</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setInputMode('file')}
-              className={`flex-1 py-2.5 px-4 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
-                inputMode === 'file'
-                  ? 'bg-red-600 text-white shadow-lg shadow-red-600/25'
-                  : theme === 'light'
-                  ? 'text-slate-600 hover:text-slate-900 hover:bg-white shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-              }`}
-            >
-              <span>📎 Đính kèm File đề (Word / PDF)</span>
-              {attachedFile && (
-                <span
-                  className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse inline-block"
-                  title="Đã đính kèm file"
-                />
-              )}
-            </button>
-          </div>
+        {/* Tabs matching Mockup */}
+        <div className="shrink-0 flex items-center gap-8 px-6 border-b border-[#D9D2C3] bg-white">
+          <button
+            type="button"
+            onClick={() => setInputMode('manual')}
+            className={`py-3 text-xs font-bold transition-all relative cursor-pointer ${
+              inputMode === 'manual'
+                ? 'text-[#1F1D1A] border-b-2 border-[#B4281F]'
+                : 'text-[#6B655C] hover:text-[#1F1D1A]'
+            }`}
+          >
+            Tự soạn thảo
+          </button>
+          <button
+            type="button"
+            onClick={() => setInputMode('file')}
+            className={`py-3 text-xs font-bold transition-all relative flex items-center gap-2 cursor-pointer ${
+              inputMode === 'file'
+                ? 'text-[#1F1D1A] border-b-2 border-[#B4281F]'
+                : 'text-[#6B655C] hover:text-[#1F1D1A]'
+            }`}
+          >
+            <span>Đính kèm file đề (Word/PDF)</span>
+            {attachedFile && (
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            )}
+          </button>
+        </div>
 
-          {/* Tab 2 Content: Hộp tải file đính kèm Word / PDF */}
+        {/* Form Body matching Mockup */}
+        <div className="flex-1 overflow-y-auto p-6 space-y-4">
+          {/* File Upload Box if file mode */}
           {inputMode === 'file' && (
-            <div className={`p-5 rounded-2xl border space-y-3 animate-in fade-in duration-200 ${
-              theme === 'light'
-                ? 'bg-red-50/60 border-red-200'
-                : 'bg-gradient-to-r from-red-950/30 via-slate-800/50 to-slate-900 border-red-500/30'
-            }`}>
+            <div className="p-4 rounded-xl border border-[#D9D2C3] bg-[#FAF7EE] space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-4">
                 <div>
-                  <span className={`text-xs font-bold uppercase tracking-wide flex items-center gap-1.5 ${
-                    theme === 'light' ? 'text-red-700' : 'text-red-300'
-                  }`}>
-                    <Paperclip className="w-4 h-4 text-red-500" /> Đính kèm File Đề Thi Gốc (.DOCX / .PDF)
+                  <span className="text-xs font-bold text-[#B4281F] flex items-center gap-1.5 uppercase">
+                    <Paperclip className="w-4 h-4" /> Đính kèm File Đề Thi Gốc (.DOCX / .PDF)
                   </span>
-                  <p className={`text-xs mt-0.5 max-w-xl ${
-                    theme === 'light' ? 'text-slate-600' : 'text-slate-400'
-                  }`}>
-                    Tải lên file Word hoặc PDF để học sinh được <b>xem nguyên bản tài liệu đề thi</b> (giữ 100% font chữ, bảng tổng quan, hình vẽ và công thức) và có nút tải file về.
+                  <p className="text-xs text-[#6B655C] mt-1 max-w-xl">
+                    Tải lên file Word hoặc PDF để học sinh được xem nguyên bản tài liệu đề thi và tải file về.
                   </p>
                 </div>
-
-                <label
-                  style={{ color: '#ffffff' }}
-                  className="cursor-pointer inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 !text-white text-xs font-bold transition-all shadow-md shadow-red-600/25"
-                >
-                  <Upload className="w-4 h-4 !text-white shrink-0" style={{ color: '#ffffff' }} />
-                  <span style={{ color: '#ffffff' }} className="!text-white font-bold">
-                    {isImporting ? 'Đang tải file...' : 'Chọn file Word (.docx) hoặc PDF'}
-                  </span>
+                <label className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#B4281F] hover:bg-[#961F17] text-white text-xs font-bold transition-all shadow-sm">
+                  <Upload className="w-4 h-4" />
+                  <span>{isImporting ? 'Đang tải file...' : 'Chọn file Word (.docx) hoặc PDF'}</span>
                   <input
                     type="file"
                     accept=".docx,.pdf,.xlsx,.xls,.txt"
@@ -548,35 +492,23 @@ Cho dãy số nguyên $A = (a_1, a_2, \\dots, a_n)$. Hãy tìm...
                 </label>
               </div>
 
-              {/* Display Attached File Badge if present */}
               {attachedFile && (
-                <div className={`p-3 rounded-xl border flex items-center justify-between text-xs animate-in fade-in ${
-                  theme === 'light'
-                    ? 'bg-white border-red-200 shadow-sm'
-                    : 'bg-slate-900 border-red-500/40'
-                }`}>
+                <div className="p-3 rounded-lg border border-[#D9D2C3] bg-white flex items-center justify-between text-xs">
                   <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-lg bg-red-500/20 text-red-600 flex items-center justify-center font-bold text-xs uppercase">
+                    <div className="w-8 h-8 rounded-lg bg-red-50 text-[#B4281F] flex items-center justify-center font-bold text-xs uppercase border border-red-200">
                       {attachedFile.type}
                     </div>
                     <div>
-                      <span className={`font-bold block ${theme === 'light' ? 'text-slate-800' : 'text-white'}`}>
-                        {attachedFile.name}
-                      </span>
-                      <span className={`text-[11px] ${theme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>
-                        {(attachedFile.size / 1024).toFixed(1)} KB • Giữ nguyên bảng biểu và định dạng gốc
+                      <span className="font-bold block text-[#1F1D1A]">{attachedFile.name}</span>
+                      <span className="text-[11px] text-[#6B655C]">
+                        {(attachedFile.size / 1024).toFixed(1)} KB • Giữ nguyên định dạng gốc
                       </span>
                     </div>
                   </div>
-
                   <button
                     type="button"
                     onClick={() => setAttachedFile(undefined)}
-                    className={`px-2.5 py-1 rounded-lg text-xs flex items-center gap-1 transition-colors cursor-pointer ${
-                      theme === 'light'
-                        ? 'bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200'
-                        : 'bg-slate-800 text-rose-400 hover:bg-rose-950'
-                    }`}
+                    className="px-2.5 py-1 rounded-lg text-xs flex items-center gap-1 text-rose-600 hover:bg-rose-50 border border-rose-200 transition-colors cursor-pointer"
                   >
                     <Trash2 className="w-3.5 h-3.5" /> Gỡ file
                   </button>
@@ -585,20 +517,29 @@ Cho dãy số nguyên $A = (a_1, a_2, \\dots, a_n)$. Hãy tìm...
             </div>
           )}
 
-          <form id="problem-form" onSubmit={handleSubmit} className="space-y-6">
-            {/* Thông tin cơ bản: Mã bài, Tiêu đề */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {formError && (
+            <div className="p-3 rounded-xl border border-rose-300 bg-rose-50 text-xs text-rose-900 flex items-center justify-between gap-2">
+              <span>{formError}</span>
+              <button type="button" onClick={() => setFormError(null)} className="text-rose-600 hover:text-rose-900 cursor-pointer">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+
+          <form id="problem-form" onSubmit={handleSubmit} className="space-y-4">
+            {/* Row 1: Mã bài & Tiêu đề bài tập */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1 flex items-center justify-between">
-                  <span>Mã bài (Code - Admin tự đặt): *</span>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs font-bold text-[#1F1D1A]">
+                    Mã bài (bắt buộc)
+                  </label>
                   {duplicateProblem && (
-                    <span className={`text-[10px] font-bold flex items-center gap-1 ${
-                      theme === 'light' ? 'text-amber-700' : 'text-amber-400'
-                    }`}>
+                    <span className="text-[10px] font-bold text-amber-700 flex items-center gap-1">
                       <AlertTriangle className="w-3 h-3" /> Trùng mã bài
                     </span>
                   )}
-                </label>
+                </div>
                 <input
                   type="text"
                   value={code}
@@ -608,55 +549,31 @@ Cho dãy số nguyên $A = (a_1, a_2, \\dots, a_n)$. Hãy tìm...
                   }}
                   placeholder="Ví dụ: TONG2SO, BAI_02, XAU"
                   required
-                  className={`w-full px-3 py-2 border rounded-xl text-xs uppercase font-mono placeholder-slate-500 focus:outline-none focus:ring-1 transition-all ${
+                  className={`w-full px-3.5 py-2.5 border rounded-xl text-xs font-medium placeholder:text-[#9E988F] focus:outline-none transition-all ${
                     duplicateProblem
-                      ? theme === 'light'
-                        ? 'border-amber-500 bg-amber-50/80 text-amber-950 font-bold focus:ring-amber-500'
-                        : 'border-amber-500/80 bg-amber-500/10 text-amber-200 focus:ring-amber-500'
-                      : theme === 'light'
-                      ? 'bg-white border-slate-300 text-slate-900 focus:ring-red-500'
-                      : 'bg-slate-800 border-slate-700 text-white focus:ring-red-500'
+                      ? 'border-amber-500 bg-amber-50/70 text-amber-950 font-bold'
+                      : 'border-[#D9D2C3] bg-white text-[#1F1D1A] focus:border-[#1F1D1A]'
                   }`}
                 />
-
-                {/* Cảnh báo trùng lặp trực quan thời gian thực kèm nút đổi nhanh 1-chạm (Tương thích hoàn hảo cả Light & Dark mode) */}
                 {duplicateProblem && (
-                  <div className={`mt-2 p-3 rounded-xl border text-[11px] space-y-2 animate-in fade-in ${
-                    theme === 'light'
-                      ? 'bg-amber-50 border-amber-300 text-amber-950 shadow-xs'
-                      : 'bg-amber-500/15 border-amber-500/35 text-amber-200'
-                  }`}>
-                    <div className="flex items-start gap-1.5 font-medium leading-relaxed">
-                      <AlertTriangle className={`w-4 h-4 shrink-0 mt-0.5 ${
-                        theme === 'light' ? 'text-amber-600' : 'text-amber-400'
-                      }`} />
-                      <span className={theme === 'light' ? 'text-amber-950' : 'text-amber-200'}>
-                        Mã <b className={`font-bold ${theme === 'light' ? 'text-amber-950' : 'text-white'}`}>{code.trim().toUpperCase()}</b> đã được dùng
-                        {duplicateTopic ? ` ở chủ đề "${duplicateTopic.name}"` : ' cho bài tập khác'}
-                        . Mỗi bài tập cần một mã riêng để Themis chấm không bị nhầm lẫn.
+                  <div className="mt-2 p-2.5 rounded-xl border border-amber-300 bg-amber-50 text-[11px] text-amber-950 space-y-1.5">
+                    <div className="flex items-start gap-1.5 leading-snug">
+                      <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
+                      <span>
+                        Mã <b>{code.trim().toUpperCase()}</b> đã được dùng
+                        {duplicateTopic ? ` ở chủ đề "${duplicateTopic.name}"` : ' cho bài khác'}.
                       </span>
                     </div>
                     {suggestedCode && (
-                      <div className={`pt-2 border-t flex items-center gap-2 flex-wrap ${
-                        theme === 'light' ? 'border-amber-200/80' : 'border-amber-500/20'
-                      }`}>
-                        <span className={`text-[11px] font-semibold ${
-                          theme === 'light' ? 'text-amber-900' : 'text-slate-300'
-                        }`}>
-                          👉 Bấm để đổi nhanh:
-                        </span>
+                      <div className="pt-1.5 border-t border-amber-200 flex items-center gap-1.5 flex-wrap">
+                        <span className="text-[11px] font-semibold text-amber-900">Gợi ý đổi:</span>
                         <button
                           type="button"
                           onClick={() => {
                             setCode(suggestedCode);
                             if (formError) setFormError(null);
                           }}
-                          className={`px-2.5 py-1 rounded-lg font-mono font-bold text-xs border transition-all cursor-pointer hover:scale-105 active:scale-95 ${
-                            theme === 'light'
-                              ? 'bg-amber-200/90 hover:bg-amber-300 text-amber-950 border-amber-400 shadow-xs'
-                              : 'bg-amber-500/30 hover:bg-amber-500/50 text-amber-100 border-amber-500/50'
-                          }`}
-                          title="Bấm để tự động đổi sang mã gợi ý này"
+                          className="px-2 py-0.5 rounded-md font-mono font-bold text-xs bg-amber-200 hover:bg-amber-300 text-amber-950 border border-amber-400 cursor-pointer"
                         >
                           {suggestedCode}
                         </button>
@@ -666,344 +583,232 @@ Cho dãy số nguyên $A = (a_1, a_2, \\dots, a_n)$. Hãy tìm...
                 )}
               </div>
 
-              <div className="md:col-span-2">
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
-                  Tiêu đề bài tập:
+              <div>
+                <label className="block text-xs font-bold text-[#1F1D1A] mb-1.5">
+                  Tiêu đề bài tập (không bắt buộc)
                 </label>
                 <input
                   type="text"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  placeholder="Ví dụ: Bài 2 - Tính tổng các số chẵn (không bắt buộc)"
-                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-red-500"
+                  placeholder="Ví dụ: Bài 2 - Tính tổng các số chẵn"
+                  className="w-full px-3.5 py-2.5 border border-[#D9D2C3] rounded-xl text-xs font-medium text-[#1F1D1A] placeholder:text-[#9E988F] bg-white focus:outline-none focus:border-[#1F1D1A] transition-all"
                 />
               </div>
             </div>
 
-            {/* Row 2: Lớp học được giao, Chủ đề */}
+            {/* Row 2: Giao vào lớp & Chủ đề */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1 flex items-center gap-1.5">
-                  <GraduationCap className="w-3.5 h-3.5 text-red-400" />
-                  Giao vào Lớp học: *
+                <label className="block text-xs font-bold text-[#1F1D1A] mb-1.5">
+                  Giao vào lớp (bắt buộc)
                 </label>
-                <select
-                  value={selectedClassId}
-                  onChange={(e) => setSelectedClassId(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:ring-1 focus:ring-red-500 font-medium cursor-pointer"
-                >
-                  <option value="NONE">
-                    🔒 Không giao vào lớp nào (Kho lưu trữ giáo viên, không gán lớp)
-                  </option>
-                  {classes.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      🏫 {c.className} (Mã: {c.joinCode})
+                <div className="relative">
+                  <select
+                    value={selectedClassId}
+                    onChange={(e) => setSelectedClassId(e.target.value)}
+                    className="w-full appearance-none px-3.5 py-2.5 pr-8 border border-[#D9D2C3] rounded-xl text-xs font-medium text-[#1F1D1A] bg-white focus:outline-none focus:border-[#1F1D1A] cursor-pointer"
+                  >
+                    <option value="NONE">
+                      Không giao vào lớp nào (kho lưu trữ)
                     </option>
-                  ))}
-                </select>
+                    {classes.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.className} (Mã: {c.joinCode})
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="w-4 h-4 text-[#6B655C] absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                </div>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1 flex items-center gap-1.5">
-                  <FileText className="w-3.5 h-3.5 text-blue-400" />
-                  Chủ đề (Topic):
+                <label className="block text-xs font-bold text-[#1F1D1A] mb-1.5">
+                  Chủ đề
                 </label>
-                <select
-                  value={topicId}
-                  onChange={(e) => handleTopicChange(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:ring-1 focus:ring-red-500 font-medium cursor-pointer"
-                >
-                  <option value="">-- Chưa phân vào chủ đề (Lưu trữ / Để sau) --</option>
-                  {topics.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      📁 {t.name}
-                    </option>
-                  ))}
-                </select>
+                <div className="relative">
+                  <select
+                    value={topicId}
+                    onChange={(e) => handleTopicChange(e.target.value)}
+                    className="w-full appearance-none px-3.5 py-2.5 pr-8 border border-[#D9D2C3] rounded-xl text-xs font-medium text-[#1F1D1A] bg-white focus:outline-none focus:border-[#1F1D1A] cursor-pointer"
+                  >
+                    <option value="">-- Chưa phân vào chủ đề --</option>
+                    {topics.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.name}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="w-4 h-4 text-[#6B655C] absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                </div>
               </div>
             </div>
 
-            {/* Row 2: Tác giả, Độ khó */}
+            {/* Row 3: Tác giả / nguồn đề & Độ khó */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
-                  Tác giả / Nguồn đề: *
+                <label className="block text-xs font-bold text-[#1F1D1A] mb-1.5">
+                  Tác giả / nguồn đề (bắt buộc)
                 </label>
                 <input
                   type="text"
                   value={author}
                   onChange={(e) => setAuthor(e.target.value)}
-                  placeholder="Ví dụ: Thầy Minh, Đề thi HSG..."
-                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-red-500"
+                  placeholder="Ví dụ: Thầy Minh (FAMINH)"
+                  className="w-full px-3.5 py-2.5 border border-[#D9D2C3] rounded-xl text-xs font-medium text-[#1F1D1A] placeholder:text-[#9E988F] bg-white focus:outline-none focus:border-[#1F1D1A] transition-all"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
-                  Độ khó:
+                <label className="block text-xs font-bold text-[#1F1D1A] mb-1.5">
+                  Độ khó
                 </label>
-                <div className="space-y-1.5">
-                  <input
-                    type="text"
-                    list="difficulty-datalist"
-                    value={difficulty}
-                    onChange={(e) => setDifficulty(e.target.value)}
-                    placeholder="Chọn mức độ bên dưới hoặc tự điền..."
-                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:ring-1 focus:ring-red-500"
-                  />
-                  <datalist id="difficulty-datalist">
-                    <option value="Dễ" />
-                    <option value="Trung bình" />
-                    <option value="Khó" />
-                    <option value="Nâng cao" />
-                  </datalist>
-
-                  {/* 4 mức độ chọn nhanh nhưng vẫn tự gõ tùy ý được */}
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    {[
-                      { label: 'Dễ', color: 'emerald' },
-                      { label: 'Trung bình', color: 'blue' },
-                      { label: 'Khó', color: 'amber' },
-                      { label: 'Nâng cao', color: 'rose' },
-                    ].map(({ label, color }) => {
-                      const isSelected = difficulty.trim().toLowerCase() === label.toLowerCase();
-                      return (
-                        <button
-                          key={label}
-                          type="button"
-                          onClick={() => setDifficulty(label)}
-                          className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer border ${
-                            isSelected
-                              ? color === 'emerald'
-                                ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
-                                : color === 'blue'
-                                ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
-                                : color === 'amber'
-                                ? 'bg-amber-600 text-white border-amber-600 shadow-sm'
-                                : 'bg-rose-600 text-white border-rose-600 shadow-sm'
-                              : theme === 'light'
-                              ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300'
-                              : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
-                          }`}
-                        >
-                          {label}
-                        </button>
-                      );
-                    })}
-                  </div>
+                <div className="grid grid-cols-4 gap-2">
+                  {['Dễ', 'Trung bình', 'Khó', 'Nâng cao'].map((lvl) => {
+                    const isSelected = (difficulty || 'Trung bình').trim().toLowerCase() === lvl.toLowerCase();
+                    return (
+                      <button
+                        key={lvl}
+                        type="button"
+                        onClick={() => setDifficulty(lvl)}
+                        className={`py-2 px-3 rounded-lg text-xs font-bold transition-all border text-center cursor-pointer ${
+                          isSelected
+                            ? 'bg-[#1F1D1A] text-white border-[#1F1D1A] shadow-sm'
+                            : 'bg-white text-[#1F1D1A] border-[#D9D2C3] hover:bg-[#F2ECE1]'
+                        }`}
+                      >
+                        {lvl}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             </div>
 
-            {/* KHÔNG GIAN SOẠN THẢO CHÍNH (Tab 1 hoặc Ghi chú ở Tab 2) */}
-            <div className="space-y-3">
-              {/* Header của Khung soạn thảo kèm Toolbar thao tác nhanh */}
-              <div className="flex flex-wrap items-center justify-between gap-2.5">
-                <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
-                  <span className="w-1.5 h-3.5 bg-red-600 rounded-full inline-block"></span>
-                  <span className="font-bold">
-                    {inputMode === 'manual' ? 'Nội dung đề bài chi tiết:' : 'Mô tả tóm tắt / Hướng dẫn thêm:'}
-                  </span>
-                  <span className="text-[11px] text-slate-500 font-normal">
-                    {'(Hỗ trợ Markdown & KaTeX $...$)'}
-                  </span>
+            {/* Row 4: Nội dung đề bài & Toolbar matching Mockup */}
+            <div className="space-y-2 pt-1">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-[#1F1D1A]">
+                  {inputMode === 'manual' ? 'Nội dung đề bài' : 'Mô tả tóm tắt / Hướng dẫn thêm'}
                 </label>
-
-                {/* View switcher: Soạn thảo | Chia đôi | Xem trước */}
-                <div className={`flex items-center gap-1 p-1 rounded-xl border ${
-                  theme === 'light' ? 'bg-slate-100 border-slate-200' : 'bg-slate-800 border-slate-700'
-                }`}>
+                <div className="flex items-center gap-5 text-xs font-bold">
                   <button
                     type="button"
                     onClick={() => setViewMode('edit')}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-medium flex items-center gap-1 transition-colors cursor-pointer ${
+                    className={`pb-1 transition-all cursor-pointer ${
                       viewMode === 'edit'
-                        ? 'bg-red-600 text-white shadow-sm'
-                        : theme === 'light'
-                        ? 'text-slate-600 hover:text-slate-900'
-                        : 'text-slate-400 hover:text-white'
+                        ? 'text-[#1F1D1A] border-b-2 border-[#B4281F]'
+                        : 'text-[#6B655C] hover:text-[#1F1D1A]'
                     }`}
-                    title="Chế độ soạn thảo toàn màn hình"
                   >
-                    <PenLine className="w-3.5 h-3.5" />
-                    <span className="hidden sm:inline">Soạn thảo</span>
+                    Soạn thảo
                   </button>
                   <button
                     type="button"
                     onClick={() => setViewMode('split')}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-medium flex items-center gap-1 transition-colors cursor-pointer ${
+                    className={`pb-1 transition-all cursor-pointer ${
                       viewMode === 'split'
-                        ? 'bg-red-600 text-white shadow-sm'
-                        : theme === 'light'
-                        ? 'text-slate-600 hover:text-slate-900'
-                        : 'text-slate-400 hover:text-white'
+                        ? 'text-[#1F1D1A] border-b-2 border-[#B4281F]'
+                        : 'text-[#6B655C] hover:text-[#1F1D1A]'
                     }`}
-                    title="Chia đôi: Vừa gõ vừa xem trước công thức"
                   >
-                    <Columns className="w-3.5 h-3.5" />
-                    <span className="hidden sm:inline">Chia đôi</span>
+                    Chia đôi
                   </button>
                   <button
                     type="button"
                     onClick={() => setViewMode('preview')}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-medium flex items-center gap-1 transition-colors cursor-pointer ${
+                    className={`pb-1 transition-all cursor-pointer ${
                       viewMode === 'preview'
-                        ? 'bg-red-600 text-white shadow-sm'
-                        : theme === 'light'
-                        ? 'text-slate-600 hover:text-slate-900'
-                        : 'text-slate-400 hover:text-white'
+                        ? 'text-[#1F1D1A] border-b-2 border-[#B4281F]'
+                        : 'text-[#6B655C] hover:text-[#1F1D1A]'
                     }`}
-                    title="Xem trước kết quả hiển thị"
                   >
-                    <Eye className="w-3.5 h-3.5" />
-                    <span className="hidden sm:inline">Xem trước</span>
+                    Xem trước
                   </button>
                 </div>
               </div>
 
-              {/* Thanh công cụ thao tác nhanh chuẩn đề Tin học (khi đang ở chế độ soạn thảo hoặc chia đôi) */}
+              {/* Formatting toolbar matching Image 2 */}
               {viewMode !== 'preview' && (
-                <div className={`p-2 rounded-xl flex flex-wrap items-center gap-1.5 text-xs border ${
-                  theme === 'light' ? 'bg-slate-100 border-slate-200' : 'bg-slate-800/80 border-slate-700'
-                }`}>
-                  {/* Nút Chèn khung đề mẫu */}
+                <div className="flex flex-wrap items-center gap-1.5 pt-1">
                   <button
                     type="button"
                     onClick={handleInsertTemplate}
-                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-semibold border transition-all shadow-sm cursor-pointer ${
-                      theme === 'light'
-                        ? 'bg-red-50 hover:bg-red-600 text-red-700 hover:text-white border-red-200'
-                        : 'bg-red-600/20 hover:bg-red-600 text-red-300 hover:text-white border-red-500/30'
-                    }`}
-                    title="Tự động điền khung: Bài toán -> Dữ liệu vào -> Dữ liệu ra -> Ràng buộc"
+                    className="px-3 py-1.5 rounded-lg border border-[#D9D2C3] bg-white text-xs font-medium text-[#1F1D1A] hover:bg-[#F2ECE1] transition-colors cursor-pointer"
                   >
-                    <Sparkles className="w-3.5 h-3.5 text-red-500" />
-                    <span>📋 Chèn khung đề mẫu</span>
+                    Chèn khung đề mẫu
                   </button>
-
-                  <div className={`h-4 w-px mx-1 hidden sm:block ${
-                    theme === 'light' ? 'bg-slate-300' : 'bg-slate-700'
-                  }`} />
-
-                  {/* Nút định dạng nhanh */}
                   <button
                     type="button"
                     onClick={() => insertTextAtCursor('**', '**', 'chữ in đậm')}
-                    className={`p-1.5 px-2 rounded-lg font-bold border flex items-center gap-1 transition-colors cursor-pointer ${
-                      theme === 'light'
-                        ? 'bg-white hover:bg-slate-200 text-slate-700 border-slate-300 shadow-sm'
-                        : 'bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border-slate-700'
-                    }`}
-                    title="In đậm: **text**"
+                    className="w-8 h-8 rounded-lg border border-[#D9D2C3] bg-white text-xs font-bold text-[#1F1D1A] hover:bg-[#F2ECE1] transition-colors flex items-center justify-center cursor-pointer"
+                    title="In đậm"
                   >
-                    <Bold className="w-3.5 h-3.5" />
+                    B
                   </button>
-
                   <button
                     type="button"
                     onClick={() => insertTextAtCursor('*', '*', 'chữ in nghiêng')}
-                    className={`p-1.5 px-2 rounded-lg font-semibold italic border flex items-center gap-1 transition-colors cursor-pointer ${
-                      theme === 'light'
-                        ? 'bg-white hover:bg-slate-200 text-slate-700 border-slate-300 shadow-sm'
-                        : 'bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border-slate-700'
-                    }`}
-                    title="In nghiêng: *text*"
+                    className="w-8 h-8 rounded-lg border border-[#D9D2C3] bg-white text-xs italic font-serif text-[#1F1D1A] hover:bg-[#F2ECE1] transition-colors flex items-center justify-center cursor-pointer"
+                    title="In nghiêng"
                   >
-                    <Italic className="w-3.5 h-3.5" />
+                    I
                   </button>
-
                   <button
                     type="button"
                     onClick={() => insertTextAtCursor('`', '`', 'code')}
-                    className={`p-1.5 px-2 rounded-lg font-mono border flex items-center gap-1 transition-colors cursor-pointer ${
-                      theme === 'light'
-                        ? 'bg-white hover:bg-slate-200 text-slate-700 border-slate-300 shadow-sm'
-                        : 'bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border-slate-700'
-                    }`}
-                    title="Khối mã hoặc từ khóa: `code`"
+                    className="w-8 h-8 rounded-lg border border-[#D9D2C3] bg-white text-xs font-mono text-[#1F1D1A] hover:bg-[#F2ECE1] transition-colors flex items-center justify-center cursor-pointer"
+                    title="Code"
                   >
-                    <Code className="w-3.5 h-3.5" />
+                    &lt;&gt;
                   </button>
-
-                  <div className={`h-4 w-px mx-1 hidden sm:block ${
-                    theme === 'light' ? 'bg-slate-300' : 'bg-slate-700'
-                  }`} />
-
-                  {/* Nhóm công thức toán học KaTeX */}
-                  <div className="flex items-center gap-1 flex-wrap">
-                    <button
-                      type="button"
-                      onClick={() => insertTextAtCursor('$', '$', 'x')}
-                      className={`px-2.5 py-1 rounded-lg font-mono font-semibold border transition-colors cursor-pointer ${
-                        theme === 'light'
-                          ? 'bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-200'
-                          : 'bg-slate-800 hover:bg-slate-700 text-amber-300 hover:text-amber-200 border-slate-700'
-                      }`}
-                      title="Chèn công thức toán LaTeX: $...$"
-                    >
-                      $ Công thức $
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => insertTextAtCursor('$', '$', 'x^2')}
-                      className={`px-2 py-1 rounded-lg font-mono border transition-colors cursor-pointer ${
-                        theme === 'light'
-                          ? 'bg-white hover:bg-slate-200 text-slate-700 border-slate-300 shadow-sm'
-                          : 'bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border-slate-700'
-                      }`}
-                      title="Chèn số mũ x² ($x^2$)"
-                    >
-                      x²
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => insertTextAtCursor('$', '$', '\\le')}
-                      className={`px-2 py-1 rounded-lg font-mono border transition-colors cursor-pointer ${
-                        theme === 'light'
-                          ? 'bg-white hover:bg-slate-200 text-slate-700 border-slate-300 shadow-sm'
-                          : 'bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border-slate-700'
-                      }`}
-                      title="Chèn nhỏ hơn hoặc bằng ≤ ($\le$)"
-                    >
-                      ≤
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => insertTextAtCursor('$', '$', '\\ge')}
-                      className={`px-2 py-1 rounded-lg font-mono border transition-colors cursor-pointer ${
-                        theme === 'light'
-                          ? 'bg-white hover:bg-slate-200 text-slate-700 border-slate-300 shadow-sm'
-                          : 'bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border-slate-700'
-                      }`}
-                      title="Chèn lớn hơn hoặc bằng ≥ ($\ge$)"
-                    >
-                      ≥
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => insertTextAtCursor('$', '$', '10^9')}
-                      className={`px-2 py-1 rounded-lg font-mono border transition-colors cursor-pointer ${
-                        theme === 'light'
-                          ? 'bg-white hover:bg-slate-200 text-slate-700 border-slate-300 shadow-sm'
-                          : 'bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border-slate-700'
-                      }`}
-                      title="Chèn giới hạn 10⁹ ($10^9$)"
-                    >
-                      10⁹
-                    </button>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => insertTextAtCursor('$', '$', 'x')}
+                    className="px-3 py-1.5 rounded-lg border border-[#D9D2C3] bg-white text-xs font-medium text-[#1F1D1A] hover:bg-[#F2ECE1] transition-colors cursor-pointer"
+                  >
+                    Công thức $
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => insertTextAtCursor('$', '$', 'x^2')}
+                    className="px-2.5 py-1.5 rounded-lg border border-[#D9D2C3] bg-white text-xs font-mono text-[#1F1D1A] hover:bg-[#F2ECE1] transition-colors cursor-pointer"
+                  >
+                    x²
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => insertTextAtCursor('$', '$', '\\le')}
+                    className="px-2.5 py-1.5 rounded-lg border border-[#D9D2C3] bg-white text-xs font-medium text-[#1F1D1A] hover:bg-[#F2ECE1] transition-colors cursor-pointer"
+                  >
+                    ≤
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => insertTextAtCursor('$', '$', '\\ge')}
+                    className="px-2.5 py-1.5 rounded-lg border border-[#D9D2C3] bg-white text-xs font-medium text-[#1F1D1A] hover:bg-[#F2ECE1] transition-colors cursor-pointer"
+                  >
+                    ≥
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => insertTextAtCursor('$', '$', '10^n')}
+                    className="px-2.5 py-1.5 rounded-lg border border-[#D9D2C3] bg-white text-xs font-mono text-[#1F1D1A] hover:bg-[#F2ECE1] transition-colors cursor-pointer"
+                  >
+                    10ⁿ
+                  </button>
                 </div>
               )}
 
-              {/* Vùng soạn thảo / Chia đôi / Xem trước */}
+              {/* Textarea matching Image 2 */}
               {viewMode === 'edit' && (
                 <textarea
                   ref={textareaRef}
-                  rows={13}
+                  rows={8}
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Gõ hoặc dán nội dung đề bài tại đây... (Hỗ trợ Markdown, công thức $N \le 10^5$, $10^9$...)"
-                  className="w-full p-4 bg-slate-800 border border-slate-700 rounded-2xl text-xs sm:text-sm text-white placeholder-slate-500 font-mono leading-relaxed focus:outline-none focus:ring-1 focus:ring-red-500 min-h-[280px]"
+                  placeholder="Gõ hoặc dán đề bài vào đây. Hỗ trợ Markdown và công thức, ví dụ $N \le 10^5$."
+                  className="w-full p-3.5 border border-[#D9D2C3] rounded-xl text-xs font-medium text-[#1F1D1A] placeholder:text-[#9E988F] bg-white leading-relaxed focus:outline-none focus:border-[#1F1D1A] min-h-[140px]"
                 />
               )}
 
@@ -1012,23 +817,16 @@ Cho dãy số nguyên $A = (a_1, a_2, \\dots, a_n)$. Hãy tìm...
                   <div>
                     <textarea
                       ref={textareaRef}
-                      rows={14}
+                      rows={9}
                       value={description}
                       onChange={(e) => setDescription(e.target.value)}
-                      placeholder="Gõ hoặc dán nội dung đề bài tại đây..."
-                      className="w-full p-4 bg-slate-800 border border-slate-700 rounded-2xl text-xs sm:text-sm text-white placeholder-slate-500 font-mono leading-relaxed focus:outline-none focus:ring-1 focus:ring-red-500 min-h-[320px] h-full"
+                      placeholder="Gõ hoặc dán đề bài vào đây. Hỗ trợ Markdown và công thức, ví dụ $N \le 10^5$."
+                      className="w-full p-3.5 border border-[#D9D2C3] rounded-xl text-xs font-medium text-[#1F1D1A] placeholder:text-[#9E988F] bg-white leading-relaxed focus:outline-none focus:border-[#1F1D1A] min-h-[200px]"
                     />
                   </div>
-                  <div className={`p-4 border rounded-2xl min-h-[320px] max-h-[500px] overflow-y-auto ${
-                    theme === 'light'
-                      ? 'bg-slate-50 border-slate-200'
-                      : 'bg-slate-950 border-slate-800'
-                  }`}>
-                    <div className={`text-[11px] font-semibold uppercase tracking-wider mb-2 pb-1 border-b flex items-center justify-between ${
-                      theme === 'light' ? 'text-slate-500 border-slate-200' : 'text-slate-400 border-slate-800'
-                    }`}>
-                      <span>Xem trước trực tiếp (KaTeX)</span>
-                      <span className="text-[10px]">Thời gian thực</span>
+                  <div className="p-4 border border-[#D9D2C3] bg-[#FAF7EE] rounded-xl min-h-[200px] max-h-[350px] overflow-y-auto">
+                    <div className="text-[11px] font-bold text-[#6B655C] uppercase tracking-wider mb-2 pb-1 border-b border-[#D9D2C3]">
+                      Xem trước trực tiếp (KaTeX)
                     </div>
                     <MathRenderer content={description || '*Chưa có nội dung đề bài*'} />
                   </div>
@@ -1036,14 +834,8 @@ Cho dãy số nguyên $A = (a_1, a_2, \\dots, a_n)$. Hãy tìm...
               )}
 
               {viewMode === 'preview' && (
-                <div className={`p-5 border rounded-2xl min-h-[300px] max-h-[550px] overflow-y-auto ${
-                  theme === 'light'
-                    ? 'bg-slate-50 border-slate-200'
-                    : 'bg-slate-950 border-slate-800'
-                }`}>
-                  <div className={`text-[11px] font-semibold uppercase tracking-wider mb-3 pb-1 border-b ${
-                    theme === 'light' ? 'text-slate-500 border-slate-200' : 'text-slate-400 border-slate-800'
-                  }`}>
+                <div className="p-4 border border-[#D9D2C3] bg-[#FAF7EE] rounded-xl min-h-[200px] max-h-[400px] overflow-y-auto">
+                  <div className="text-[11px] font-bold text-[#6B655C] uppercase tracking-wider mb-2 pb-1 border-b border-[#D9D2C3]">
                     Bản xem trước hoàn chỉnh
                   </div>
                   <MathRenderer content={description || '*Chưa có nội dung đề bài*'} />
@@ -1051,228 +843,99 @@ Cho dãy số nguyên $A = (a_1, a_2, \\dots, a_n)$. Hãy tìm...
               )}
             </div>
 
-            {/* BẢNG VÍ DỤ (SAMPLE INPUT / SAMPLE OUTPUT) - Chỉ hiển thị ở Tab Tự soạn thảo */}
+            {/* Ví dụ mẫu (Sample Input / Output) - Tùy chọn */}
             {inputMode === 'manual' && (
-              <div className="space-y-3 pt-3 border-t border-slate-800">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <label className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
-                      <span className="w-1.5 h-3.5 bg-red-600 rounded-full inline-block"></span>
-                      <span>Bảng Ví dụ (Sample Input / Sample Output):</span>
-                    </label>
-                    <p className={`text-[11px] mt-0.5 ${
-                      theme === 'light' ? 'text-slate-500' : 'text-slate-400'
-                    }`}>
-                      Nhập các bộ dữ liệu mẫu minh họa cho bài toán. Tự động hiển thị dạng bảng 2 cột chuẩn đề thi Tin học và có nút Copy nhanh ở màn hình Học sinh.
+              <details className="pt-2 border-t border-[#D9D2C3] group">
+                <summary className="text-xs font-bold text-[#6B655C] hover:text-[#1F1D1A] cursor-pointer flex items-center justify-between py-1 select-none">
+                  <span>Ví dụ Input / Output mẫu ({samples.filter(s => s.input || s.output).length} ví dụ)</span>
+                  <span className="text-[11px] text-[#9E988F] group-open:rotate-180 transition-transform">▼</span>
+                </summary>
+                <div className="space-y-3 pt-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-[11px] text-[#6B655C]">
+                      Nhập bộ dữ liệu mẫu minh họa. Học sinh có thể xem và copy nhanh trong giao diện làm bài.
                     </p>
+                    <button
+                      type="button"
+                      onClick={handleAddSample}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold border border-[#D9D2C3] bg-white text-[#1F1D1A] hover:bg-[#F2ECE1] transition-colors cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5 text-[#B4281F]" /> Thêm ví dụ
+                    </button>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={handleAddSample}
-                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition-all shadow-sm cursor-pointer ${
-                      theme === 'light'
-                        ? 'bg-red-50 hover:bg-red-600 text-red-600 hover:text-white border-red-200'
-                        : 'bg-red-600/20 hover:bg-red-600 text-red-300 hover:text-white border-red-500/30'
-                    }`}
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>Thêm cặp ví dụ</span>
-                  </button>
-                </div>
-
-                <div className="space-y-3">
-                  {samples.length === 0 ? (
-                    <div
-                      className={`p-6 rounded-2xl border border-dashed text-center space-y-2.5 ${
-                        theme === 'light'
-                          ? 'bg-slate-50 border-slate-300 text-slate-600'
-                          : 'bg-slate-900/60 border-slate-700/60 text-slate-400'
-                      }`}
-                    >
-                      <p className="text-xs">
-                        Bài tập này hiện không có cặp ví dụ nào (tùy chọn, không bắt buộc).
-                      </p>
-                      <button
-                        type="button"
-                        onClick={handleAddSample}
-                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer shadow-sm ${
-                          theme === 'light'
-                            ? 'bg-white hover:bg-red-50 text-red-600 border-red-200 hover:border-red-300'
-                            : 'bg-slate-800 hover:bg-slate-700 text-red-400 border-slate-700'
-                        }`}
-                      >
-                        <Plus className="w-3.5 h-3.5 text-red-500" />
-                        <span>Thêm cặp ví dụ</span>
-                      </button>
-                    </div>
-                  ) : (
-                    samples.map((sample, idx) => (
-                      <div
-                        key={sample.id || idx}
-                        className={`p-4 rounded-2xl space-y-3 relative group border ${
-                          theme === 'light'
-                            ? 'bg-slate-50/80 border-slate-200'
-                            : 'bg-slate-950/60 border-slate-800'
-                        }`}
-                      >
-                        <div className={`flex items-center justify-between pb-2 border-b ${
-                          theme === 'light' ? 'border-slate-200' : 'border-slate-800/80'
-                        }`}>
-                          <span className="text-xs font-bold font-mono flex items-center gap-1.5">
-                            <span className={`px-2.5 py-0.5 rounded-md text-xs font-bold ${
-                              theme === 'light'
-                                ? 'bg-red-100 text-red-700 border border-red-200'
-                                : 'bg-slate-800 text-red-400'
-                            }`}>
-                              Ví dụ #{idx + 1}
-                            </span>
-                          </span>
-
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveSample(idx)}
-                            className={`p-1 px-2.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer ${
-                              theme === 'light'
-                                ? 'text-rose-600 hover:bg-rose-50 border border-rose-200 hover:border-rose-300'
-                                : 'text-rose-400 hover:bg-rose-950/40 border border-rose-500/30 hover:border-rose-500/50'
-                            }`}
-                            title="Xóa cặp ví dụ này"
-                          >
-                            <Trash2 className="w-3.5 h-3.5 text-rose-500" />
-                            <span>Xóa ví dụ</span>
-                          </button>
-                        </div>
-
-                      {/* 2 cột đặt cạnh nhau trên 1 hàng */}
+                  {samples.map((sample, idx) => (
+                    <div key={sample.id || idx} className="p-3.5 rounded-xl border border-[#D9D2C3] bg-[#FAF7EE] space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-[#1F1D1A]">Ví dụ #{idx + 1}</span>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveSample(idx)}
+                          className="text-xs text-rose-600 hover:text-rose-800 flex items-center gap-1 cursor-pointer"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" /> Xóa
+                        </button>
+                      </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <div>
-                          <label className="block text-[11px] font-semibold text-slate-300 mb-1 flex items-center justify-between">
-                            <span>Ví dụ Input (Dữ liệu vào):</span>
-                            <span className="text-[10px] text-slate-500 font-mono">stdin</span>
-                          </label>
+                          <label className="block text-[11px] font-bold text-[#1F1D1A] mb-1">Input:</label>
                           <textarea
-                            rows={3}
+                            rows={2}
                             value={sample.input}
                             onChange={(e) => handleUpdateSample(idx, 'input', e.target.value)}
                             placeholder="Ví dụ: 5 7"
-                            className="w-full p-2.5 bg-slate-900 border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-500 font-mono leading-relaxed focus:outline-none focus:ring-1 focus:ring-red-500"
+                            className="w-full p-2 border border-[#D9D2C3] bg-white rounded-lg text-xs font-mono text-[#1F1D1A] focus:outline-none focus:border-[#1F1D1A]"
                           />
                         </div>
-
                         <div>
-                          <label className="block text-[11px] font-semibold text-slate-300 mb-1 flex items-center justify-between">
-                            <span>Ví dụ Output (Kết quả ra):</span>
-                            <span className="text-[10px] text-slate-500 font-mono">stdout</span>
-                          </label>
+                          <label className="block text-[11px] font-bold text-[#1F1D1A] mb-1">Output:</label>
                           <textarea
-                            rows={3}
+                            rows={2}
                             value={sample.output}
                             onChange={(e) => handleUpdateSample(idx, 'output', e.target.value)}
                             placeholder="Ví dụ: 12"
-                            className="w-full p-2.5 bg-slate-900 border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-500 font-mono leading-relaxed focus:outline-none focus:ring-1 focus:ring-red-500"
+                            className="w-full p-2 border border-[#D9D2C3] bg-white rounded-lg text-xs font-mono text-[#1F1D1A] focus:outline-none focus:border-[#1F1D1A]"
                           />
                         </div>
                       </div>
-
-                      {/* Giải thích ví dụ (tùy chọn) */}
                       <div>
-                        <label className="block text-[11px] font-semibold text-slate-400 mb-1">
-                          Giải thích ví dụ (tùy chọn):
-                        </label>
+                        <label className="block text-[11px] font-medium text-[#6B655C] mb-1">Giải thích (tùy chọn):</label>
                         <input
                           type="text"
                           value={sample.explanation || ''}
                           onChange={(e) => handleUpdateSample(idx, 'explanation', e.target.value)}
-                          placeholder="Ví dụ: Tổng của 5 và 7 là 12..."
-                          className="w-full px-3 py-2 bg-slate-900 border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-red-500"
+                          placeholder="Ví dụ: 5 + 7 = 12"
+                          className="w-full px-2.5 py-1.5 border border-[#D9D2C3] bg-white rounded-lg text-xs text-[#1F1D1A] focus:outline-none focus:border-[#1F1D1A]"
                         />
                       </div>
                     </div>
-                  ))
-                )}
+                  ))}
                 </div>
-              </div>
+              </details>
             )}
           </form>
         </div>
 
-        {/* Sticky Footer */}
-        <div className={`shrink-0 p-4 border-t flex flex-col gap-3 sticky bottom-0 z-10 ${
-          theme === 'light'
-            ? 'bg-white/95 border-slate-200'
-            : 'bg-slate-800/90 border-slate-800'
-        }`}>
-          {/* Cảnh báo lỗi trực quan ngay bên trong Modal nếu lưu không thành công hoặc trùng lặp */}
-          {formError && (
-            <div className={`p-3 rounded-xl border flex items-center justify-between gap-2 text-xs animate-in fade-in ${
-              theme === 'light'
-                ? 'bg-rose-50 border-rose-300 text-rose-950 shadow-xs'
-                : 'bg-rose-500/15 border border-rose-500/40 text-rose-300'
-            }`}>
-              <div className="flex items-center gap-2 min-w-0">
-                <AlertCircle className={`w-4 h-4 shrink-0 ${theme === 'light' ? 'text-rose-600' : 'text-rose-400'}`} />
-                <span className={`font-semibold break-words ${theme === 'light' ? 'text-rose-900' : 'text-rose-300'}`}>{formError}</span>
-              </div>
-              <button
-                type="button"
-                onClick={() => setFormError(null)}
-                className={`p-1 rounded-lg shrink-0 cursor-pointer ${
-                  theme === 'light'
-                    ? 'text-rose-600 hover:bg-rose-100 hover:text-rose-900'
-                    : 'text-rose-400 hover:text-white'
-                }`}
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          )}
-
-          <div className="flex items-center justify-between gap-4">
-            <div className={`text-xs flex items-center gap-1.5 hidden sm:flex ${
-              theme === 'light' ? 'text-slate-500' : 'text-slate-400'
-            }`}>
-              <HelpCircle className="w-4 h-4 text-red-500" />
-              <span>
-                {inputMode === 'manual'
-                  ? 'Đã tối ưu cho đề thi Tin học. Bạn có thể lưu ngay mà không cần tải file.'
-                  : 'Sau khi lưu, bạn có thể nạp thêm bộ file Test chấm tự động Themis.'}
-              </span>
-            </div>
-
-            <div className="flex items-center gap-3 ml-auto">
-              {duplicateProblem && (
-                <span className={`text-xs font-bold flex items-center gap-1 ${
-                  theme === 'light' ? 'text-amber-800' : 'text-amber-400'
-                }`}>
-                  <AlertTriangle className="w-3.5 h-3.5" />
-                  Mã bài đã tồn tại
-                </span>
-              )}
-              <button
-                form="problem-form"
-                type="submit"
-                disabled={isSubmitting}
-                className={`px-5 py-2 rounded-xl text-white text-xs font-bold flex items-center gap-1.5 shadow-lg transition-all cursor-pointer ${
-                  isSubmitting
-                    ? 'bg-red-700 opacity-70 cursor-not-allowed'
-                    : 'bg-red-600 hover:bg-red-500 shadow-red-600/25 active:scale-95'
-                }`}
-              >
-                {isSubmitting ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>{problem ? 'Đang lưu...' : 'Đang tạo bài tập...'}</span>
-                  </>
-                ) : (
-                  <>
-                    <Check className="w-4 h-4" />
-                    <span>{problem ? 'Lưu thay đổi' : 'Tạo bài tập'}</span>
-                  </>
-                )}
-              </button>
-            </div>
+        {/* Footer matching Mockup */}
+        <div className="shrink-0 px-6 py-4 border-t border-[#D9D2C3] flex items-center justify-between bg-white">
+          <div className="text-xs text-[#6B655C]">
+            Đã tối ưu cho đề thi Tin học. Bạn có thể lưu ngay mà không cần tải file.
           </div>
+          <button
+            form="problem-form"
+            type="submit"
+            disabled={isSubmitting}
+            className="px-6 py-2.5 rounded-xl bg-[#B4281F] hover:bg-[#961F17] text-white text-xs font-bold transition-all shadow-sm cursor-pointer disabled:opacity-50"
+          >
+            {isSubmitting ? (
+              <div className="flex items-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>Đang lưu...</span>
+              </div>
+            ) : (
+              <span>{problem ? 'Lưu bài tập' : 'Tạo bài tập'}</span>
+            )}
+          </button>
         </div>
       </div>
     </div>
