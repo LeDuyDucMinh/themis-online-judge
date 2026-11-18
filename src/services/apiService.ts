@@ -1291,27 +1291,62 @@ export const apiService = {
             updated_at: new Date().toISOString(),
           }));
 
-          // Chia nhỏ theo từng batch (5 test cases / batch) để chống triệt để lỗi statement timeout (57014) trên Supabase
-          const BATCH_SIZE = 5;
-          for (let i = 0; i < rows.length; i += BATCH_SIZE) {
-            const batch = rows.slice(i, i + BATCH_SIZE);
+          // Chia nhỏ thông minh theo dung lượng (tối đa 200KB hoặc 5 test nhỏ / batch; test lớn >200KB gửi từng test một)
+          // kèm Prefer: return=minimal để chống triệt để lỗi statement timeout (57014) trên Supabase
+          const MAX_BATCH_CHARS = 200 * 1024;
+          const MAX_BATCH_ITEMS = 5;
+          const batches: typeof rows[] = [];
+          let currentBatch: typeof rows = [];
+          let currentChars = 0;
+
+          for (const row of rows) {
+            const rowChars = (row.input?.length || 0) + (row.expected_output?.length || 0) + 256;
+            if (
+              currentBatch.length > 0 &&
+              (currentBatch.length >= MAX_BATCH_ITEMS || currentChars + rowChars > MAX_BATCH_CHARS)
+            ) {
+              batches.push(currentBatch);
+              currentBatch = [];
+              currentChars = 0;
+            }
+            currentBatch.push(row);
+            currentChars += rowChars;
+          }
+          if (currentBatch.length > 0) batches.push(currentBatch);
+
+          const postBatch = async (batchToPost: typeof rows, attempt = 0): Promise<void> => {
             const res = await fetch(targetUrl, {
               method: 'POST',
               headers: {
                 ...this.getAntiCacheHeaders(),
                 'Content-Type': 'application/json',
-                Prefer: 'resolution=merge-duplicates',
+                Prefer: 'resolution=merge-duplicates,return=minimal',
               },
-              body: JSON.stringify(batch),
+              body: JSON.stringify(batchToPost),
             });
 
             if (!res.ok) {
               const errDetail = await res.text();
-              if (res.status === 500 && (errDetail.includes('57014') || errDetail.includes('statement timeout'))) {
+              const isTimeout = res.status === 500 && (errDetail.includes('57014') || errDetail.includes('statement timeout'));
+              if (isTimeout && batchToPost.length > 1) {
+                for (const singleRow of batchToPost) {
+                  await postBatch([singleRow], 0);
+                }
+                return;
+              }
+              if (isTimeout && attempt < 2) {
+                await new Promise((r) => setTimeout(r, 400 * (attempt + 1)));
+                return postBatch(batchToPost, attempt + 1);
+              }
+              if (isTimeout) {
                 throw new Error('Dữ liệu test quá lớn khiến Supabase quá tải thời gian chờ. Hệ thống đã lưu trữ an toàn trên thiết bị.');
               }
               throw new Error(`Lỗi Supabase (${res.status}): ${errDetail.slice(0, 150)}`);
             }
+          };
+
+          for (const batch of batches) {
+            await postBatch(batch);
           }
 
           // Dọn các test cũ không còn trong bộ test mới (không gây lỗi nếu bị chặn)
