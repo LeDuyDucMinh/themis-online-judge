@@ -160,7 +160,7 @@ export const ProblemView: React.FC<ProblemViewProps> = ({ problem, onBackToList 
   const handleSubmit = async () => {
     if (isGrading) return;
     setIsGrading(true);
-    setCurrentRunningIndex(1);
+    setCurrentRunningIndex(0);
     const initialTests = Math.max(problem.testCases?.length || 0, totalTestsRunning || 0);
     setTotalTestsRunning(initialTests);
 
@@ -377,7 +377,7 @@ export const ProblemView: React.FC<ProblemViewProps> = ({ problem, onBackToList 
                 onClick={handleSubmit}
                 disabled={isGrading}
               >
-                {isGrading ? `Đang chấm test ${currentRunningIndex}/${totalTestsRunning}...` : 'Nộp bài'}
+                {isGrading ? (currentRunningIndex === 0 ? 'Đang trong hàng đợi...' : `Đang chấm test ${currentRunningIndex}/${totalTestsRunning}...`) : 'Nộp bài'}
               </button>
             </div>
           </div>

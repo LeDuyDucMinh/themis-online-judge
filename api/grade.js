@@ -320,6 +320,66 @@ export default async function handler(req, res) {
       };
     });
 
+    const activeSubmissionId = body.submissionId || body.executePending || `sub_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const submittedAtTimestamp = body.submittedAt || new Date().toISOString();
+
+    // ==============================================================================
+    // CHẾ ĐỘ HÀNG ĐỢI BẤT ĐỒNG BỘ (ASYNC QUEUE ENQUEUE):
+    // Phản hồi cho Trình duyệt ngay trong < 50ms, để Worker VPS hoặc Background Grader chấm
+    // ==============================================================================
+    if (body.async === true || body.mode === 'enqueue') {
+      const pendingRecord = {
+        id: activeSubmissionId,
+        problem_id: problem.id,
+        problem_code: problem.code,
+        problem_title: problem.title,
+        user_id: effectiveUserId,
+        user_name: effectiveUserName,
+        class_id: classId || null,
+        language,
+        source_code: code,
+        verdict: 'PENDING',
+        status: 'PENDING',
+        total_points_earned: 0,
+        max_total_points: targetTotal,
+        passed_count: 0,
+        total_tests: testCases.length,
+        execution_time: 0,
+        memory: 0,
+        compilation_message: null,
+        submitted_at: submittedAtTimestamp,
+        test_results: [],
+      };
+
+      const writeBearer = process.env.SUPABASE_SERVICE_ROLE_KEY || (verifiedUser ? callerJwt : SUPABASE_KEY);
+      try {
+        await fetch(`${SUPABASE_URL}/rest/v1/submissions?on_conflict=id`, {
+          method: 'POST',
+          headers: {
+            apikey: SUPABASE_KEY,
+            Authorization: `Bearer ${writeBearer}`,
+            'Content-Type': 'application/json',
+            Prefer: 'resolution=merge-duplicates',
+          },
+          body: JSON.stringify(pendingRecord),
+        });
+      } catch (saveErr) {
+        console.warn('[Queue Enqueue] Lỗi lưu pending submission vào Supabase:', saveErr);
+      }
+
+      return res.status(200).json({
+        ok: true,
+        async: true,
+        id: activeSubmissionId,
+        submissionId: activeSubmissionId,
+        status: 'PENDING',
+        totalTests: testCases.length,
+        problemCode: problem.code,
+        problemTitle: problem.title,
+        submittedAt: submittedAtTimestamp,
+      });
+    }
+
     // 3. Tiền xử lý code
     const { cleaned: cleanedCode, freopenHandled } = preprocessCode(code, language);
     const langId = JUDGE0_LANGUAGE_MAP[language] || 54;
@@ -739,8 +799,8 @@ export default async function handler(req, res) {
       overallVerdict = 'RTE';
     }
 
-    const submissionId = `sub_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-    const submittedAt = new Date().toISOString();
+    const submissionId = activeSubmissionId;
+    const submittedAt = submittedAtTimestamp;
 
     const submissionRecord = {
       id: submissionId,

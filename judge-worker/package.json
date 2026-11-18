@@ -1,0 +1,14 @@
+{
+  "name": "themis-judge-worker",
+  "version": "1.0.0",
+  "description": "High-performance Standalone Judge Worker Daemon for Themis Online Judge",
+  "main": "worker.js",
+  "type": "module",
+  "scripts": {
+    "start": "node worker.js"
+  },
+  "dependencies": {},
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

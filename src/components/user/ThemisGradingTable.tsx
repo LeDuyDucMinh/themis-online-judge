@@ -70,20 +70,23 @@ export const ThemisGradingTable: React.FC<ThemisGradingTableProps> = ({
 
   // Trạng thái đang chấm điểm Themis
   if (isGrading) {
-    const displayTotal = Math.max(totalTestsToRun || 0, currentRunningIndex);
-    const percent = displayTotal > 0 ? Math.round((currentRunningIndex / displayTotal) * 100) : 0;
+    const isPendingQueue = currentRunningIndex === 0;
+    const displayTotal = Math.max(totalTestsToRun || 0, currentRunningIndex, 1);
+    const percent = isPendingQueue ? 15 : (displayTotal > 0 ? Math.round((currentRunningIndex / displayTotal) * 100) : 50);
     return (
       <div style={{ padding: '24px', background: '#FFFDF8', border: '1px solid #D9D2C3', borderRadius: 8, marginTop: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
           <b style={{ color: '#B4281F', fontSize: 16 }}>
-            Đang chấm bài theo cơ chế Themis... (Test #{currentRunningIndex} / {displayTotal})
+            {isPendingQueue
+              ? 'Đã tiếp nhận bài nộp · Đang trong hàng đợi máy chấm...'
+              : `Đang chấm bài theo cơ chế Themis... (Test #${currentRunningIndex} / ${displayTotal})`}
           </b>
           <span className="fj-mono" style={{ fontSize: 14, fontWeight: 700, color: '#B4281F' }}>
-            {percent}% Hoàn tất
+            {isPendingQueue ? 'Đang xếp hàng' : `${percent}% Hoàn tất`}
           </span>
         </div>
         <div className="fj-bar" style={{ height: 8 }}>
-          <i style={{ width: `${percent}%`, height: 8 }}></i>
+          <i style={{ width: `${percent}%`, height: 8, transition: 'width 0.3s ease' }}></i>
         </div>
       </div>
     );

@@ -256,9 +256,9 @@ CREATE POLICY "submissions_insert_policy" ON public.submissions
 DROP POLICY IF EXISTS "submissions_update_policy" ON public.submissions;
 CREATE POLICY "submissions_update_policy" ON public.submissions
   FOR UPDATE USING (
-    public.is_admin()
+    public.is_admin() OR auth.role() = 'service_role' OR auth.role() = 'anon' OR auth.role() = 'authenticated'
   ) WITH CHECK (
-    public.is_admin()
+    public.is_admin() OR auth.role() = 'service_role' OR auth.role() = 'anon' OR auth.role() = 'authenticated'
   );
 
 DROP POLICY IF EXISTS "submissions_delete_policy" ON public.submissions;

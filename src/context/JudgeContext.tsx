@@ -9,7 +9,6 @@ import {
   type Classroom,
   type ClassStudent,
   type TestCase,
-  type TestResult,
   normalizeOwnerEmail,
 } from '../types/judge';
 import { storageService, resolveStudentFullName } from '../services/storageService';
@@ -2063,6 +2062,7 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     if (!problem) {
       throw new Error('Không tìm thấy bài tập để chấm');
     }
+    const activeProblem: Problem = problem;
 
     // Nạp đầy đủ từ Database nếu problem trong React state chưa có test hoặc test bị rỗng nội dung input/output
     const hasRealContent = (tests?: TestCase[] | null) =>
@@ -2071,33 +2071,25 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     let submission: Submission | null = null;
     const targetUserId = isAdminAuthenticated ? 'admin_faminh' : (currentStudent?.id || currentStudent?.username || 'student_01');
     const targetUserName = isAdminAuthenticated ? 'Giáo viên FAMINH' : (currentStudent?.fullName || 'Học sinh');
-    const targetClassId = activeClassId || (problem.classId !== 'class_default_faminh' ? problem.classId : undefined);
+    const targetClassId = activeClassId || (activeProblem.classId !== 'class_default_faminh' ? activeProblem.classId : undefined);
 
-    // ƯU TIÊN #1: CHẤM BẢO MẬT PHÍA SERVER (SERVER-SIDE GRADING QUA /api/grade)
-    // Giữ bí mật 100% Test Case ẩn: học sinh không thể mở Network hay Console để xem trộm input/output test
+    // ƯU TIÊN #1: CHẤM BẢO MẬT & SIÊU TỐC QUA HÀNG ĐỢI (ASYNC QUEUE + SUPABASE REALTIME)
+    // Phản hồi nhận bài trong < 50ms, lắng nghe Realtime từ Worker VPS với độ trễ tối thiểu
     if (typeof window !== 'undefined' && window.location.protocol.startsWith('http')) {
-      let progressTimer: any = null;
       try {
-        const estTotal = problem.testCases?.length || 20;
-        let estIndex = 1;
-        const dummyResult: TestResult = {
-          testId: 'test_temp',
-          testName: 'Đang chấm...',
-          verdict: 'JUDGING' as any,
+        const estTotal = activeProblem.testCases?.length || 20;
+
+        onProgress?.(0, estTotal, {
+          testId: 'queue_pending',
+          testName: 'Đang tiếp nhận...',
+          verdict: 'PENDING' as any,
           time: 0,
           memory: 0,
           pointsEarned: 0,
           maxPoints: 1,
-        };
-        onProgress?.(1, estTotal, dummyResult);
-        progressTimer = setInterval(() => {
-          if (estIndex < estTotal - 1) {
-            estIndex++;
-            onProgress?.(estIndex, estTotal, dummyResult);
-          }
-        }, 140);
+        });
 
-        const gradeRes = await fetch('/api/grade', {
+        const enqueueRes = await fetch('/api/grade', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -2105,59 +2097,195 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
             ...apiService.getAntiCacheHeaders(),
           },
           body: JSON.stringify({
-            problemId: problem.id,
+            problemId: activeProblem.id,
             code,
             language,
             userId: targetUserId,
             userName: targetUserName,
             classId: targetClassId,
+            async: true,
           }),
         });
 
-        if (progressTimer) clearInterval(progressTimer);
+        if (enqueueRes.ok) {
+          const queueInfo = await enqueueRes.json();
+          const targetSubId = queueInfo.submissionId || queueInfo.id;
+          const actualTotalTests = Number(queueInfo.totalTests) || estTotal;
 
-        if (gradeRes.ok) {
-          const serverSub = await gradeRes.json();
-          if (serverSub && serverSub.id) {
-            const rawResults = Array.isArray(serverSub.testResults) ? serverSub.testResults : [];
-            const normalizedTestResults = rawResults.map((tr: any) => ({
-              ...tr,
-              time: typeof tr.time === 'number' ? tr.time : (typeof tr.executionTime === 'number' ? tr.executionTime : 0),
-              executionTime: typeof tr.executionTime === 'number' ? tr.executionTime : (typeof tr.time === 'number' ? tr.time : 0),
-              memory: typeof tr.memory === 'number' ? tr.memory : 0,
-              pointsEarned: typeof tr.pointsEarned === 'number' ? tr.pointsEarned : 0,
-              maxPoints: typeof tr.maxPoints === 'number' ? tr.maxPoints : 0,
-            }));
+          if (targetSubId) {
+            submission = await new Promise<Submission | null>((resolve) => {
+              let isFinished = false;
+              let realtimeChannel: any = null;
+              let pollTimer: any = null;
+              let fallbackTriggerTimer: any = null;
 
-            if (normalizedTestResults.length > 0) {
-              const lastTr = normalizedTestResults[normalizedTestResults.length - 1];
-              onProgress?.(normalizedTestResults.length, normalizedTestResults.length, lastTr);
-              if ((problem.testCases?.length || 0) !== normalizedTestResults.length) {
-                const syncedMeta: TestCase[] = normalizedTestResults.map((tr: any, idx: number) => ({
-                  id: tr.testId || `${problem!.id}_tc_${idx + 1}`,
-                  name: tr.testName || `Test #${String(idx + 1).padStart(2, '0')}`,
-                  input: '',
-                  expectedOutput: '',
-                  points: Number(tr.maxPoints) || 1,
-                  isHidden: true,
+              const cleanup = () => {
+                if (isFinished) return;
+                isFinished = true;
+                if (pollTimer) clearInterval(pollTimer);
+                if (fallbackTriggerTimer) clearTimeout(fallbackTriggerTimer);
+                if (realtimeChannel) {
+                  try {
+                    supabase.removeChannel(realtimeChannel);
+                  } catch {}
+                }
+              };
+
+              const handleCompleted = (subData: any) => {
+                if (isFinished) return;
+                cleanup();
+
+                const rawResults = Array.isArray(subData.test_results)
+                  ? subData.test_results
+                  : (Array.isArray(subData.testResults) ? subData.testResults : []);
+                const normalizedTestResults = rawResults.map((tr: any) => ({
+                  ...tr,
+                  time: typeof tr.time === 'number' ? tr.time : (typeof tr.executionTime === 'number' ? tr.executionTime : 0),
+                  executionTime: typeof tr.executionTime === 'number' ? tr.executionTime : (typeof tr.time === 'number' ? tr.time : 0),
+                  memory: typeof tr.memory === 'number' ? tr.memory : 0,
+                  pointsEarned: typeof tr.pointsEarned === 'number' ? tr.pointsEarned : 0,
+                  maxPoints: typeof tr.maxPoints === 'number' ? tr.maxPoints : 0,
                 }));
-                setAllProblems((prev) =>
-                  prev.map((p) => (p.id === problemId && (p.testCases?.length || 0) < syncedMeta.length ? { ...p, testCases: syncedMeta } : p))
-                );
-              }
-            }
 
-            submission = {
-              ...serverSub,
-              executionTime: typeof serverSub.executionTime === 'number' ? serverSub.executionTime : (typeof serverSub.time === 'number' ? serverSub.time : 0),
-              memory: typeof serverSub.memory === 'number' ? serverSub.memory : 0,
-              testResults: normalizedTestResults,
-            } as Submission;
+                const finalSub: Submission = {
+                  id: subData.id || targetSubId,
+                  problemId: subData.problem_id || activeProblem.id,
+                  problemCode: subData.problem_code || activeProblem.code,
+                  problemTitle: subData.problem_title || activeProblem.title,
+                  userId: subData.user_id || targetUserId,
+                  userName: subData.user_name || targetUserName,
+                  classId: subData.class_id || targetClassId,
+                  language: subData.language || language,
+                  sourceCode: subData.source_code || code,
+                  submittedAt: subData.submitted_at || new Date().toISOString(),
+                  status: 'COMPLETED',
+                  totalPointsEarned: Number(subData.total_points_earned) || 0,
+                  maxTotalPoints: Number(subData.max_total_points) || (activeProblem.totalPoints || 10),
+                  passedCount: Number(subData.passed_count) || 0,
+                  totalTests: Number(subData.total_tests) || actualTotalTests,
+                  overallVerdict: subData.verdict || subData.overallVerdict || 'WA',
+                  executionTime: Number(subData.execution_time) || Number(subData.time) || 0,
+                  memory: Number(subData.memory) || 0,
+                  compilationMessage: subData.compilation_message || subData.compilationMessage,
+                  testResults: normalizedTestResults,
+                  freopenHandled: subData.freopenHandled,
+                };
+
+                if (normalizedTestResults.length > 0) {
+                  const lastTr = normalizedTestResults[normalizedTestResults.length - 1];
+                  onProgress?.(normalizedTestResults.length, normalizedTestResults.length, lastTr);
+                  if ((activeProblem.testCases?.length || 0) !== normalizedTestResults.length) {
+                    const syncedMeta: TestCase[] = normalizedTestResults.map((tr: any, idx: number) => ({
+                      id: tr.testId || `${activeProblem.id}_tc_${idx + 1}`,
+                      name: tr.testName || `Test #${String(idx + 1).padStart(2, '0')}`,
+                      input: '',
+                      expectedOutput: '',
+                      points: Number(tr.maxPoints) || 1,
+                      isHidden: true,
+                    }));
+                    setAllProblems((prev) =>
+                      prev.map((p) => (p.id === problemId && (p.testCases?.length || 0) < syncedMeta.length ? { ...p, testCases: syncedMeta } : p))
+                    );
+                  }
+                }
+                resolve(finalSub);
+              };
+
+              // A. Lắng nghe qua Supabase Realtime WebSocket (nhận trong vài mili-giây)
+              try {
+                realtimeChannel = supabase
+                  .channel(`sub_rt_${targetSubId}`)
+                  .on(
+                    'postgres_changes',
+                    {
+                      event: 'UPDATE',
+                      schema: 'public',
+                      table: 'submissions',
+                      filter: `id=eq.${targetSubId}`,
+                    },
+                    (payload) => {
+                      const updated = payload.new;
+                      if (!updated) return;
+                      if (updated.status === 'RUNNING') {
+                        onProgress?.(1, actualTotalTests, {
+                          testId: 'running',
+                          testName: 'Máy chủ VPS đang chấm...',
+                          verdict: 'RUNNING' as any,
+                          time: 0,
+                          memory: 0,
+                          pointsEarned: 0,
+                          maxPoints: 1,
+                        });
+                      } else if (updated.status === 'COMPLETED' || updated.status === 'ERROR') {
+                        handleCompleted(updated);
+                      }
+                    }
+                  )
+                  .subscribe();
+              } catch (rtErr) {
+                console.warn('[Realtime Subscription Warning]:', rtErr);
+              }
+
+              // B. Polling dự phòng mỗi 800ms
+              pollTimer = setInterval(async () => {
+                if (isFinished) return;
+                try {
+                  const check = await apiService.fetchSubmissionById(targetSubId);
+                  if (check && (check.status === 'COMPLETED' || check.status === 'ERROR')) {
+                    handleCompleted(check);
+                  }
+                } catch {}
+              }, 800);
+
+              // C. Tự phục hồi: Nếu sau 3.5s chưa có Worker VPS chấm, kích hoạt Serverless fallback tự chấm
+              fallbackTriggerTimer = setTimeout(async () => {
+                if (isFinished) return;
+                try {
+                  const check = await apiService.fetchSubmissionById(targetSubId);
+                  if (check && (check.status === 'COMPLETED' || check.status === 'ERROR')) {
+                    handleCompleted(check);
+                    return;
+                  }
+                  const fallbackGradeRes = await fetch('/api/grade', {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'X-Themis-Client': 'themis-web-oj',
+                      ...apiService.getAntiCacheHeaders(),
+                    },
+                    body: JSON.stringify({
+                      problemId: activeProblem.id,
+                      code,
+                      language,
+                      userId: targetUserId,
+                      userName: targetUserName,
+                      classId: targetClassId,
+                      submissionId: targetSubId,
+                    }),
+                  });
+                  if (fallbackGradeRes.ok) {
+                    const fallbackData = await fallbackGradeRes.json();
+                    if (fallbackData && fallbackData.id) {
+                      handleCompleted(fallbackData);
+                    }
+                  }
+                } catch (fbErr) {
+                  console.warn('[Self-Healing Fallback Error]:', fbErr);
+                }
+              }, 3500);
+
+              // Timeout tối đa 30 giây để tránh treo UI
+              setTimeout(() => {
+                if (!isFinished) {
+                  cleanup();
+                  resolve(null);
+                }
+              }, 30000);
+            });
           }
         }
       } catch (serverErr) {
-        if (progressTimer) clearInterval(progressTimer);
-        console.warn('[Server-side Grading Fallback]:', serverErr);
+        console.warn('[Server-side Queue Error]:', serverErr);
       }
     }
 
