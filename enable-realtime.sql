@@ -17,8 +17,5 @@ END $$;
 -- 2. Cấp quyền UPDATE trên bảng submissions cho Worker VPS & Serverless Function
 DROP POLICY IF EXISTS "submissions_update_policy" ON public.submissions;
 CREATE POLICY "submissions_update_policy" ON public.submissions
-  FOR UPDATE USING (
-    public.is_admin() OR auth.role() = 'service_role' OR auth.role() = 'anon' OR auth.role() = 'authenticated'
-  ) WITH CHECK (
-    public.is_admin() OR auth.role() = 'service_role' OR auth.role() = 'anon' OR auth.role() = 'authenticated'
-  );
+  FOR UPDATE USING (true) WITH CHECK (true);
+
