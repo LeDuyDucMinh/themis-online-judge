@@ -204,8 +204,8 @@ export const TestCaseManagerModal: React.FC<TestCaseManagerModalProps> = ({
       }));
       setTestCases(standardizedTests);
 
-      // Lưu vào IndexedDB cục bộ của trình duyệt để không bao giờ bị mất dữ liệu
-      await idbService.saveTestCases(problem.id, standardizedTests);
+      // Lưu vào IndexedDB cục bộ ở nền (không chặn giao diện hiển thị)
+      idbService.saveTestCases(problem.id, standardizedTests).catch(() => {});
 
       showToast('Nạp Test Themis thành công', summary, 'success');
       if (warnings && warnings.length > 0) {
@@ -248,8 +248,8 @@ export const TestCaseManagerModal: React.FC<TestCaseManagerModalProps> = ({
       }));
       setTestCases(standardizedTests);
 
-      // Lưu vào IndexedDB cục bộ của trình duyệt để không bao giờ bị mất dữ liệu
-      await idbService.saveTestCases(problem.id, standardizedTests);
+      // Lưu vào IndexedDB cục bộ ở nền (không chặn giao diện hiển thị)
+      idbService.saveTestCases(problem.id, standardizedTests).catch(() => {});
 
       showToast('Nạp Test Themis thành công', summary, 'success');
       if (warnings && warnings.length > 0) {
@@ -286,8 +286,8 @@ export const TestCaseManagerModal: React.FC<TestCaseManagerModalProps> = ({
       const currentSum = testCases.reduce((sum, tc) => sum + (Number(tc.points) || 0), 0);
       let finalizedTests = testCases.map((tc) => ({
         ...tc,
-        input: (tc.input || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n'),
-        expectedOutput: (tc.expectedOutput || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n'),
+        input: tc.input && tc.input.includes('\r') ? tc.input.replace(/\r\n/g, '\n').replace(/\r/g, '\n') : (tc.input || ''),
+        expectedOutput: tc.expectedOutput && tc.expectedOutput.includes('\r') ? tc.expectedOutput.replace(/\r\n/g, '\n').replace(/\r/g, '\n') : (tc.expectedOutput || ''),
       }));
       if (finalizedTests.length > 0 && Math.abs(currentSum - targetPoints) > 0.05) {
         const pts = +(targetPoints / finalizedTests.length).toFixed(2);

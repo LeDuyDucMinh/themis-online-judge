@@ -1345,9 +1345,17 @@ export const apiService = {
             }
           };
 
-          for (const batch of batches) {
-            await postBatch(batch);
-          }
+          let batchIdx = 0;
+          const uploadWorker = async () => {
+            while (batchIdx < batches.length) {
+              const current = batches[batchIdx++];
+              if (current) {
+                await postBatch(current);
+              }
+            }
+          };
+          const workers = Array.from({ length: Math.min(4, batches.length) }, () => uploadWorker());
+          await Promise.all(workers);
 
           // Dọn các test cũ không còn trong bộ test mới (không gây lỗi nếu bị chặn)
           try {
