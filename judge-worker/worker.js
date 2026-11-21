@@ -15,6 +15,7 @@
 
 import fs from 'fs';
 import path from 'path';
+import tls from 'tls';
 import zlib from 'zlib';
 import crypto from 'crypto';
 import { fileURLToPath } from 'url';
@@ -49,7 +50,8 @@ const SUPABASE_KEY = (
 
 const JUDGE0_URL = (process.env.JUDGE0_URL || 'http://127.0.0.1:2358').trim().replace(/\/+$/, '');
 const JUDGE0_TOKEN = (process.env.JUDGE0_TOKEN || 'faminh_secret_api_token').trim();
-const POLL_INTERVAL_MS = parseInt(process.env.POLL_INTERVAL_MS || '700', 10);
+const BACKUP_POLL_MS = parseInt(process.env.BACKUP_POLL_MS || '30000', 10); // 30s khi có Realtime WebSocket (giảm 97.7% Log Ingestion!)
+const FALLBACK_POLL_MS = parseInt(process.env.FALLBACK_POLL_MS || '3000', 10); // 3s dự phòng nếu WebSocket tạm mất kết nối
 const CACHE_DIR = path.join(__dirname, '.cache');
 
 if (!fs.existsSync(CACHE_DIR)) {
@@ -831,20 +833,185 @@ async function processSubmission(sub) {
   }
 }
 
-// Vòng lặp lắng nghe Hàng đợi (Queue Polling + Atomic Claiming)
+// ==============================================================================
+// REALTIME WEBSOCKET CLIENT THUẦN NODE.JS (0 THƯ VIỆN NGOÀI, RFC 6455)
+// Nhận thông báo bài nộp mới trong ~30ms -> Cắt giảm 97.7% Log Ingestion Supabase!
+// ==============================================================================
+class SimpleWssClient {
+  constructor(url) {
+    this.url = new URL(url);
+    this.handlers = { open: [], message: [], close: [], error: [] };
+    this.buffer = Buffer.alloc(0);
+    this.fragments = [];
+    this.upgraded = false;
+    this.closed = false;
+    this._connect();
+  }
+  on(ev, fn) {
+    if (this.handlers[ev]) this.handlers[ev].push(fn);
+  }
+  _emit(ev, ...args) {
+    for (const fn of this.handlers[ev] || []) {
+      try {
+        fn(...args);
+      } catch {}
+    }
+  }
+  _connect() {
+    const key = crypto.randomBytes(16).toString('base64');
+    const port = Number(this.url.port) || 443;
+    const host = this.url.hostname;
+    const reqPath = this.url.pathname + this.url.search;
+    this.socket = tls.connect({ host, port, servername: host }, () => {
+      const req = [
+        `GET ${reqPath} HTTP/1.1`,
+        `Host: ${host}`,
+        'Upgrade: websocket',
+        'Connection: Upgrade',
+        `Sec-WebSocket-Key: ${key}`,
+        'Sec-WebSocket-Version: 13',
+        '\r\n',
+      ].join('\r\n');
+      this.socket.write(req);
+    });
+    this.socket.setKeepAlive(true, 15000);
+    this.socket.on('data', (chunk) => this._onData(chunk));
+    this.socket.on('error', (err) => this._emit('error', err));
+    this.socket.on('close', () => {
+      if (!this.closed) {
+        this.closed = true;
+        this._emit('close');
+      }
+    });
+  }
+  _onData(chunk) {
+    this.buffer = Buffer.concat([this.buffer, chunk]);
+    if (!this.upgraded) {
+      const sep = this.buffer.indexOf('\r\n\r\n');
+      if (sep < 0) return;
+      const head = this.buffer.subarray(0, sep).toString('utf8');
+      this.buffer = this.buffer.subarray(sep + 4);
+      if (!head.startsWith('HTTP/1.1 101')) {
+        this._emit('error', new Error('WebSocket upgrade failed: ' + head.split('\r\n')[0]));
+        this.close();
+        return;
+      }
+      this.upgraded = true;
+      this._emit('open');
+    }
+    this._drainFrames();
+  }
+  _drainFrames() {
+    while (this.buffer.length >= 2) {
+      const b0 = this.buffer[0];
+      const b1 = this.buffer[1];
+      const fin = (b0 & 0x80) !== 0;
+      const opcode = b0 & 0x0f;
+      const masked = (b1 & 0x80) !== 0;
+      let len = b1 & 0x7f;
+      let offset = 2;
+      if (len === 126) {
+        if (this.buffer.length < 4) return;
+        len = this.buffer.readUInt16BE(2);
+        offset = 4;
+      } else if (len === 127) {
+        if (this.buffer.length < 10) return;
+        len = Number(this.buffer.readBigUInt64BE(2));
+        offset = 10;
+      }
+      const maskBytes = masked ? 4 : 0;
+      if (this.buffer.length < offset + maskBytes + len) return;
+      let payload = this.buffer.subarray(offset + maskBytes, offset + maskBytes + len);
+      if (masked) {
+        const mask = this.buffer.subarray(offset, offset + 4);
+        payload = Buffer.from(payload);
+        for (let i = 0; i < payload.length; i++) payload[i] ^= mask[i & 3];
+      }
+      this.buffer = this.buffer.subarray(offset + maskBytes + len);
+
+      if (opcode === 0x08) {
+        this.close();
+        return;
+      } else if (opcode === 0x09) {
+        this._sendFrame(0x0a, payload);
+      } else if (opcode === 0x01 || opcode === 0x00) {
+        this.fragments.push(payload);
+        if (fin) {
+          const full = this.fragments.length === 1 ? this.fragments[0] : Buffer.concat(this.fragments);
+          this.fragments = [];
+          this._emit('message', full.toString('utf8'));
+        }
+      }
+    }
+  }
+  _sendFrame(opcode, dataBuf) {
+    if (!this.upgraded || this.closed || !this.socket || this.socket.destroyed) return;
+    const len = dataBuf.length;
+    const mask = crypto.randomBytes(4);
+    let header;
+    if (len < 126) {
+      header = Buffer.alloc(2);
+      header[0] = 0x80 | opcode;
+      header[1] = 0x80 | len;
+    } else if (len < 65536) {
+      header = Buffer.alloc(4);
+      header[0] = 0x80 | opcode;
+      header[1] = 0x80 | 126;
+      header.writeUInt16BE(len, 2);
+    } else {
+      header = Buffer.alloc(10);
+      header[0] = 0x80 | opcode;
+      header[1] = 0x80 | 127;
+      header.writeBigUInt64BE(BigInt(len), 2);
+    }
+    const maskedPayload = Buffer.allocUnsafe(len);
+    for (let i = 0; i < len; i++) maskedPayload[i] = dataBuf[i] ^ mask[i & 3];
+    this.socket.write(Buffer.concat([header, mask, maskedPayload]));
+  }
+  send(str) {
+    this._sendFrame(0x01, Buffer.from(str, 'utf8'));
+  }
+  close() {
+    if (this.closed) return;
+    this.closed = true;
+    try {
+      this.socket.destroy();
+    } catch {}
+    this._emit('close');
+  }
+}
+
+// Vòng lặp xử lý Hàng đợi (Realtime Push + Atomic Claiming + Backup Poll 30s)
 let isBusy = false;
+let pendingRecheck = false;
+let isRealtimeSubscribed = false;
+let backupPollTimer = null;
+
+function scheduleBackupPoll() {
+  if (backupPollTimer) clearTimeout(backupPollTimer);
+  const delay = isRealtimeSubscribed ? BACKUP_POLL_MS : FALLBACK_POLL_MS;
+  backupPollTimer = setTimeout(() => {
+    checkQueue();
+  }, delay);
+}
+
 async function checkQueue() {
-  if (isBusy) return;
+  if (isBusy) {
+    pendingRecheck = true;
+    return;
+  }
   isBusy = true;
+  pendingRecheck = false;
+  let processedOne = false;
   try {
     const sbHeaders = {
       apikey: SUPABASE_KEY,
       Authorization: `Bearer ${SUPABASE_KEY}`,
     };
 
-    // Tìm bài nộp PENDING cũ nhất
+    // Tìm bài nộp PENDING cũ nhất (chỉ lấy cột id cực nhẹ ~30 byte)
     const listRes = await fetch(
-      `${SUPABASE_URL}/rest/v1/submissions?status=eq.PENDING&order=submitted_at.asc&limit=1`,
+      `${SUPABASE_URL}/rest/v1/submissions?status=eq.PENDING&select=id&order=submitted_at.asc&limit=1`,
       { headers: sbHeaders }
     );
 
@@ -869,6 +1036,7 @@ async function checkQueue() {
         if (claimRes.ok) {
           const claimed = await claimRes.json();
           if (Array.isArray(claimed) && claimed.length > 0) {
+            processedOne = true;
             await processSubmission(claimed[0]);
           }
         }
@@ -878,16 +1046,98 @@ async function checkQueue() {
     // Tránh spam log khi mạng chập chờn
   } finally {
     isBusy = false;
+    if (processedOne || pendingRecheck) {
+      // Nếu vừa chấm xong 1 bài hoặc có tín hiệu Realtime mới đến lúc đang bận -> kiểm tra tiếp ngay lập tức
+      setTimeout(checkQueue, 50);
+    } else {
+      scheduleBackupPoll();
+    }
   }
 }
 
-console.log('====================================================');
-console.log('🤖 FAMINH JUDGE WORKER DAEMON ĐÃ KHỞI ĐỘNG THÀNH CÔNG');
-console.log(`🔗 Supabase URL : ${SUPABASE_URL}`);
-console.log(`⚡ Judge0 Local  : ${JUDGE0_URL}`);
-console.log(`⏱️ Chu kỳ kiểm tra: ${POLL_INTERVAL_MS}ms`);
-console.log('====================================================');
-console.log('Đang chờ bài nộp mới từ học sinh...');
+let wsRefCounter = 1;
+let reconnectAttempt = 0;
 
-setInterval(checkQueue, POLL_INTERVAL_MS);
+function startRealtimeListener() {
+  const wsUrl =
+    SUPABASE_URL.replace(/^https:\/\//i, 'wss://').replace(/^http:\/\//i, 'ws://') +
+    `/realtime/v1/websocket?apikey=${encodeURIComponent(SUPABASE_KEY)}&vsn=1.0.0`;
+
+  let heartbeatTimer = null;
+  const ws = new SimpleWssClient(wsUrl);
+
+  const cleanup = () => {
+    isRealtimeSubscribed = false;
+    if (heartbeatTimer) {
+      clearInterval(heartbeatTimer);
+      heartbeatTimer = null;
+    }
+    scheduleBackupPoll();
+  };
+
+  ws.on('open', () => {
+    reconnectAttempt = 0;
+    ws.send(
+      JSON.stringify({
+        topic: 'realtime:public:submissions',
+        event: 'phx_join',
+        payload: {
+          config: {
+            postgres_changes: [{ event: 'INSERT', schema: 'public', table: 'submissions' }],
+          },
+          access_token: SUPABASE_KEY,
+        },
+        ref: String(wsRefCounter++),
+      })
+    );
+    heartbeatTimer = setInterval(() => {
+      ws.send(
+        JSON.stringify({
+          topic: 'phoenix',
+          event: 'heartbeat',
+          payload: {},
+          ref: String(wsRefCounter++),
+        })
+      );
+    }, 25000);
+  });
+
+  ws.on('message', (raw) => {
+    try {
+      const msg = JSON.parse(raw);
+      if (msg.event === 'system' && msg.payload?.status === 'ok') {
+        isRealtimeSubscribed = true;
+        console.log(`[${new Date().toLocaleTimeString()}] 📡 Đã kết nối Supabase Realtime WebSocket (nhận bài tức thì ~30ms · poll dự phòng ${BACKUP_POLL_MS / 1000}s)`);
+        scheduleBackupPoll();
+        checkQueue();
+      } else if (msg.event === 'postgres_changes') {
+        const rec = msg.payload?.data?.record;
+        if (!rec || rec.status === 'PENDING') {
+          checkQueue();
+        }
+      }
+    } catch {}
+  });
+
+  ws.on('error', (err) => {
+    console.warn(`[${new Date().toLocaleTimeString()}] ⚠️ Realtime WebSocket cảnh báo:`, err?.message || err);
+  });
+
+  ws.on('close', () => {
+    cleanup();
+    reconnectAttempt = Math.min(reconnectAttempt + 1, 5);
+    const retryMs = Math.min(2000 * reconnectAttempt, 10000);
+    setTimeout(startRealtimeListener, retryMs);
+  });
+}
+
+console.log('====================================================');
+console.log('🤖 FAMINH JUDGE WORKER DAEMON (REALTIME V2) ĐÃ KHỞI ĐỘNG');
+console.log(`🔗 Supabase URL   : ${SUPABASE_URL}`);
+console.log(`⚡ Judge0 Local    : ${JUDGE0_URL}`);
+console.log(`📡 Chế độ nhận bài : Realtime WebSocket (~30ms) + Dự phòng ${BACKUP_POLL_MS / 1000}s`);
+console.log('====================================================');
+console.log('Đang kết nối Supabase Realtime và chờ bài nộp mới...');
+
+startRealtimeListener();
 checkQueue();
