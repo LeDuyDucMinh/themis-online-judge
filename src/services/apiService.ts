@@ -1382,6 +1382,273 @@ export const apiService = {
   },
 
   /**
+   * Chuẩn VNOI: Tải đúng 1 file nén .ZIP duy nhất lên Supabase Storage (kho 'testcases')
+   * kèm thanh tiến trình % thực tế qua XMLHttpRequest.
+   */
+  async uploadTestCasesZip(
+    problemId: string,
+    zipBlob: Blob,
+    onProgress?: (percent: number, loadedBytes: number, totalBytes: number) => void
+  ): Promise<{ bucket: string; objectPath: string; version: number }> {
+    if (!isSupabaseConfigured()) {
+      throw new Error('Chưa cấu hình Supabase Cloud để lưu trữ gói test .ZIP');
+    }
+    const MAX_ZIP_BYTES = 50 * 1024 * 1024;
+    if (zipBlob.size > MAX_ZIP_BYTES) {
+      throw new Error(
+        `File nén .ZIP nặng ${(zipBlob.size / (1024 * 1024)).toFixed(1)} MB vượt quá giới hạn 50 MB / file của gói Supabase Free.`
+      );
+    }
+
+    const base = ENV.SUPABASE_URL.replace(/\/+$/, '');
+    const bucket = 'testcases';
+    const version = Date.now();
+    const rand = Math.random().toString(36).slice(2, 8);
+    const objectPath = `${problemId}/tests_${version}_${rand}.zip`;
+    const uploadUrl = `${base}/storage/v1/object/${bucket}/${objectPath}`;
+    const bearerToken = getActiveAuthToken();
+
+    await new Promise<void>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', uploadUrl, true);
+      xhr.setRequestHeader('apikey', ENV.SUPABASE_ANON_KEY);
+      xhr.setRequestHeader('Authorization', `Bearer ${bearerToken}`);
+      xhr.setRequestHeader('Content-Type', 'application/zip');
+      xhr.setRequestHeader('x-upsert', 'true');
+
+      xhr.upload.onprogress = (ev) => {
+        if (ev.lengthComputable && ev.total > 0) {
+          onProgress?.(Math.min(99, Math.round((ev.loaded / ev.total) * 100)), ev.loaded, ev.total);
+        }
+      };
+
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          onProgress?.(100, zipBlob.size, zipBlob.size);
+          resolve();
+        } else {
+          const text = xhr.responseText || '';
+          if (xhr.status === 404 || text.toLowerCase().includes('bucket not found')) {
+            reject(
+              new Error(
+                'Kho lưu trữ "testcases" chưa được tạo trên Supabase. Vui lòng chạy file setup-storage-testcases.sql trong Supabase SQL Editor rồi thử lại!'
+              )
+            );
+            return;
+          }
+          reject(new Error(`Lỗi tải file .ZIP lên Storage (HTTP ${xhr.status}): ${text.slice(0, 180)}`));
+        }
+      };
+
+      xhr.onerror = () => reject(new Error('Mất kết nối mạng khi đang tải file nén .ZIP lên Cloud'));
+      xhr.ontimeout = () => reject(new Error('Quá thời gian tải file .ZIP lên Cloud'));
+      xhr.timeout = 120000;
+      xhr.send(zipBlob);
+    });
+
+    // Dọn dẹp các file .zip phiên bản cũ của bài này ở chế độ nền (tiết kiệm 1GB Storage)
+    (async () => {
+      try {
+        const listRes = await fetch(`${base}/storage/v1/object/list/${bucket}`, {
+          method: 'POST',
+          headers: {
+            apikey: ENV.SUPABASE_ANON_KEY,
+            Authorization: `Bearer ${bearerToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ prefix: `${problemId}/`, limit: 50 }),
+        });
+        if (!listRes.ok) return;
+        const items = await listRes.json();
+        if (!Array.isArray(items)) return;
+        const currentFileName = objectPath.split('/').pop();
+        const stalePaths = items
+          .filter((it: any) => it?.name && it.name !== currentFileName)
+          .map((it: any) => `${problemId}/${it.name}`);
+        if (stalePaths.length > 0) {
+          await fetch(`${base}/storage/v1/object/${bucket}`, {
+            method: 'DELETE',
+            headers: {
+              apikey: ENV.SUPABASE_ANON_KEY,
+              Authorization: `Bearer ${bearerToken}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ prefixes: stalePaths }),
+          });
+        }
+      } catch {
+        // Không ảnh hưởng luồng chính
+      }
+    })();
+
+    return { bucket, objectPath, version };
+  },
+
+  /**
+   * Siêu nhẹ (~1KB, <50ms): Chỉ lấy metadata danh sách test (KHÔNG tải nội dung .INP/.OUT nặng về trình duyệt)
+   */
+  async fetchTestCasesMeta(problemId: string): Promise<TestCase[] | null> {
+    if (!isSupabaseConfigured()) return null;
+    try {
+      const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/test_cases?problem_id=eq.${encodeURIComponent(problemId)}&select=id,test_name,points,is_hidden,order_index,updated_at&order=order_index.asc,updated_at.desc`;
+      const res = await fetch(targetUrl, {
+        headers: this.getAntiCacheHeaders(),
+        cache: 'no-store',
+      });
+      if (!res.ok) return null;
+      const data = await res.json();
+      if (!Array.isArray(data)) return null;
+      const seenOrders = new Set<number>();
+      const uniqueRows: any[] = [];
+      for (const d of data) {
+        const ord = Number(d.order_index) || 0;
+        if (ord > 0 && seenOrders.has(ord)) continue;
+        if (ord > 0) seenOrders.add(ord);
+        uniqueRows.push(d);
+      }
+      return uniqueRows.map((d: any, idx: number) => ({
+        id: d.id,
+        name: d.test_name || `Test #${String(d.order_index || idx + 1).padStart(2, '0')}`,
+        input: '',
+        expectedOutput: '',
+        points: Number(d.points) || 1,
+        isHidden: Boolean(d.is_hidden),
+      }));
+    } catch (err) {
+      console.warn('[apiService] fetchTestCasesMeta warn:', err);
+      return null;
+    }
+  },
+
+  /**
+   * Lấy nội dung chi tiết của DUY NHẤT 1 test case (chỉ gọi khi giáo viên chủ động bấm "Xem / Sửa" 1 test cụ thể)
+   */
+  async fetchSingleTestCase(testId: string): Promise<TestCase | null> {
+    if (!isSupabaseConfigured() || !testId) return null;
+    try {
+      const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/test_cases?id=eq.${encodeURIComponent(testId)}&limit=1`;
+      const res = await fetch(targetUrl, {
+        headers: this.getAntiCacheHeaders(),
+        cache: 'no-store',
+      });
+      if (!res.ok) return null;
+      const rows = await res.json();
+      const d = Array.isArray(rows) ? rows[0] : null;
+      if (!d) return null;
+      return {
+        id: d.id,
+        name: d.test_name || `Test #${d.order_index || 1}`,
+        input: d.input || '',
+        expectedOutput: d.expected_output !== undefined ? d.expected_output : (d.output || ''),
+        points: Number(d.points) || 1,
+        isHidden: Boolean(d.is_hidden),
+      };
+    } catch {
+      return null;
+    }
+  },
+
+  /**
+   * Cập nhật siêu nhanh (~0.15s) chỉ metadata (tên, điểm, ẩn/hiện, xóa test) mà KHÔNG chạm hay tải lại input/output!
+   */
+  async updateTestCasesMetaOnly(
+    problemId: string,
+    tests: Array<{ id: string; name: string; points: number; isHidden: boolean }>
+  ): Promise<void> {
+    if (!isSupabaseConfigured()) return;
+    const base = ENV.SUPABASE_URL.replace(/\/+$/, '');
+    const headers = {
+      ...this.getAntiCacheHeaders(),
+      'Content-Type': 'application/json',
+      Prefer: 'return=minimal',
+    };
+    const nowIso = new Date().toISOString();
+
+    // Cập nhật song song metadata từng test (mỗi request chỉ ~100 byte)
+    const CONCURRENCY = 6;
+    let ptr = 0;
+    const worker = async () => {
+      while (ptr < tests.length) {
+        const idx = ptr++;
+        const tc = tests[idx];
+        const res = await fetch(
+          `${base}/rest/v1/test_cases?id=eq.${encodeURIComponent(tc.id)}&problem_id=eq.${encodeURIComponent(problemId)}`,
+          {
+            method: 'PATCH',
+            headers,
+            body: JSON.stringify({
+              test_name: tc.name,
+              points: Number(tc.points) || 1,
+              is_hidden: Boolean(tc.isHidden),
+              order_index: idx + 1,
+              updated_at: nowIso,
+            }),
+          }
+        );
+        if (!res.ok) {
+          const detail = await res.text().catch(() => '');
+          throw new Error(`Lỗi cập nhật metadata test (${res.status}): ${detail.slice(0, 120)}`);
+        }
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(CONCURRENCY, tests.length) }, () => worker()));
+
+    // Xóa các test đã bị giáo viên gỡ khỏi danh sách
+    try {
+      if (tests.length > 0) {
+        const keepIds = tests.map((t) => encodeURIComponent(t.id)).join(',');
+        await fetch(
+          `${base}/rest/v1/test_cases?problem_id=eq.${encodeURIComponent(problemId)}&id=not.in.(${keepIds})`,
+          { method: 'DELETE', headers: this.getAntiCacheHeaders() }
+        );
+      } else {
+        await fetch(
+          `${base}/rest/v1/test_cases?problem_id=eq.${encodeURIComponent(problemId)}`,
+          { method: 'DELETE', headers: this.getAntiCacheHeaders() }
+        );
+      }
+    } catch (delErr) {
+      console.warn('[apiService] Dọn test_cases cũ warn:', delErr);
+    }
+  },
+
+  /**
+   * Ghi đè/thêm mới chỉ các test thủ công đã được sửa nội dung (KHÔNG đụng tới các test lớn khác)
+   */
+  async upsertManualTestCases(
+    problemId: string,
+    items: Array<TestCase & { orderIndex: number }>
+  ): Promise<void> {
+    if (!isSupabaseConfigured() || items.length === 0) return;
+    const base = ENV.SUPABASE_URL.replace(/\/+$/, '');
+    const nowIso = new Date().toISOString();
+    const rows = items.map((tc) => ({
+      id: tc.id,
+      problem_id: problemId,
+      test_name: tc.name,
+      input: tc.input || '',
+      expected_output: tc.expectedOutput || '',
+      points: Number(tc.points) || 1,
+      is_hidden: Boolean(tc.isHidden),
+      order_index: tc.orderIndex,
+      updated_at: nowIso,
+    }));
+    const res = await fetch(`${base}/rest/v1/test_cases?on_conflict=id`, {
+      method: 'POST',
+      headers: {
+        ...this.getAntiCacheHeaders(),
+        'Content-Type': 'application/json',
+        Prefer: 'resolution=merge-duplicates,return=minimal',
+      },
+      body: JSON.stringify(rows),
+    });
+    if (!res.ok) {
+      const detail = await res.text().catch(() => '');
+      throw new Error(`Lỗi lưu test thủ công (${res.status}): ${detail.slice(0, 150)}`);
+    }
+  },
+
+  /**
    * Lấy danh sách Test Cases của bài tập từ Database
    */
   async fetchTestCases(problemId: string): Promise<TestCase[] | null> {

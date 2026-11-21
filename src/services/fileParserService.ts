@@ -468,3 +468,280 @@ export async function parseThemisZipTestcases(
 
   return pairTestFiles(items, totalPoints);
 }
+
+// ==============================================================================
+// CƠ CHẾ NẠP TEST SIÊU TỐC CHUẨN VNOI (KHÔNG ĐỌC TEXT NẶNG VÀO RAM TRÌNH DUYỆT)
+// ==============================================================================
+
+export interface PairedTestUploadItem {
+  index: number;
+  key: string;
+  name: string;
+  points: number;
+  isHidden: boolean;
+  inputEntryName: string;
+  outputEntryName: string;
+  inputFile?: File;
+  outputFile?: File;
+}
+
+export interface FastUploadPackage {
+  mode: 'zip' | 'files';
+  zipBlob?: File | Blob;
+  pairs: PairedTestUploadItem[];
+  totalBytes: number;
+  summary: string;
+  warnings: string[];
+}
+
+function pairTestHandles<T extends { path: string; name: string }>(
+  items: T[]
+): { validPairs: Array<{ key: string; input: T; output: T }>; warnings: string[] } {
+  const warnings: string[] = [];
+  const inputs: T[] = [];
+  const outputs: T[] = [];
+
+  for (const item of items) {
+    const lowerName = item.name.toLowerCase();
+    const lowerPath = item.path.toLowerCase();
+
+    const isInput =
+      lowerName.endsWith('.inp') ||
+      lowerName.endsWith('.in') ||
+      lowerName.includes('input') ||
+      (lowerName.endsWith('.txt') && lowerPath.includes('in') && !lowerPath.includes('out'));
+
+    const isOutput =
+      lowerName.endsWith('.out') ||
+      lowerName.endsWith('.ans') ||
+      lowerName.includes('output') ||
+      (lowerName.endsWith('.txt') && (lowerPath.includes('out') || lowerPath.includes('ans')));
+
+    if (isInput && !isOutput) {
+      inputs.push(item);
+    } else if (isOutput && !isInput) {
+      outputs.push(item);
+    } else if (isInput && isOutput) {
+      if (lowerName.includes('out') || lowerName.includes('ans')) {
+        outputs.push(item);
+      } else {
+        inputs.push(item);
+      }
+    }
+  }
+
+  if (inputs.length === 0 || outputs.length === 0) {
+    throw new Error(
+      `Không tìm thấy đủ cặp file test! (Tìm thấy ${inputs.length} file Input và ${outputs.length} file Output). Vui lòng kiểm tra các file có đuôi .INP và .OUT tương ứng.`
+    );
+  }
+
+  const extractTestKey = (item: T): string => {
+    const normalized = item.path.replace(/\\/g, '/');
+    const parts = normalized.split('/').filter(Boolean);
+    if (parts.length >= 2) {
+      for (let i = parts.length - 2; i >= 0; i--) {
+        const seg = parts[i];
+        if (/test[_\s-]*\d+/i.test(seg) || /^\d+$/.test(seg)) {
+          return seg.trim();
+        }
+      }
+      const parent = parts[parts.length - 2];
+      if (parent && !parent.toLowerCase().includes('bai') && !parent.toLowerCase().includes('problem')) {
+        return parent.trim();
+      }
+    }
+    const base = item.name.replace(/\.[^/.]+$/, '');
+    const numMatch = base.match(/\d+/g);
+    if (numMatch) {
+      return numMatch[numMatch.length - 1];
+    }
+    return base.trim();
+  };
+
+  const map = new Map<string, { name: string; input?: T; output?: T }>();
+  for (const inp of inputs) {
+    const key = extractTestKey(inp);
+    if (!map.has(key)) map.set(key, { name: key });
+    map.get(key)!.input = inp;
+  }
+  for (const out of outputs) {
+    const key = extractTestKey(out);
+    if (map.has(key)) {
+      map.get(key)!.output = out;
+    } else {
+      const numMatch = key.match(/\d+/);
+      let matched = false;
+      if (numMatch) {
+        const numVal = parseInt(numMatch[0], 10);
+        for (const [k, val] of map.entries()) {
+          const kNum = k.match(/\d+/);
+          if (kNum && parseInt(kNum[0], 10) === numVal && val.output === undefined) {
+            val.output = out;
+            matched = true;
+            break;
+          }
+        }
+      }
+      if (!matched) {
+        map.set(key, { name: key, output: out });
+      }
+    }
+  }
+
+  const validPairs: Array<{ key: string; input: T; output: T }> = [];
+  let skippedMissingOut = 0;
+  let skippedMissingIn = 0;
+  map.forEach((val, key) => {
+    if (val.input !== undefined && val.output !== undefined) {
+      validPairs.push({ key, input: val.input, output: val.output });
+    } else if (val.input !== undefined) {
+      skippedMissingOut++;
+    } else if (val.output !== undefined) {
+      skippedMissingIn++;
+    }
+  });
+
+  if (skippedMissingOut > 0) warnings.push(`Đã bỏ qua ${skippedMissingOut} file Input không có file Output đối ứng.`);
+  if (skippedMissingIn > 0) warnings.push(`Đã bỏ qua ${skippedMissingIn} file Output không có file Input đối ứng.`);
+
+  if (validPairs.length === 0 && inputs.length > 0 && outputs.length > 0) {
+    inputs.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
+    outputs.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
+    const count = Math.min(inputs.length, outputs.length);
+    for (let i = 0; i < count; i++) {
+      validPairs.push({ key: `Test ${i + 1}`, input: inputs[i], output: outputs[i] });
+    }
+  }
+
+  if (validPairs.length === 0) {
+    throw new Error(
+      `Không thể tự động ghép cặp file Input và Output! (Tìm thấy ${inputs.length} file .INP và ${outputs.length} file .OUT).`
+    );
+  }
+
+  validPairs.sort((a, b) => a.key.localeCompare(b.key, undefined, { numeric: true, sensitivity: 'base' }));
+  return { validPairs, warnings };
+}
+
+/**
+ * Quét danh mục file .ZIP trong ~20ms (KHÔNG giải nén nội dung ra RAM) để ghép cặp .INP / .OUT
+ * Sau đó tải thẳng file .ZIP gốc lên Supabase Storage chuẩn VNOI.
+ */
+export async function inspectThemisZipForUpload(
+  file: File,
+  totalPoints: number = 10
+): Promise<FastUploadPackage> {
+  const zip = new JSZip();
+  const loadedZip = await zip.loadAsync(file);
+
+  const validEntries: Array<{ path: string; name: string; rawZipPath: string }> = [];
+  loadedZip.forEach((relativePath, zipEntry) => {
+    if (zipEntry.dir) return;
+    const normalizedPath = relativePath.replace(/\\/g, '/');
+    const parts = normalizedPath.split('/').filter(Boolean);
+    const fileName = parts[parts.length - 1] || '';
+    if (!fileName || isJunkOrSystemFile(normalizedPath, fileName)) return;
+    validEntries.push({ path: normalizedPath, name: fileName, rawZipPath: relativePath });
+  });
+
+  if (validEntries.length === 0) {
+    throw new Error('File nén .ZIP không chứa bất kỳ file test hợp lệ (.INP/.OUT/.IN/.ANS/.TXT) nào');
+  }
+
+  const { validPairs, warnings } = pairTestHandles(validEntries);
+  const ptsPerTest = +(totalPoints / validPairs.length).toFixed(2);
+  const pairs: PairedTestUploadItem[] = validPairs.map((pair, idx, arr) => ({
+    index: idx + 1,
+    key: pair.key,
+    name: `Test #${String(idx + 1).padStart(2, '0')}`,
+    points: idx === arr.length - 1 ? +(totalPoints - ptsPerTest * (arr.length - 1)).toFixed(2) : ptsPerTest,
+    isHidden: idx >= 3,
+    inputEntryName: pair.input.rawZipPath,
+    outputEntryName: pair.output.rawZipPath,
+  }));
+
+  const sizeMb = (file.size / (1024 * 1024)).toFixed(2);
+  return {
+    mode: 'zip',
+    zipBlob: file,
+    pairs,
+    totalBytes: file.size,
+    summary: `Đã nhận diện ${pairs.length} cặp test trong ${file.name} (${sizeMb} MB). Bấm "Lưu cấu hình Test" để đẩy thẳng lên Cloud!`,
+    warnings,
+  };
+}
+
+/**
+ * Quét thư mục / danh sách file .INP & .OUT trong ~10ms (KHÔNG đọc nội dung vào RAM)
+ * Khi bấm Lưu mới đóng gói nhanh thành 1 file .ZIP duy nhất và tải lên Storage.
+ */
+export function inspectThemisFilesForUpload(
+  files: FileList | File[],
+  totalPoints: number = 10
+): FastUploadPackage {
+  const fileArray = Array.from(files);
+  const validFiles: Array<{ path: string; name: string; file: File }> = [];
+  for (const file of fileArray) {
+    const rawPath = (file as unknown as { webkitRelativePath?: string }).webkitRelativePath || file.name;
+    const normalizedPath = rawPath.replace(/\\/g, '/');
+    if (isJunkOrSystemFile(normalizedPath, file.name)) continue;
+    validFiles.push({ path: normalizedPath, name: file.name, file });
+  }
+
+  if (validFiles.length === 0) {
+    throw new Error('Không tìm thấy file test hợp lệ (.INP/.OUT/.IN/.ANS/.TXT) trong thư mục đã chọn');
+  }
+
+  const { validPairs, warnings } = pairTestHandles(validFiles);
+  const ptsPerTest = +(totalPoints / validPairs.length).toFixed(2);
+  let totalRawBytes = 0;
+
+  const pairs: PairedTestUploadItem[] = validPairs.map((pair, idx, arr) => {
+    totalRawBytes += (pair.input.file.size || 0) + (pair.output.file.size || 0);
+    return {
+      index: idx + 1,
+      key: pair.key,
+      name: `Test #${String(idx + 1).padStart(2, '0')}`,
+      points: idx === arr.length - 1 ? +(totalPoints - ptsPerTest * (arr.length - 1)).toFixed(2) : ptsPerTest,
+      isHidden: idx >= 3,
+      inputEntryName: `tc_${idx + 1}.inp`,
+      outputEntryName: `tc_${idx + 1}.out`,
+      inputFile: pair.input.file,
+      outputFile: pair.output.file,
+    };
+  });
+
+  const sizeMb = (totalRawBytes / (1024 * 1024)).toFixed(2);
+  return {
+    mode: 'files',
+    pairs,
+    totalBytes: totalRawBytes,
+    summary: `Đã ghép cặp ${pairs.length} bộ test (${sizeMb} MB gốc). Bấm "Lưu cấu hình Test" để tự động nén .ZIP & tải nhanh lên Cloud!`,
+    warnings,
+  };
+}
+
+/**
+ * Đóng gói các cặp File .INP/.OUT thành đúng 1 file .ZIP duy nhất (tốc độ cao level 1)
+ */
+export async function packThemisPairsToZip(
+  pairs: PairedTestUploadItem[],
+  onProgress?: (percent: number) => void
+): Promise<Blob> {
+  const zip = new JSZip();
+  for (const p of pairs) {
+    if (p.inputFile) zip.file(p.inputEntryName, p.inputFile);
+    if (p.outputFile) zip.file(p.outputEntryName, p.outputFile);
+  }
+  return zip.generateAsync(
+    {
+      type: 'blob',
+      compression: 'DEFLATE',
+      compressionOptions: { level: 1 },
+    },
+    (meta) => {
+      onProgress?.(Math.round(meta.percent));
+    }
+  );
+}

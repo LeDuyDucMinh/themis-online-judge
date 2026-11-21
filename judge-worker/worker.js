@@ -405,8 +405,156 @@ async function getProblemAndTests(problemId) {
     }));
   }
 
-  // Sắp xếp tự nhiên
-  const sortedTestCases = [...rawTestCases].sort((a, b) => naturalCompare(a.name || a.id, b.name || b.id));
+// Giải nén bộ đệm .ZIP thuần Node.js (0 thư viện ngoài, dùng sẵn zlib.inflateRawSync)
+function extractZipBuffer(buf) {
+  const entries = new Map();
+  if (!Buffer.isBuffer(buf) || buf.length < 22) return entries;
+
+  const minOffset = Math.max(0, buf.length - 65557);
+  let eocdPos = -1;
+  for (let i = buf.length - 22; i >= minOffset; i--) {
+    if (buf.readUInt32LE(i) === 0x06054b50) {
+      const commentLen = buf.readUInt16LE(i + 20);
+      if (i + 22 + commentLen === buf.length) {
+        eocdPos = i;
+        break;
+      }
+    }
+  }
+  if (eocdPos < 0) {
+    throw new Error('File nén .ZIP không hợp lệ (không tìm thấy EOCD)');
+  }
+
+  const totalEntries = buf.readUInt16LE(eocdPos + 10);
+  let pos = buf.readUInt32LE(eocdPos + 16);
+
+  for (let e = 0; e < totalEntries && pos + 46 <= buf.length; e++) {
+    if (buf.readUInt32LE(pos) !== 0x02014b50) break;
+    const method = buf.readUInt16LE(pos + 10);
+    const compSize = buf.readUInt32LE(pos + 20);
+    const nameLen = buf.readUInt16LE(pos + 28);
+    const extraLen = buf.readUInt16LE(pos + 30);
+    const commentLen = buf.readUInt16LE(pos + 32);
+    const localHeaderOffset = buf.readUInt32LE(pos + 42);
+    const rawName = buf.toString('utf8', pos + 46, pos + 46 + nameLen);
+    pos += 46 + nameLen + extraLen + commentLen;
+
+    if (rawName.endsWith('/')) continue;
+    if (localHeaderOffset + 30 > buf.length) continue;
+    if (buf.readUInt32LE(localHeaderOffset) !== 0x04034b50) continue;
+
+    const localNameLen = buf.readUInt16LE(localHeaderOffset + 26);
+    const localExtraLen = buf.readUInt16LE(localHeaderOffset + 28);
+    const dataStart = localHeaderOffset + 30 + localNameLen + localExtraLen;
+    const dataEnd = dataStart + compSize;
+    if (dataEnd > buf.length) continue;
+
+    const compSlice = buf.subarray(dataStart, dataEnd);
+    let fileBuf;
+    if (method === 0) {
+      fileBuf = compSlice;
+    } else if (method === 8) {
+      fileBuf = zlib.inflateRawSync(compSlice);
+    } else {
+      continue;
+    }
+    entries.set(rawName, fileBuf);
+    const normName = rawName.replace(/\\/g, '/');
+    if (normName !== rawName) entries.set(normName, fileBuf);
+  }
+  return entries;
+}
+
+function parseStorageZipPointer(val) {
+  if (typeof val !== 'string' || !val.startsWith('__STORAGE_ZIP__:')) return null;
+  const rest = val.slice('__STORAGE_ZIP__:'.length);
+  const hashIdx = rest.indexOf('#');
+  if (hashIdx < 0) return null;
+  const urlPart = rest.slice(0, hashIdx);
+  const entryName = rest.slice(hashIdx + 1);
+  const qIdx = urlPart.indexOf('?');
+  const pathOnly = qIdx >= 0 ? urlPart.slice(0, qIdx) : urlPart;
+  const versionPart = qIdx >= 0 ? urlPart.slice(qIdx + 1) : '';
+  const slashIdx = pathOnly.indexOf('/');
+  if (slashIdx < 0) return null;
+  return {
+    bucket: pathOnly.slice(0, slashIdx),
+    objectPath: pathOnly.slice(slashIdx + 1),
+    cacheKey: `${pathOnly}_${versionPart}`,
+    entryName,
+  };
+}
+
+async function resolveStorageZipTestCases(rawTestCases, problemId, sbHeaders) {
+  const zipSpecs = new Map();
+  for (const tc of rawTestCases) {
+    const pIn = parseStorageZipPointer(tc.input);
+    const pOut = parseStorageZipPointer(tc.expectedOutput);
+    if (pIn && !zipSpecs.has(pIn.cacheKey)) zipSpecs.set(pIn.cacheKey, pIn);
+    if (pOut && !zipSpecs.has(pOut.cacheKey)) zipSpecs.set(pOut.cacheKey, pOut);
+  }
+  if (zipSpecs.size === 0) return { resolved: rawTestCases, usedStorageZip: false };
+
+  const extractedMap = new Map();
+  for (const [cacheKey, spec] of zipSpecs.entries()) {
+    const keyHash = crypto.createHash('md5').update(cacheKey).digest('hex').slice(0, 12);
+    const zipCacheFile = path.join(CACHE_DIR, `zip_${problemId}_${keyHash}.zip`);
+    let zipBuf = null;
+
+    if (fs.existsSync(zipCacheFile)) {
+      try {
+        zipBuf = fs.readFileSync(zipCacheFile);
+      } catch {
+        zipBuf = null;
+      }
+    }
+
+    if (!zipBuf) {
+      const encodedPath = spec.objectPath.split('/').map(encodeURIComponent).join('/');
+      const dlUrl = `${SUPABASE_URL}/storage/v1/object/${encodeURIComponent(spec.bucket)}/${encodedPath}`;
+      const dlRes = await fetch(dlUrl, { headers: sbHeaders });
+      if (!dlRes.ok) {
+        throw new Error(`Không thể tải gói test .ZIP từ Storage (HTTP ${dlRes.status})`);
+      }
+      zipBuf = Buffer.from(await dlRes.arrayBuffer());
+      // Dọn các file zip cũ của cùng bài này trên VPS để tiết kiệm ổ cứng
+      try {
+        const files = fs.readdirSync(CACHE_DIR);
+        for (const f of files) {
+          if (f.startsWith(`zip_${problemId}_`) && f.endsWith('.zip') && f !== path.basename(zipCacheFile)) {
+            fs.unlinkSync(path.join(CACHE_DIR, f));
+          }
+        }
+        fs.writeFileSync(zipCacheFile, zipBuf);
+      } catch {}
+    }
+
+    extractedMap.set(cacheKey, extractZipBuffer(zipBuf));
+  }
+
+  const readEntryText = (ptr) => {
+    const entries = extractedMap.get(ptr.cacheKey);
+    if (!entries) return '';
+    const buf = entries.get(ptr.entryName) || entries.get(ptr.entryName.replace(/\\/g, '/'));
+    return buf ? buf.toString('utf8') : '';
+  };
+
+  const resolved = rawTestCases.map((tc) => {
+    const pIn = parseStorageZipPointer(tc.input);
+    const pOut = parseStorageZipPointer(tc.expectedOutput);
+    return {
+      ...tc,
+      input: pIn ? readEntryText(pIn) : tc.input,
+      expectedOutput: pOut ? readEntryText(pOut) : tc.expectedOutput,
+    };
+  });
+
+  return { resolved, usedStorageZip: true };
+}
+
+// Sắp xếp tự nhiên
+  const { resolved: hydratedTestCases, usedStorageZip } = await resolveStorageZipTestCases(rawTestCases, problemId, sbHeaders);
+  const sortedTestCases = [...hydratedTestCases].sort((a, b) => naturalCompare(a.name || a.id, b.name || b.id));
   const targetTotal = Number(problem.total_points) > 0 ? Number(problem.total_points) : 10;
   const rawSum = sortedTestCases.reduce((acc, t) => acc + (Number(t.points) > 0 ? Number(t.points) : 0), 0);
   const testCases = sortedTestCases.map((tc, idx, arr) => {
@@ -433,9 +581,12 @@ async function getProblemAndTests(problemId) {
 
   const payload = { problem, testCases, targetTotal, version };
   memoryProblemCache.set(problemId, { version, data: payload });
-  try {
-    fs.writeFileSync(cacheFile, JSON.stringify(payload), 'utf8');
-  } catch {}
+  // Chỉ ghi cache JSON lớn cho bài SQL cũ; bài dùng .ZIP đã có sẵn file .zip siêu gọn trên ổ cứng VPS!
+  if (!usedStorageZip) {
+    try {
+      fs.writeFileSync(cacheFile, JSON.stringify(payload), 'utf8');
+    } catch {}
+  }
   return payload;
 }
 

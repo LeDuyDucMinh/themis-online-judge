@@ -27,6 +27,71 @@ const NORM_PY_SCRIPT = [
 ].join('\n');
 const NORM_PY_B64 = Buffer.from(NORM_PY_SCRIPT, 'utf8').toString('base64');
 
+function extractZipBuffer(buf) {
+  const entries = new Map();
+  if (!Buffer.isBuffer(buf) || buf.length < 22) return entries;
+  const minOffset = Math.max(0, buf.length - 65557);
+  let eocdPos = -1;
+  for (let i = buf.length - 22; i >= minOffset; i--) {
+    if (buf.readUInt32LE(i) === 0x06054b50) {
+      const commentLen = buf.readUInt16LE(i + 20);
+      if (i + 22 + commentLen === buf.length) {
+        eocdPos = i;
+        break;
+      }
+    }
+  }
+  if (eocdPos < 0) throw new Error('File nén .ZIP không hợp lệ');
+  const totalEntries = buf.readUInt16LE(eocdPos + 10);
+  let pos = buf.readUInt32LE(eocdPos + 16);
+  for (let e = 0; e < totalEntries && pos + 46 <= buf.length; e++) {
+    if (buf.readUInt32LE(pos) !== 0x02014b50) break;
+    const method = buf.readUInt16LE(pos + 10);
+    const compSize = buf.readUInt32LE(pos + 20);
+    const nameLen = buf.readUInt16LE(pos + 28);
+    const extraLen = buf.readUInt16LE(pos + 30);
+    const commentLen = buf.readUInt16LE(pos + 32);
+    const localHeaderOffset = buf.readUInt32LE(pos + 42);
+    const rawName = buf.toString('utf8', pos + 46, pos + 46 + nameLen);
+    pos += 46 + nameLen + extraLen + commentLen;
+    if (rawName.endsWith('/') || localHeaderOffset + 30 > buf.length) continue;
+    if (buf.readUInt32LE(localHeaderOffset) !== 0x04034b50) continue;
+    const localNameLen = buf.readUInt16LE(localHeaderOffset + 26);
+    const localExtraLen = buf.readUInt16LE(localHeaderOffset + 28);
+    const dataStart = localHeaderOffset + 30 + localNameLen + localExtraLen;
+    const dataEnd = dataStart + compSize;
+    if (dataEnd > buf.length) continue;
+    const compSlice = buf.subarray(dataStart, dataEnd);
+    let fileBuf;
+    if (method === 0) fileBuf = compSlice;
+    else if (method === 8) fileBuf = zlib.inflateRawSync(compSlice);
+    else continue;
+    entries.set(rawName, fileBuf);
+    const normName = rawName.replace(/\\/g, '/');
+    if (normName !== rawName) entries.set(normName, fileBuf);
+  }
+  return entries;
+}
+
+function parseStorageZipPointer(val) {
+  if (typeof val !== 'string' || !val.startsWith('__STORAGE_ZIP__:')) return null;
+  const rest = val.slice('__STORAGE_ZIP__:'.length);
+  const hashIdx = rest.indexOf('#');
+  if (hashIdx < 0) return null;
+  const urlPart = rest.slice(0, hashIdx);
+  const entryName = rest.slice(hashIdx + 1);
+  const qIdx = urlPart.indexOf('?');
+  const pathOnly = qIdx >= 0 ? urlPart.slice(0, qIdx) : urlPart;
+  const slashIdx = pathOnly.indexOf('/');
+  if (slashIdx < 0) return null;
+  return {
+    bucket: pathOnly.slice(0, slashIdx),
+    objectPath: pathOnly.slice(slashIdx + 1),
+    cacheKey: urlPart,
+    entryName,
+  };
+}
+
 const SUPABASE_URL = (process.env.SUPABASE_URL || 'https://wsccqtgnwejupfucfqtg.supabase.co').trim().replace(/\/+$/, '');
 const SUPABASE_KEY = (
   process.env.SUPABASE_SERVICE_ROLE_KEY ||
@@ -406,6 +471,42 @@ export default async function handler(req, res) {
         problemTitle: problem.title,
         submittedAt: submittedAtTimestamp,
       });
+    }
+
+    // 2B. Nếu bộ test lưu dưới dạng gói .ZIP chuẩn VNOI trên Supabase Storage, tự động tải & giải nén trong RAM
+    const zipSpecs = new Map();
+    for (const tc of testCases) {
+      const pIn = parseStorageZipPointer(tc.input);
+      const pOut = parseStorageZipPointer(tc.expectedOutput);
+      if (pIn && !zipSpecs.has(pIn.cacheKey)) zipSpecs.set(pIn.cacheKey, pIn);
+      if (pOut && !zipSpecs.has(pOut.cacheKey)) zipSpecs.set(pOut.cacheKey, pOut);
+    }
+    if (zipSpecs.size > 0) {
+      const extractedMap = new Map();
+      await Promise.all(
+        Array.from(zipSpecs.entries()).map(async ([k, spec]) => {
+          const encodedPath = spec.objectPath.split('/').map(encodeURIComponent).join('/');
+          const dlRes = await fetch(
+            `${SUPABASE_URL}/storage/v1/object/${encodeURIComponent(spec.bucket)}/${encodedPath}`,
+            { headers: sbHeaders }
+          );
+          if (!dlRes.ok) throw new Error(`Không thể tải gói test .ZIP (HTTP ${dlRes.status})`);
+          const zipBuf = Buffer.from(await dlRes.arrayBuffer());
+          extractedMap.set(k, extractZipBuffer(zipBuf));
+        })
+      );
+      const readEntry = (ptr) => {
+        const map = extractedMap.get(ptr.cacheKey);
+        if (!map) return '';
+        const b = map.get(ptr.entryName) || map.get(ptr.entryName.replace(/\\/g, '/'));
+        return b ? b.toString('utf8').replace(/\r\n/g, '\n').replace(/\r/g, '\n') : '';
+      };
+      for (const tc of testCases) {
+        const pIn = parseStorageZipPointer(tc.input);
+        const pOut = parseStorageZipPointer(tc.expectedOutput);
+        if (pIn) tc.input = readEntry(pIn);
+        if (pOut) tc.expectedOutput = readEntry(pOut);
+      }
     }
 
     // 3. Tiền xử lý code

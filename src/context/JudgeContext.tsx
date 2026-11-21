@@ -1977,11 +1977,11 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       Boolean(tests && tests.length > 0 && tests.some((t) => (t.input && t.input.trim()) || (t.expectedOutput && t.expectedOutput.trim())));
 
     let mergedTestCases =
-      updated.testCases && updated.testCases.length > 0
+      updated.testCases !== undefined
         ? updated.testCases
         : (existing.testCases && existing.testCases.length > 0 ? existing.testCases : []);
 
-    if (!hasRealContent(mergedTestCases)) {
+    if (updated.testCases === undefined && !hasRealContent(mergedTestCases)) {
       const idbTests = await idbService.getTestCases(id);
       if (hasRealContent(idbTests)) {
         mergedTestCases = idbTests!;
