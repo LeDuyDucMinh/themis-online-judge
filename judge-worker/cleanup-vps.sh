@@ -8,20 +8,19 @@ echo "📊 Dung lượng ổ đĩa TRƯỚC khi dọn:"
 df -h /
 
 echo ""
-echo "1️⃣  Dọn nhật ký (logs) Docker, PM2 và hệ thống..."
+echo "1️⃣  Dọn nhật ký (logs) Docker, PM2, apt cache và hệ thống..."
 truncate -s 0 /var/lib/docker/containers/*/*-json.log 2>/dev/null || true
-journalctl --vacuum-size=100M >/dev/null 2>&1 || true
+journalctl --vacuum-size=30M >/dev/null 2>&1 || true
+apt-get clean >/dev/null 2>&1 || true
 pm2 flush >/dev/null 2>&1 || true
 rm -rf /var/log/*.gz /var/log/*.[0-9] /root/.npm/_cacache 2>/dev/null || true
 
 echo "2️⃣  Dọn dữ liệu bài chấm tạm (scratchpad) cũ trong PostgreSQL nội bộ của Judge0..."
 PG_CID=$(docker ps --format '{{.Names}}' 2>/dev/null | grep -iE 'judge0.*db|db|postgres' | head -n 1 || true)
 if [ -n "${PG_CID}" ]; then
-  PG_USER=$(docker exec "${PG_CID}" sh -c 'echo "${POSTGRES_USER:-judge0}"' 2>/dev/null || echo "judge0")
-  PG_DB=$(docker exec "${PG_CID}" sh -c 'echo "${POSTGRES_DB:-judge0}"' 2>/dev/null || echo "judge0")
-  echo "   → Tìm thấy container DB Judge0: ${PG_CID} (user=${PG_USER}, db=${PG_DB})"
-  docker exec "${PG_CID}" psql -U "${PG_USER}" -d "${PG_DB}" -c "TRUNCATE TABLE submissions RESTART IDENTITY; VACUUM FULL;" 2>/dev/null \
-    || docker exec "${PG_CID}" psql -U postgres -d judge0 -c "TRUNCATE TABLE submissions RESTART IDENTITY; VACUUM FULL;" 2>/dev/null \
+  echo "   → Tìm thấy container DB Judge0: ${PG_CID}"
+  docker exec "${PG_CID}" sh -c 'psql -U "${POSTGRES_USER:-postgres}" -d "${POSTGRES_DB:-judge0}" -c "TRUNCATE TABLE submissions RESTART IDENTITY;" && psql -U "${POSTGRES_USER:-postgres}" -d "${POSTGRES_DB:-judge0}" -c "VACUUM FULL;"' \
+    && echo "   ✅ Đã giải phóng toàn bộ bảng tạm submissions trong DB Judge0!" \
     || echo "   ⚠️ Không truy cập được bảng submissions trong ${PG_CID} (bỏ qua an toàn)."
 else
   echo "   ℹ️ Không thấy container PostgreSQL Judge0 đang chạy."
@@ -34,7 +33,7 @@ echo "4️⃣  Cài lịch tự động dọn rác Judge0 mỗi 3:00 sáng hàng
 cat << 'CRONEOF' > /etc/cron.d/themis-judge0-cleanup
 SHELL=/bin/bash
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-0 3 * * * root truncate -s 0 /var/lib/docker/containers/*/*-json.log 2>/dev/null; PG_CID=$(docker ps --format '{{.Names}}' | grep -iE 'judge0.*db|db|postgres' | head -n 1); [ -n "$PG_CID" ] && docker exec "$PG_CID" sh -c 'psql -U "${POSTGRES_USER:-judge0}" -d "${POSTGRES_DB:-judge0}" -c "DELETE FROM submissions WHERE created_at < NOW() - INTERVAL '\''1 day'\''; VACUUM;"' >/dev/null 2>&1; pm2 flush >/dev/null 2>&1
+0 3 * * * root truncate -s 0 /var/lib/docker/containers/*/*-json.log 2>/dev/null; PG_CID=$(docker ps --format '{{.Names}}' | grep -iE 'judge0.*db|db|postgres' | head -n 1); [ -n "$PG_CID" ] && docker exec "$PG_CID" sh -c 'psql -U "${POSTGRES_USER:-postgres}" -d "${POSTGRES_DB:-judge0}" -c "DELETE FROM submissions WHERE created_at < NOW() - INTERVAL '\''1 day'\'';" && psql -U "${POSTGRES_USER:-postgres}" -d "${POSTGRES_DB:-judge0}" -c "VACUUM FULL submissions;"' >/dev/null 2>&1; pm2 flush >/dev/null 2>&1
 CRONEOF
 chmod 644 /etc/cron.d/themis-judge0-cleanup 2>/dev/null || true
 
