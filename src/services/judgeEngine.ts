@@ -979,6 +979,25 @@ export async function gradeWithJudge0(
       runCmd = 'java -Xmx256M Main';
     }
 
+    const normPyB64 = encodeUtf8Base64(
+      [
+        'import sys, hashlib, re',
+        'data = sys.stdin.buffer.read().decode("utf-8", "replace")',
+        'data = data.replace("\\r\\n", "\\n").replace("\\r", "\\n")',
+        'lines = [re.sub(r"[\\s\\x00-\\x1f\\x7f]+$", "", l) for l in data.split("\\n")]',
+        'while lines and lines[-1] == "":',
+        '    lines.pop()',
+        'norm = "\\n".join(lines)',
+        'h1 = hashlib.sha256(norm.encode("utf-8")).hexdigest()',
+        'toks = norm.split()',
+        'h2 = hashlib.sha256(" ".join(toks).encode("utf-8")).hexdigest()',
+        'bools = {"yes", "no", "true", "false"}',
+        'toks_b = [t.lower() if t.lower() in bools else t for t in toks]',
+        'h3 = hashlib.sha256(" ".join(toks_b).encode("utf-8")).hexdigest()',
+        'sys.stdout.write(h1 + "," + h2 + "," + h3)',
+      ].join('\n')
+    );
+
     const lines = [
       'export PATH=/usr/local/gcc-9.2.0/bin:/usr/local/python-3.8.1/bin:/usr/local/fpc-3.0.4/bin:/usr/local/openjdk13/bin:/usr/local/bin:/usr/bin:/bin:$PATH',
       compileStep,
@@ -986,6 +1005,7 @@ export async function gradeWithJudge0(
       '  echo "===THEMIS_CE_B64===$(head -c 8192 compile.err | base64 -w 0)===END_CE==="',
       '  exit 0',
       'fi',
+      `echo '${normPyB64}' | base64 -d > _norm.py`,
       'START_ALL=$(date +%s%3N)',
       'TLE_STREAK=0',
     ];
@@ -995,8 +1015,8 @@ export async function gradeWithJudge0(
       const inB64 = encodeUtf8Base64(cleanInput);
       lines.push(
         `NOW=$(date +%s%3N)`,
-        `if [ $TLE_STREAK -ge 4 ] || [ $((NOW - START_ALL)) -gt 8500 ]; then`,
-        `  echo "===THEMIS_TEST:${i}:124:${tlMs}::===END_TEST==="`,
+        `if [ $TLE_STREAK -ge 4 ] || [ $((NOW - START_ALL)) -gt 13500 ]; then`,
+        `  echo "===THEMIS_TEST:${i}:124:${tlMs}:::===END_TEST==="`,
         `else`,
         `  echo '${inB64}' | base64 -d > in.txt`,
         `  T1=$(date +%s%3N)`,
@@ -1005,9 +1025,16 @@ export async function gradeWithJudge0(
         `  T2=$(date +%s%3N)`,
         `  EL=$((T2 - T1))`,
         `  if [ $EC -eq 124 ] || [ $EC -eq 137 ]; then TLE_STREAK=$((TLE_STREAK + 1)); else TLE_STREAK=0; fi`,
-        `  OUT_B64=$(head -c 65536 out.txt | base64 -w 0)`,
+        `  OUT_SZ=$(wc -c < out.txt)`,
+        `  if [ "$OUT_SZ" -le 65536 ]; then`,
+        `    OUT_B64=$(base64 -w 0 < out.txt)`,
+        `    OUT_HASH=""`,
+        `  else`,
+        `    OUT_B64=$(head -c 2048 out.txt | base64 -w 0)`,
+        `    OUT_HASH=$(python3 _norm.py < out.txt)`,
+        `  fi`,
         `  ERR_B64=$(head -c 2048 err.txt | base64 -w 0)`,
-        `  echo "===THEMIS_TEST:${i}:$EC:$EL:$OUT_B64:$ERR_B64===END_TEST==="`,
+        `  echo "===THEMIS_TEST:${i}:$EC:$EL:$OUT_B64:$ERR_B64:$OUT_HASH===END_TEST==="`,
         `fi`
       );
     }
@@ -1033,6 +1060,7 @@ export async function gradeWithJudge0(
           wall_time_limit: 20,
           max_processes_and_or_threads: 120,
           memory_limit: 512000,
+          max_file_size: 4096,
         }),
         signal: controller.signal,
       });
@@ -1084,8 +1112,15 @@ export async function gradeWithJudge0(
           };
         }
 
+        const sha256Hex = async (str: string): Promise<string> => {
+          const buf = await globalThis.crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+          return Array.from(new Uint8Array(buf))
+            .map((b) => b.toString(16).padStart(2, '0'))
+            .join('');
+        };
+
         const parsedMap = new Map<number, TestResult>();
-        const regex = /===THEMIS_TEST:(\d+):(\d+):(\d+):([A-Za-z0-9+/=]*):([A-Za-z0-9+/=]*)===END_TEST===/g;
+        const regex = /===THEMIS_TEST:(\d+):(\d+):(\d+):([A-Za-z0-9+/=]*):([A-Za-z0-9+/=]*)(?::([a-f0-9,]*))?===END_TEST===/g;
         let match;
         while ((match = regex.exec(stdout)) !== null) {
           const i = Number(match[1]);
@@ -1093,6 +1128,7 @@ export async function gradeWithJudge0(
           const elapsedMs = Number(match[3]);
           const actualStdout = decodeUtf8Base64(match[4] || '');
           const stderrText = decodeUtf8Base64(match[5] || '');
+          const outHashStr = match[6] || '';
           const test = testCases[i];
           if (!test) continue;
 
@@ -1112,11 +1148,32 @@ export async function gradeWithJudge0(
             verdict = 'TLE';
             testTime = timeLimit;
             errorMessage = `Quá thời gian thực thi (${timeLimit}s)`;
+          } else if (exitCode === 153) {
+            verdict = 'RTE';
+            errorMessage = 'Vượt giới hạn dung lượng dữ liệu xuất ra (Output Limit Exceeded > 4MB)';
           } else if (exitCode !== 0) {
             verdict = 'RTE';
             errorMessage = stderrText.trim() || 'Lỗi thực thi (Runtime Error)';
           } else {
-            const isMatch = compareThemisOutputs(actualStdout, testExpected);
+            let isMatch = false;
+            if (outHashStr && globalThis.crypto?.subtle) {
+              const [h1, h2, h3] = outHashStr.split(',');
+              const normExp = normalizeThemisOutput(testExpected);
+              const toks = normExp.trim().split(/\s+/).filter(Boolean);
+              const bools = new Set(['yes', 'no', 'true', 'false']);
+              const toksB = toks.map((t) => {
+                const low = t.toLowerCase();
+                return bools.has(low) ? low : t;
+              });
+              const [expH1, expH2, expH3] = await Promise.all([
+                sha256Hex(normExp),
+                sha256Hex(toks.join(' ')),
+                sha256Hex(toksB.join(' ')),
+              ]);
+              isMatch = Boolean((h1 && h1 === expH1) || (h2 && h2 === expH2) || (h3 && h3 === expH3));
+            } else {
+              isMatch = compareThemisOutputs(actualStdout, testExpected);
+            }
             verdict = isMatch ? 'AC' : 'WA';
             if (!isMatch) errorMessage = 'Kết quả không khớp với đáp án mẫu';
           }
