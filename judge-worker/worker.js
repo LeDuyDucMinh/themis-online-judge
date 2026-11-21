@@ -189,10 +189,12 @@ const NORM_PY_SCRIPT = [
 const NORM_PY_B64 = Buffer.from(NORM_PY_SCRIPT, 'utf8').toString('base64');
 
 // Xây dựng kịch bản Bash biên dịch 1 lần và chạy theo lô trong container
+// Hỗ trợ tách đôi dữ liệu test siêu lớn (> 3.5MB sau gzip+base64) sang stdin + source_code để không bao giờ vượt ngưỡng HTTP 500 của Judge0
 function buildBatchBashScript(batchItems, srcCode, lang, tlSec) {
   const codeB64 = Buffer.from(srcCode, 'utf8').toString('base64');
   const clampedTl = Math.min(Math.max(Number(tlSec) || 1.0, 0.1), 5.0);
   const tlMs = Math.round(clampedTl * 1000);
+  let extraStdin = '';
 
   let compileStep = '';
   let runCmd = './solution';
@@ -246,16 +248,26 @@ function buildBatchBashScript(batchItems, srcCode, lang, tlSec) {
     'TLE_STREAK=0',
   ];
 
+  const SPLIT_THRESHOLD = 3.5 * 1024 * 1024;
   for (const item of batchItems) {
     const idx = item.idx;
     const gzB64 = item.tc.gzB64 || zlib.gzipSync(Buffer.from(item.tc.input || '', 'utf8')).toString('base64');
+    let feedCmd;
+    if (batchItems.length === 1 && gzB64.length > SPLIT_THRESHOLD && !extraStdin) {
+      const half = Math.ceil(gzB64.length / 2);
+      extraStdin = gzB64.slice(0, half);
+      const part2 = gzB64.slice(half);
+      feedCmd = `{ cat; printf '%s' '${part2}'; } | base64 -d | gzip -d | timeout ${clampedTl}s ${runCmd} > out.txt 2> err.txt`;
+    } else {
+      feedCmd = `echo '${gzB64}' | base64 -d | gzip -d | timeout ${clampedTl}s ${runCmd} > out.txt 2> err.txt`;
+    }
     lines.push(
       `NOW=$(date +%s%3N)`,
       `if [ $TLE_STREAK -ge 4 ] || [ $((NOW - START_ALL)) -gt 13500 ]; then`,
       `  echo "===THEMIS_TEST:${idx}:124:${tlMs}:::===END_TEST==="`,
       `else`,
       `  T1=$(date +%s%3N)`,
-      `  echo '${gzB64}' | base64 -d | gzip -d | timeout ${clampedTl}s ${runCmd} > out.txt 2> err.txt`,
+      `  ${feedCmd}`,
       `  EC=\${PIPESTATUS[3]}`,
       `  T2=$(date +%s%3N)`,
       `  EL=$((T2 - T1))`,
@@ -274,7 +286,7 @@ function buildBatchBashScript(batchItems, srcCode, lang, tlSec) {
     );
   }
 
-  return lines.join('\n');
+  return { script: lines.join('\n'), stdin: extraStdin };
 }
 
 function truncateDisplay(str, maxLen = 1000) {
@@ -569,7 +581,8 @@ async function resolveStorageZipTestCases(rawTestCases, problemId, sbHeaders) {
     }
     const cleanIn = tc.input.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
     const cleanExp = tc.expectedOutput.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-    const gzB64 = zlib.gzipSync(Buffer.from(cleanIn, 'utf8')).toString('base64');
+    const inBuf = Buffer.from(cleanIn, 'utf8');
+    const gzB64 = zlib.gzipSync(inBuf, { level: inBuf.length > 2 * 1024 * 1024 ? 6 : 1 }).toString('base64');
     const expHashes = computeThemisHashes(cleanExp);
     return {
       ...tc,
@@ -605,10 +618,12 @@ async function processSubmission(sub) {
     const batches = [];
     let currentBatch = [];
     let currentBytes = Buffer.byteLength(cleanedCode, 'utf8') * 2 + 2048;
-    const MAX_BATCH_SCRIPT_BYTES = 6 * 1024 * 1024; // 6MB Gzip+Base64 (~12MB dữ liệu thô trong 1 lô duy nhất)
+    const MAX_BATCH_SCRIPT_BYTES = 3.5 * 1024 * 1024; // Giữ mỗi trường <= 3.5MB (an toàn dưới ngưỡng HTTP 500 ~5MB của Judge0)
+    let totalGzBytes = 0;
 
     for (let i = 0; i < testCases.length; i++) {
       const gzLen = (testCases[i].gzB64 || '').length || Buffer.byteLength(testCases[i].input || '', 'utf8');
+      totalGzBytes += gzLen;
       const estItemBytes = gzLen + 512;
       if (currentBatch.length > 0 && currentBytes + estItemBytes > MAX_BATCH_SCRIPT_BYTES) {
         batches.push(currentBatch);
@@ -625,11 +640,11 @@ async function processSubmission(sub) {
 
     async function executeBatch(batch) {
       if (compileFailedResult) return;
-      const bashScript = buildBatchBashScript(batch, cleanedCode, sub.language || 'cpp', timeLimit);
+      const { script: bashScript, stdin: batchStdin } = buildBatchBashScript(batch, cleanedCode, sub.language || 'cpp', timeLimit);
       const data = await callJudge0({
         source_code: bashScript,
         language_id: 46, // Bash 5.0.0
-        stdin: '',
+        stdin: batchStdin || '',
         cpu_time_limit: 15,
         wall_time_limit: 20,
         memory_limit: 512000, // 512MB RAM - Đảm bảo g++ đủ bộ nhớ biên dịch an toàn
@@ -710,6 +725,8 @@ async function processSubmission(sub) {
       }
     }
 
+    // Với bộ test siêu lớn (> 2MB nén), chạy tuần tự từng lô để tránh tranh CPU trên VPS (chống TLE giả & giảm tải RAM/đĩa)
+    const batchConcurrency = totalGzBytes > 2 * 1024 * 1024 ? 1 : Math.min(2, batches.length);
     let nextBatchIdx = 0;
     const batchWorker = async () => {
       while (nextBatchIdx < batches.length && !compileFailedResult) {
@@ -717,7 +734,7 @@ async function processSubmission(sub) {
         if (b) await executeBatch(b);
       }
     };
-    await Promise.all(Array.from({ length: Math.min(2, batches.length) }, () => batchWorker()));
+    await Promise.all(Array.from({ length: batchConcurrency }, () => batchWorker()));
 
     const testResults = [];
     let totalPointsEarned = 0;

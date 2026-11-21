@@ -2179,7 +2179,10 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
                   ? Number(subData.totalTests)
                   : (subData.total_tests !== undefined ? Number(subData.total_tests) : (normalizedTestResults.length || actualTotalTests));
 
-                const finalVerdict = subData.overallVerdict || subData.verdict || (passed === total && total > 0 ? 'AC' : 'WA');
+                const isServerError = subData.status === 'ERROR';
+                const finalVerdict = isServerError
+                  ? 'SYS'
+                  : (subData.overallVerdict || subData.verdict || (passed === total && total > 0 ? 'AC' : 'WA'));
 
                 const finalSub: Submission = {
                   id: subData.id || targetSubId,
@@ -2312,13 +2315,14 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
                 }
               }, 4500);
 
-              // Timeout tối đa 45 giây để đủ thời gian cho bài có bộ test siêu nặng (nhiều lô ~50MB)
+              // Timeout tối đa 95 giây để đủ thời gian cho bài test siêu nặng (nhiều lô ~60MB như NTO)
+              // tránh ngắt ngang khi VPS vẫn đang chấm và tạo bài nộp dự phòng trùng lặp
               setTimeout(() => {
                 if (!isFinished) {
                   cleanup();
                   resolve(null);
                 }
-              }, 45000);
+              }, 95000);
             });
           }
         }
@@ -2329,6 +2333,16 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
     // NẾU SERVER-SIDE GRADING CHƯA KHẢ DỤNG (HOẶC LOCAL/OFFLINE), TỰ ĐỘNG DỰ PHÒNG VỀ CLIENT-SIDE GRADING
     if (!submission) {
+      const hasStorageZipPointer = (tests?: TestCase[] | null) =>
+        Boolean(
+          tests &&
+            tests.some(
+              (t) =>
+                (typeof t.input === 'string' && t.input.startsWith('__STORAGE_ZIP__:')) ||
+                (typeof t.expectedOutput === 'string' && t.expectedOutput.startsWith('__STORAGE_ZIP__:'))
+            )
+        );
+
       if (!hasRealContent(problem.testCases)) {
         // 1. Thử lấy từ IndexedDB
         let savedTests = await idbService.getTestCases(problem.id);
@@ -2342,6 +2356,19 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
             prev.map((p) => (p.id === problemId ? { ...p, testCases: savedTests! } : p))
           );
         }
+      }
+
+      // Bảo vệ tuyệt đối: Bài dùng kho .ZIP chuẩn VNOI (__STORAGE_ZIP__:) CHỈ ĐƯỢC CHẤM TRÊN SERVER/VPS.
+      // Tuyệt đối không ném chuỗi con trỏ __STORAGE_ZIP__: vào trình biên dịch ở client để tránh lỗi 0/20 WA giả!
+      if (hasStorageZipPointer(problem.testCases)) {
+        showToast(
+          'Máy chủ chấm bài đang bận',
+          'Bài tập này dùng gói test .ZIP lớn nên cần máy chấm VPS xử lý. Vui lòng chờ vài giây rồi bấm Nộp bài lại.',
+          'warning'
+        );
+        throw new Error(
+          'Máy chủ chấm bài VPS đang bận hoặc tạm quá tải khi xử lý bộ test .ZIP lớn. Vui lòng thử nộp lại sau vài giây!'
+        );
       }
 
       // Bảo vệ tuyệt đối: Nếu bài tập chưa có test case có dữ liệu thật, không bao giờ chấm lụi thành đúng hết
@@ -2398,6 +2425,12 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       );
     } else if (submission.overallVerdict === 'CE') {
       showToast('Lỗi biên dịch (CE)', 'Mã nguồn bị lỗi khi biên dịch. Hãy xem chi tiết bên dưới.', 'error');
+    } else if (submission.overallVerdict === 'SYS') {
+      showToast(
+        'Lỗi máy chủ chấm bài (SYS)',
+        submission.compilationMessage || 'Máy chủ chấm bài VPS đang gặp sự cố hoặc đầy bộ nhớ. Vui lòng thử lại sau.',
+        'error'
+      );
     } else {
       showToast(
         'Chưa đạt test nào (0 điểm)',

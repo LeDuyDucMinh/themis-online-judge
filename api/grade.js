@@ -655,6 +655,7 @@ export default async function handler(req, res) {
       const codeB64 = Buffer.from(srcCode, 'utf8').toString('base64');
       const clampedTl = Math.min(Math.max(Number(tlSec) || 1.0, 0.1), 5.0);
       const tlMs = Math.round(clampedTl * 1000);
+      let extraStdin = '';
 
       let compileStep = '';
       let runCmd = './solution';
@@ -708,16 +709,26 @@ export default async function handler(req, res) {
         'TLE_STREAK=0',
       ];
 
+      const SPLIT_THRESHOLD = 3.5 * 1024 * 1024;
       for (const item of batchItems) {
         const idx = item.idx;
         const gzB64 = item.tc.gzB64 || zlib.gzipSync(Buffer.from(item.tc.input || '', 'utf8')).toString('base64');
+        let feedCmd;
+        if (batchItems.length === 1 && gzB64.length > SPLIT_THRESHOLD && !extraStdin) {
+          const half = Math.ceil(gzB64.length / 2);
+          extraStdin = gzB64.slice(0, half);
+          const part2 = gzB64.slice(half);
+          feedCmd = `{ cat; printf '%s' '${part2}'; } | base64 -d | gzip -d | timeout ${clampedTl}s ${runCmd} > out.txt 2> err.txt`;
+        } else {
+          feedCmd = `echo '${gzB64}' | base64 -d | gzip -d | timeout ${clampedTl}s ${runCmd} > out.txt 2> err.txt`;
+        }
         lines.push(
           `NOW=$(date +%s%3N)`,
           `if [ $TLE_STREAK -ge 4 ] || [ $((NOW - START_ALL)) -gt 13500 ]; then`,
           `  echo "===THEMIS_TEST:${idx}:124:${tlMs}:::===END_TEST==="`,
           `else`,
           `  T1=$(date +%s%3N)`,
-          `  echo '${gzB64}' | base64 -d | gzip -d | timeout ${clampedTl}s ${runCmd} > out.txt 2> err.txt`,
+          `  ${feedCmd}`,
           `  EC=\${PIPESTATUS[3]}`,
           `  T2=$(date +%s%3N)`,
           `  EL=$((T2 - T1))`,
@@ -736,20 +747,21 @@ export default async function handler(req, res) {
         );
       }
 
-      return lines.join('\n');
+      return { script: lines.join('\n'), stdin: extraStdin };
     }
 
     const resultsMap = new Map();
     let compileFailedResult = null;
 
-    // Chia các test case thành các lô có kích thước script Gzip+Base64 <= 6MB (~12MB dữ liệu thô trong 1 lô duy nhất)
+    // Chia các test case thành các lô có kích thước script Gzip+Base64 <= 3.5MB (an toàn dưới ngưỡng HTTP 500 ~5MB của Judge0)
     const batches = [];
     let currentBatch = [];
     let currentBytes = Buffer.byteLength(cleanedCode, 'utf8') * 2 + 2048;
-    const MAX_BATCH_SCRIPT_BYTES = 6 * 1024 * 1024;
+    const MAX_BATCH_SCRIPT_BYTES = 3.5 * 1024 * 1024;
 
     for (let i = 0; i < testCases.length; i++) {
-      testCases[i].gzB64 = zlib.gzipSync(Buffer.from(testCases[i].input || '', 'utf8')).toString('base64');
+      const inBuf = Buffer.from(testCases[i].input || '', 'utf8');
+      testCases[i].gzB64 = zlib.gzipSync(inBuf, { level: inBuf.length > 2 * 1024 * 1024 ? 6 : 1 }).toString('base64');
       const estItemBytes = testCases[i].gzB64.length + 512;
       if (currentBatch.length > 0 && currentBytes + estItemBytes > MAX_BATCH_SCRIPT_BYTES) {
         batches.push(currentBatch);
@@ -763,10 +775,11 @@ export default async function handler(req, res) {
 
     async function runBatch(batchItems) {
       if (compileFailedResult) return;
-      const script = buildBatchBashScript(batchItems, cleanedCode, language, timeLimit);
+      const { script, stdin: batchStdin } = buildBatchBashScript(batchItems, cleanedCode, language, timeLimit);
       const data = await callJudge0({
         language_id: 46,
         source_code: script,
+        stdin: batchStdin || '',
         cpu_time_limit: 15,
         wall_time_limit: 20,
         max_processes_and_or_threads: 120,

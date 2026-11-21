@@ -1428,6 +1428,18 @@ export async function gradeSubmission(
     };
   }
 
+  if (
+    rawTestCases.some(
+      (t) =>
+        (typeof t.input === 'string' && t.input.startsWith('__STORAGE_ZIP__:')) ||
+        (typeof t.expectedOutput === 'string' && t.expectedOutput.startsWith('__STORAGE_ZIP__:'))
+    )
+  ) {
+    throw new Error(
+      'Bộ test của bài tập này được lưu dạng gói .ZIP trên Cloud Storage và chỉ hỗ trợ chấm trên Máy chủ VPS. Vui lòng kiểm tra kết nối máy chấm và nộp lại.'
+    );
+  }
+
   // Sắp xếp tự nhiên (Natural Sort: Test 1, Test 2, ..., Test 9, Test 10, ..., Test 20)
   const sortedTestCases = [...rawTestCases].sort((a, b) =>
     naturalCompare(a.name || a.id, b.name || b.id)
