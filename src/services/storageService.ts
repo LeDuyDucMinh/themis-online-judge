@@ -202,28 +202,30 @@ export const storageService = {
   saveProblems(problems: Problem[]): void {
     if (!problems) return;
 
-    // 1. Lưu đồng bộ ngay lập tức vào localStorage để đồng bộ tức thì với state và môi trường test
+    // 1. Lưu đồng bộ vào localStorage (TUYỆT ĐỐI KHÔNG cắt cụt input/output test case gây hỏng dữ liệu!)
+    // Nếu vượt hạn mức 5MB của localStorage, chỉ lưu metadata test (input/expectedOutput rỗng) để hệ thống luôn đọc test thật từ IndexedDB/Cloud.
     try {
       localStorage.setItem(STORAGE_KEYS.PROBLEMS, JSON.stringify(problems));
     } catch {
       try {
-        // Cấp 1: Cắt gọn input/output quá dài (>300 ký tự) và bỏ dataUrl lớn, NHƯNG giữ nguyên 100% số lượng testCases
-        const light = problems.map((p) => ({
+        const headerOnly = problems.map((p) => ({
           ...p,
           attachedFile: p.attachedFile?.dataUrl && p.attachedFile.dataUrl.length > 5000
             ? { ...p.attachedFile, dataUrl: '' }
             : p.attachedFile,
           testCases: (p.testCases || []).map((tc) => ({
-            ...tc,
-            input: tc.input && tc.input.length > 300 ? tc.input.substring(0, 300) : tc.input,
-            expectedOutput: tc.expectedOutput && tc.expectedOutput.length > 300 ? tc.expectedOutput.substring(0, 300) : tc.expectedOutput,
+            id: tc.id,
+            name: tc.name,
+            points: tc.points,
+            isHidden: tc.isHidden,
+            input: '',
+            expectedOutput: '',
           })),
         }));
-        localStorage.setItem(STORAGE_KEYS.PROBLEMS, JSON.stringify(light));
+        localStorage.setItem(STORAGE_KEYS.PROBLEMS, JSON.stringify(headerOnly));
       } catch {
         try {
-          // Cấp 2: Giữ toàn bộ danh sách test cases (id, name, points, isHidden) để số test luôn > 0
-          const headerOnly = problems.map((p) => ({
+          const minimal = problems.map((p) => ({
             ...p,
             attachedFile: undefined,
             testCases: (p.testCases || []).map((tc) => ({
@@ -235,19 +237,24 @@ export const storageService = {
               expectedOutput: '',
             })),
           }));
-          localStorage.setItem(STORAGE_KEYS.PROBLEMS, JSON.stringify(headerOnly));
+          localStorage.setItem(STORAGE_KEYS.PROBLEMS, JSON.stringify(minimal));
         } catch {
           // IndexedDB là kho lưu trữ bền vững hoàn chỉnh
         }
       }
     }
 
-    // 2. Lưu toàn bộ 100% dữ liệu vào IndexedDB bền vững
+    // 2. Lưu toàn bộ 100% dữ liệu vào IndexedDB bền vững (chỉ ghi test_cases khi thực sự có nội dung đầy đủ)
     idbService.saveProblems(problems).catch((err) => {
       console.warn('[storageService] Lỗi khi lưu problems vào IndexedDB:', err);
     });
     for (const p of problems) {
-      if (p.testCases && p.testCases.length > 0) {
+      const hasRealTestContent = Boolean(
+        p.testCases &&
+          p.testCases.length > 0 &&
+          p.testCases.some((tc) => (tc.input && tc.input.trim().length > 0) || (tc.expectedOutput && tc.expectedOutput.trim().length > 0))
+      );
+      if (hasRealTestContent) {
         idbService.saveTestCases(p.id, p.testCases).catch(() => {});
       }
     }

@@ -289,7 +289,7 @@ async function callJudge0(payload) {
   let lastErr = new Error('Judge0 không phản hồi');
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 22000);
+    const timer = setTimeout(() => controller.abort(), 25000);
     try {
       const res = await fetch(`${JUDGE0_URL}/submissions?base64_encoded=false&wait=true`, {
         method: 'POST',
@@ -557,7 +557,14 @@ async function processSubmission(sub) {
       }
     }
 
-    await Promise.all(batches.map((b) => executeBatch(b)));
+    let nextBatchIdx = 0;
+    const batchWorker = async () => {
+      while (nextBatchIdx < batches.length && !compileFailedResult) {
+        const b = batches[nextBatchIdx++];
+        if (b) await executeBatch(b);
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(2, batches.length) }, () => batchWorker()));
 
     const testResults = [];
     let totalPointsEarned = 0;

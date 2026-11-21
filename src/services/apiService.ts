@@ -1345,6 +1345,10 @@ export const apiService = {
             }
           };
 
+          const hasGiantBatch = batches.some((b) =>
+            b.reduce((acc, r) => acc + (r.input?.length || 0) + (r.expected_output?.length || 0), 0) > 1024 * 1024
+          );
+          const maxConcurrency = hasGiantBatch ? 2 : 4;
           let batchIdx = 0;
           const uploadWorker = async () => {
             while (batchIdx < batches.length) {
@@ -1354,7 +1358,7 @@ export const apiService = {
               }
             }
           };
-          const workers = Array.from({ length: Math.min(4, batches.length) }, () => uploadWorker());
+          const workers = Array.from({ length: Math.min(maxConcurrency, batches.length) }, () => uploadWorker());
           await Promise.all(workers);
 
           // Dọn các test cũ không còn trong bộ test mới (không gây lỗi nếu bị chặn)

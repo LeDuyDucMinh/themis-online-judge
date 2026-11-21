@@ -81,62 +81,41 @@ export const TestCaseManagerModal: React.FC<TestCaseManagerModalProps> = ({
   const [parseError, setParseError] = useState<string | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
 
-  // Tự động nạp test cases từ IndexedDB hoặc Cloud nếu problem trong props chưa có test cases HOẶC test cases bị rỗng nội dung input/output
+  // Luôn nạp bộ test case đầy đủ mới nhất từ Cloud (hoặc IndexedDB dự phòng) khi mở modal,
+  // tránh hiển thị hoặc vô tình ghi đè bằng bản lưu tạm cũ/rỗng từ localStorage.
   useEffect(() => {
     let isMounted = true;
     (async () => {
       const hasContent = (tests?: TestCase[] | null) =>
         Boolean(tests && tests.length > 0 && tests.some((t) => (t.input && t.input.trim()) || (t.expectedOutput && t.expectedOutput.trim())));
 
-      const isDuplicated = Boolean(
-        problem.testCases &&
-        problem.testCases.length > 1 &&
-        problem.testCases.some((t, i) => problem.testCases!.findIndex((o) => o.name === t.name) !== i)
-      );
-
-      // Nếu không có nội dung thực tế (chỉ là metadata) hoặc có test trùng lặp
-      if (!hasContent(problem.testCases) || isDuplicated) {
-        setIsLoadingTests(true);
-        try {
-          let dbTests = await idbService.getTestCases(problem.id);
-          if (!hasContent(dbTests) || isDuplicated) {
-            dbTests = await apiService.fetchTestCases(problem.id);
-          }
-          if (isMounted && dbTests && dbTests.length > 0) {
-            setTestCases(dbTests);
-          }
-        } catch (err) {
-          console.warn('[TestCaseManagerModal] Lỗi nạp test cases:', err);
-        } finally {
-          if (isMounted) setIsLoadingTests(false);
+      setIsLoadingTests(true);
+      try {
+        let loaded = await apiService.fetchTestCases(problem.id);
+        if (!hasContent(loaded)) {
+          loaded = await idbService.getTestCases(problem.id);
         }
+        if (isMounted && loaded && loaded.length > 0) {
+          setTestCases(loaded);
+        }
+      } catch (err) {
+        console.warn('[TestCaseManagerModal] Lỗi nạp test cases:', err);
+      } finally {
+        if (isMounted) setIsLoadingTests(false);
       }
     })();
     return () => {
       isMounted = false;
     };
-  }, [problem.id, problem.testCases]);
+  }, [problem.id]);
 
-  // Đóng an toàn: Tự động lưu test cases nếu có nội dung để không bao giờ bị mất dữ liệu
-  const handleSafeClose = async () => {
-    const hasContent = testCases.some((t) => (t.input && t.input.trim()) || (t.expectedOutput && t.expectedOutput.trim()));
-    if (hasContent && testCases.length > 0) {
-      try {
-        await idbService.saveTestCases(problem.id, testCases);
-        await updateProblem(problem.id, {
-          testCases,
-          totalPoints: Number(totalPoints) || 10,
-          timeLimit: Number(timeLimit) || 1.0,
-          memoryLimit: Number(memoryLimit) || 1024,
-        });
-      } catch (err) {
-        console.warn('[TestCaseManagerModal] Lỗi lưu tự động khi đóng:', err);
-      }
-    }
+  // Đóng / Hủy modal an toàn (không âm thầm ghi đè dữ liệu lên Cloud; chỉ lưu khi bấm nút "Lưu cấu hình Test")
+  const handleSafeClose = () => {
+    if (isLoadingTests) return;
     onClose();
   };
 
-  // Lắng nghe phím ESC để đóng modal an toàn
+  // Lắng nghe phím ESC để đóng modal
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -145,7 +124,7 @@ export const TestCaseManagerModal: React.FC<TestCaseManagerModalProps> = ({
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [testCases, totalPoints, timeLimit, memoryLimit]);
+  }, [isLoadingTests]);
 
   // Tự động chia đều điểm cho các test case
   const handleAutoDistributePoints = () => {

@@ -2312,13 +2312,13 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
                 }
               }, 4500);
 
-              // Timeout tối đa 30 giây để tránh treo UI
+              // Timeout tối đa 45 giây để đủ thời gian cho bài có bộ test siêu nặng (nhiều lô ~50MB)
               setTimeout(() => {
                 if (!isFinished) {
                   cleanup();
                   resolve(null);
                 }
-              }, 30000);
+              }, 45000);
             });
           }
         }
