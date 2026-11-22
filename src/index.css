@@ -991,9 +991,19 @@ html.light .tc-editorial-modal button.tc-preset-active {
 }
 
 html.light .tc-editorial-modal button.tc-btn-primary,
+html.light .tc-editorial-modal label.tc-btn-primary,
+html.light .tc-editorial-modal button.tc-btn-primary *,
+html.light .tc-editorial-modal label.tc-btn-primary *,
+html.light label[class*="bg-[#B4281F]"],
+html.light label[class*="bg-[#B4281F]"] *,
+html.light button[class*="bg-[#B4281F]"],
+html.light button[class*="bg-[#B4281F]"] * {
+  color: #ffffff !important;
+}
+
+html.light .tc-editorial-modal button.tc-btn-primary,
 html.light .tc-editorial-modal label.tc-btn-primary {
   background-color: #B4281F !important;
-  color: #ffffff !important;
 }
 
 html.light .tc-editorial-modal button.tc-btn-primary:hover,

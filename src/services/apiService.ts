@@ -2051,8 +2051,9 @@ export const apiService = {
           samples: problem.samples,
           starter_code: problem.starterCode,
           video_config: problem.videoConfig,
-          // Không ghi đè file đính kèm trên Cloud bằng bản rút gọn (chỉ có tên/kích thước)
-          ...(isAttachmentStub(problem.attachedFile) ? {} : { attached_file: problem.attachedFile }),
+          // Không ghi đè file đính kèm trên Cloud bằng bản rút gọn (chỉ có tên/kích thước).
+          // Khi giáo viên bấm "Gỡ file" (attachedFile = undefined), phải gửi tường minh null để Supabase xóa cột attached_file!
+          ...(isAttachmentStub(problem.attachedFile) ? {} : { attached_file: problem.attachedFile ?? null }),
           created_at: problem.createdAt,
           updated_at: problem.updatedAt,
         };

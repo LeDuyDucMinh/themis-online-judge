@@ -510,7 +510,7 @@ Cho dãy số nguyên $A = (a_1, a_2, \\dots, a_n)$. Hãy tìm...
                 </label>
               </div>
 
-              {attachedFile && (
+              {attachedFile ? (
                 <div className="p-3 rounded-lg border border-[#D9D2C3] bg-white flex items-center justify-between text-xs">
                   <div className="flex items-center gap-2.5">
                     <div className="w-8 h-8 rounded-lg bg-red-50 text-[#B4281F] flex items-center justify-center font-bold text-xs uppercase border border-red-200">
@@ -531,7 +531,11 @@ Cho dãy số nguyên $A = (a_1, a_2, \\dots, a_n)$. Hãy tìm...
                     <Trash2 className="w-3.5 h-3.5" /> Gỡ file
                   </button>
                 </div>
-              )}
+              ) : problem?.attachedFile ? (
+                <div className="px-3 py-2 rounded-lg border border-[#E6D5B8] bg-[#FFF8EB] text-[12px] text-[#8A5A00]">
+                  Đã gỡ file <b>{problem.attachedFile.name}</b> — bấm nút <b>Lưu bài tập</b> ở cuối hộp thoại để xác nhận xóa khỏi hệ thống.
+                </div>
+              ) : null}
             </div>
           )}
 
