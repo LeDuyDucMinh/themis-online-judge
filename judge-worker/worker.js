@@ -509,6 +509,14 @@ async function resolveStorageZipTestCases(rawTestCases, problemId, sbHeaders) {
   }
   if (zipSpecs.size === 0) return { resolved: rawTestCases, usedStorageZip: false };
 
+  // Tập tên file cache hợp lệ của phiên bản hiện tại (hỗ trợ nhiều gói .ZIP con p1, p2, p3... cho cùng 1 bài)
+  const activeCacheFileNames = new Set();
+  for (const [cacheKey] of zipSpecs.entries()) {
+    const keyHash = crypto.createHash('md5').update(cacheKey).digest('hex').slice(0, 12);
+    activeCacheFileNames.add(`zip_${problemId}_${keyHash}.zip`);
+  }
+
+  let downloadedAnyNew = false;
   const extractedMap = new Map();
   for (const [cacheKey, spec] of zipSpecs.entries()) {
     const keyHash = crypto.createHash('md5').update(cacheKey).digest('hex').slice(0, 12);
@@ -531,19 +539,25 @@ async function resolveStorageZipTestCases(rawTestCases, problemId, sbHeaders) {
         throw new Error(`Không thể tải gói test .ZIP từ Storage (HTTP ${dlRes.status})`);
       }
       zipBuf = Buffer.from(await dlRes.arrayBuffer());
-      // Dọn các file zip cũ của cùng bài này trên VPS để tiết kiệm ổ cứng
+      downloadedAnyNew = true;
       try {
-        const files = fs.readdirSync(CACHE_DIR);
-        for (const f of files) {
-          if (f.startsWith(`zip_${problemId}_`) && f.endsWith('.zip') && f !== path.basename(zipCacheFile)) {
-            fs.unlinkSync(path.join(CACHE_DIR, f));
-          }
-        }
         fs.writeFileSync(zipCacheFile, zipBuf);
       } catch {}
     }
 
     extractedMap.set(cacheKey, extractZipBuffer(zipBuf));
+  }
+
+  // Chỉ dọn các file .zip phiên bản cũ không còn nằm trong bộ activeCacheFileNames
+  if (downloadedAnyNew) {
+    try {
+      const files = fs.readdirSync(CACHE_DIR);
+      for (const f of files) {
+        if (f.startsWith(`zip_${problemId}_`) && f.endsWith('.zip') && !activeCacheFileNames.has(f)) {
+          fs.unlinkSync(path.join(CACHE_DIR, f));
+        }
+      }
+    } catch {}
   }
 
   const readEntryText = (ptr) => {

@@ -5,7 +5,7 @@ import { apiService } from '../../services/apiService';
 import {
   inspectThemisZipForUpload,
   inspectThemisFilesForUpload,
-  packThemisPairsToZip,
+  packThemisUploadToZipParts,
   type FastUploadPackage,
   type PairedTestUploadItem,
 } from '../../services/fileParserService';
@@ -322,35 +322,61 @@ export const TestCaseManagerModal: React.FC<TestCaseManagerModalProps> = ({
           if (matched) activeZipPairs.push(matched);
         }
 
-        let zipBlobToUpload: Blob | null = null;
         if (activeZipPairs.length > 0) {
-          if (pendingUpload.mode === 'zip' && pendingUpload.zipBlob) {
-            zipBlobToUpload = pendingUpload.zipBlob;
-          } else {
-            setUploadStage({ label: 'Đang nén bộ test thành 1 file .ZIP siêu gọn...', percent: 5 });
-            zipBlobToUpload = await packThemisPairsToZip(activeZipPairs, (pct) => {
-              setUploadStage({ label: `Đang nén bộ test .ZIP... (${pct}%)`, percent: pct });
-            });
-          }
-
-          const totalMb = formatSizeMb(zipBlobToUpload.size);
-          setUploadStage({ label: `Đang tải file nén .ZIP (${totalMb}) lên Cloud...`, percent: 0 });
-          const uploaded = await apiService.uploadTestCasesZip(
-            problem.id,
-            zipBlobToUpload,
-            (pct, loaded, total) => {
-              setUploadStage({
-                label: `Đang tải gói test .ZIP lên Cloud: ${pct}% (${formatSizeMb(loaded)} / ${formatSizeMb(total)})`,
-                percent: pct,
-              });
-            }
+          setUploadStage({ label: 'Đang chuẩn bị gói test .ZIP...', percent: 4 });
+          const parts = await packThemisUploadToZipParts(
+            pendingUpload,
+            activeZipPairs,
+            (label, percent) => setUploadStage({ label, percent })
           );
 
+          const uploadVersion = Date.now();
+          const totalZipBytes = parts.reduce((acc, part) => acc + part.blob.size, 0);
+          const totalMb = formatSizeMb(totalZipBytes);
+          const pairToPointerBase = new Map<PairedTestUploadItem, string>();
+          const uploadedObjectPaths: string[] = [];
+
+          for (let partIdx = 0; partIdx < parts.length; partIdx++) {
+            const part = parts[partIdx];
+            const partMb = formatSizeMb(part.blob.size);
+            const partPrefix =
+              parts.length > 1
+                ? `Đang tải gói ${partIdx + 1}/${parts.length} (${partMb}) lên Cloud`
+                : `Đang tải file nén .ZIP (${partMb}) lên Cloud`;
+            setUploadStage({ label: `${partPrefix}...`, percent: Math.round((partIdx / parts.length) * 100) });
+
+            const uploaded = await apiService.uploadTestCasesZip(
+              problem.id,
+              part.blob,
+              (pct, loaded, total) => {
+                const overallPct = Math.round(((partIdx + pct / 100) / parts.length) * 100);
+                setUploadStage({
+                  label: `${partPrefix}: ${pct}% (${formatSizeMb(loaded)} / ${formatSizeMb(total)})`,
+                  percent: overallPct,
+                });
+              },
+              {
+                version: uploadVersion,
+                partIndex: parts.length > 1 ? partIdx + 1 : undefined,
+                skipCleanup: true,
+              }
+            );
+
+            uploadedObjectPaths.push(uploaded.objectPath);
+            const partPointerBase = `__STORAGE_ZIP__:${uploaded.bucket}/${uploaded.objectPath}?v=${uploaded.version}`;
+            for (const p of part.pairs) {
+              pairToPointerBase.set(p, partPointerBase);
+            }
+          }
+
+          // Dọn sạch các file .zip phiên bản cũ của bài này (giữ lại đầy đủ tất cả các gói con vừa tải lên)
+          void apiService.cleanupOldTestCasesZips(problem.id, uploadedObjectPaths);
+
           // Xây dựng danh sách pointer nhẹ (~90 byte/test) chuẩn VNOI
-          const pointerBase = `__STORAGE_ZIP__:${uploaded.bucket}/${uploaded.objectPath}?v=${uploaded.version}`;
           const pointerTests: TestCase[] = finalizedTests.map((tc) => {
             const matched = pairById.get(tc.id);
-            if (matched) {
+            const pointerBase = matched ? pairToPointerBase.get(matched) : undefined;
+            if (matched && pointerBase) {
               return {
                 ...tc,
                 input: `${pointerBase}#${matched.inputEntryName}`,
@@ -374,7 +400,9 @@ export const TestCaseManagerModal: React.FC<TestCaseManagerModalProps> = ({
 
           showToast(
             'Đã nạp bộ Test chuẩn VNOI!',
-            `Đã tải lên gói .ZIP (${totalMb}) gồm ${pointerTests.length} test cho bài [${problem.code}] (${targetPoints}đ).`,
+            parts.length > 1
+              ? `Đã tự động chia thành ${parts.length} gói .ZIP (${totalMb}) gồm ${pointerTests.length} test cho bài [${problem.code}] (${formatPointValue(targetPoints)}đ).`
+              : `Đã tải lên gói .ZIP (${totalMb}) gồm ${pointerTests.length} test cho bài [${problem.code}] (${formatPointValue(targetPoints)}đ).`,
             'success'
           );
           onClose();
@@ -652,8 +680,8 @@ export const TestCaseManagerModal: React.FC<TestCaseManagerModalProps> = ({
               >
                 {isLoadingTests ? 'Đang xử lý gói test...' : 'Kéo thả file .ZIP vào đây'}
               </h4>
-              <p className="text-[13px] text-[#6B655C] mt-1.5 max-w-[440px] mx-auto leading-relaxed">
-                Tối đa 50 MB sau khi nén, khoảng 250 MB test gốc. Chọn cả thư mục thì hệ thống tự nén .ZIP trước khi tải.
+              <p className="text-[13px] text-[#6B655C] mt-1.5 max-w-[460px] mx-auto leading-relaxed">
+                Chọn file .ZIP hoặc cả thư mục test. Hệ thống tự nén gọn và tự động chia nhiều gói con nếu vượt quá 50 MB.
               </p>
 
               <div className="flex flex-wrap items-center justify-center gap-2.5 mt-5">
@@ -754,7 +782,11 @@ export const TestCaseManagerModal: React.FC<TestCaseManagerModalProps> = ({
                         <span className="font-mono text-[#1F1D1A]">
                           {formatSizeMb(pendingUpload.totalBytes)}
                         </span>
-                        {pendingUpload.mode === 'zip' ? ' (.ZIP)' : ' (tự nén .ZIP)'}
+                        {pendingUpload.mode === 'zip'
+                          ? pendingUpload.totalBytes > 48 * 1024 * 1024
+                            ? ' (.ZIP — sẽ tự chia nhiều gói ≤ 48 MB)'
+                            : ' (.ZIP)'
+                          : ' (tự nén .ZIP)'}
                       </span>
                     </div>
                     <p className="text-[12.5px] text-[#6B655C] mt-1">

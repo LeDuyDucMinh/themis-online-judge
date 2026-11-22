@@ -1382,13 +1382,55 @@ export const apiService = {
   },
 
   /**
-   * Chuẩn VNOI: Tải đúng 1 file nén .ZIP duy nhất lên Supabase Storage (kho 'testcases')
-   * kèm thanh tiến trình % thực tế qua XMLHttpRequest.
+   * Dọn dẹp các file .zip phiên bản cũ của 1 bài tập trên Supabase Storage (giữ lại đúng danh sách mới tải lên).
+   */
+  async cleanupOldTestCasesZips(problemId: string, keepObjectPaths: string[]): Promise<void> {
+    if (!isSupabaseConfigured()) return;
+    try {
+      const base = ENV.SUPABASE_URL.replace(/\/+$/, '');
+      const bucket = 'testcases';
+      const bearerToken = getActiveAuthToken();
+      const keepNames = new Set(keepObjectPaths.map((p) => p.split('/').pop()).filter(Boolean));
+      const listRes = await fetch(`${base}/storage/v1/object/list/${bucket}`, {
+        method: 'POST',
+        headers: {
+          apikey: ENV.SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${bearerToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ prefix: `${problemId}/`, limit: 100 }),
+      });
+      if (!listRes.ok) return;
+      const items = await listRes.json();
+      if (!Array.isArray(items)) return;
+      const stalePaths = items
+        .filter((it: any) => it?.name && !keepNames.has(it.name))
+        .map((it: any) => `${problemId}/${it.name}`);
+      if (stalePaths.length > 0) {
+        await fetch(`${base}/storage/v1/object/${bucket}`, {
+          method: 'DELETE',
+          headers: {
+            apikey: ENV.SUPABASE_ANON_KEY,
+            Authorization: `Bearer ${bearerToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ prefixes: stalePaths }),
+        });
+      }
+    } catch {
+      // Không ảnh hưởng luồng chính
+    }
+  },
+
+  /**
+   * Chuẩn VNOI: Tải 1 gói nén .ZIP lên Supabase Storage (kho 'testcases')
+   * kèm thanh tiến trình % thực tế qua XMLHttpRequest. Hỗ trợ tải nhiều gói con (partIndex + skipCleanup).
    */
   async uploadTestCasesZip(
     problemId: string,
     zipBlob: Blob,
-    onProgress?: (percent: number, loadedBytes: number, totalBytes: number) => void
+    onProgress?: (percent: number, loadedBytes: number, totalBytes: number) => void,
+    options?: { version?: number; partIndex?: number; skipCleanup?: boolean }
   ): Promise<{ bucket: string; objectPath: string; version: number }> {
     if (!isSupabaseConfigured()) {
       throw new Error('Chưa cấu hình Supabase Cloud để lưu trữ gói test .ZIP');
@@ -1402,9 +1444,10 @@ export const apiService = {
 
     const base = ENV.SUPABASE_URL.replace(/\/+$/, '');
     const bucket = 'testcases';
-    const version = Date.now();
+    const version = options?.version || Date.now();
     const rand = Math.random().toString(36).slice(2, 8);
-    const objectPath = `${problemId}/tests_${version}_${rand}.zip`;
+    const partSuffix = options?.partIndex !== undefined ? `_p${options.partIndex}` : '';
+    const objectPath = `${problemId}/tests_${version}${partSuffix}_${rand}.zip`;
     const uploadUrl = `${base}/storage/v1/object/${bucket}/${objectPath}`;
     const bearerToken = getActiveAuthToken();
 
@@ -1446,40 +1489,10 @@ export const apiService = {
       xhr.send(zipBlob);
     });
 
-    // Dọn dẹp các file .zip phiên bản cũ của bài này ở chế độ nền (tiết kiệm 1GB Storage)
-    (async () => {
-      try {
-        const listRes = await fetch(`${base}/storage/v1/object/list/${bucket}`, {
-          method: 'POST',
-          headers: {
-            apikey: ENV.SUPABASE_ANON_KEY,
-            Authorization: `Bearer ${bearerToken}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ prefix: `${problemId}/`, limit: 50 }),
-        });
-        if (!listRes.ok) return;
-        const items = await listRes.json();
-        if (!Array.isArray(items)) return;
-        const currentFileName = objectPath.split('/').pop();
-        const stalePaths = items
-          .filter((it: any) => it?.name && it.name !== currentFileName)
-          .map((it: any) => `${problemId}/${it.name}`);
-        if (stalePaths.length > 0) {
-          await fetch(`${base}/storage/v1/object/${bucket}`, {
-            method: 'DELETE',
-            headers: {
-              apikey: ENV.SUPABASE_ANON_KEY,
-              Authorization: `Bearer ${bearerToken}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ prefixes: stalePaths }),
-          });
-        }
-      } catch {
-        // Không ảnh hưởng luồng chính
-      }
-    })();
+    // Dọn dẹp các file .zip phiên bản cũ của bài này ở chế độ nền (chỉ chạy khi không phải tải nhiều gói con)
+    if (!options?.skipCleanup) {
+      void this.cleanupOldTestCasesZips(problemId, [objectPath]);
+    }
 
     return { bucket, objectPath, version };
   },

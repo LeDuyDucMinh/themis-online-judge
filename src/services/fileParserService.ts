@@ -727,7 +727,8 @@ export function inspectThemisFilesForUpload(
  */
 export async function packThemisPairsToZip(
   pairs: PairedTestUploadItem[],
-  onProgress?: (percent: number) => void
+  onProgress?: (percent: number) => void,
+  compressionLevel: number = 1
 ): Promise<Blob> {
   const zip = new JSZip();
   for (const p of pairs) {
@@ -738,10 +739,205 @@ export async function packThemisPairsToZip(
     {
       type: 'blob',
       compression: 'DEFLATE',
-      compressionOptions: { level: 1 },
+      compressionOptions: { level: compressionLevel },
     },
     (meta) => {
       onProgress?.(Math.round(meta.percent));
     }
   );
+}
+
+export interface PackedZipPart {
+  blob: Blob;
+  pairs: PairedTestUploadItem[];
+}
+
+const SUPABASE_SAFE_PART_LIMIT = 48 * 1024 * 1024; // 48 MB (dưới trần 50 MB/file của Supabase Free)
+const TARGET_EST_PART_BYTES = 34 * 1024 * 1024; // Mục tiêu ~34 MB nén mỗi gói con để ít phải chia lại
+
+/**
+ * Chuẩn bị 1 hoặc nhiều gói .ZIP con (mỗi gói đảm bảo <= 48 MB) từ FastUploadPackage.
+ * - Gói <= 48 MB: giữ nguyên đường siêu tốc 1 file duy nhất (0 overhead).
+ * - Gói > 48 MB (kể cả 80–150 MB): tự động nén mức 6 và chia nhỏ thông minh (có tự tách đôi nếu gói vẫn > 48 MB).
+ */
+export async function packThemisUploadToZipParts(
+  pkg: FastUploadPackage,
+  activePairs: PairedTestUploadItem[],
+  onProgress?: (label: string, percent: number) => void
+): Promise<PackedZipPart[]> {
+  if (activePairs.length === 0) return [];
+
+  // Nhánh siêu tốc: File .ZIP đã có sẵn và nhỏ hơn 48 MB -> đẩy thẳng không cần giải nén hay đóng gói lại
+  if (pkg.mode === 'zip' && pkg.zipBlob && pkg.zipBlob.size <= SUPABASE_SAFE_PART_LIMIT) {
+    return [{ blob: pkg.zipBlob, pairs: activePairs }];
+  }
+
+  // Nhánh 1: Nén từ File .ZIP khổng lồ (> 48 MB) -> đọc từng phần và tách thành nhiều .ZIP con <= 48 MB
+  if (pkg.mode === 'zip' && pkg.zipBlob) {
+    onProgress?.('Bộ test lớn hơn 48 MB — đang phân tích để tự động chia nhỏ nhiều gói...', 5);
+    const srcZip = await JSZip.loadAsync(pkg.zipBlob);
+
+    const getEntryEstComp = (entryName: string): number => {
+      const entry = srcZip.file(entryName) as unknown as {
+        _data?: { compressedSize?: number; uncompressedSize?: number };
+      } | null;
+      if (!entry?._data) return 2 * 1024 * 1024;
+      if (typeof entry._data.compressedSize === 'number' && entry._data.compressedSize > 0) {
+        return entry._data.compressedSize;
+      }
+      if (typeof entry._data.uncompressedSize === 'number' && entry._data.uncompressedSize > 0) {
+        return Math.ceil(entry._data.uncompressedSize * 0.55);
+      }
+      return 2 * 1024 * 1024;
+    };
+
+    const packZipChunk = async (
+      chunk: PairedTestUploadItem[],
+      chunkLabel: string,
+      basePct: number,
+      spanPct: number
+    ): Promise<PackedZipPart[]> => {
+      const outZip = new JSZip();
+      for (let i = 0; i < chunk.length; i++) {
+        const p = chunk[i];
+        const inObj = srcZip.file(p.inputEntryName);
+        const outObj = srcZip.file(p.outputEntryName);
+        if (inObj) {
+          const inData = await inObj.async('uint8array');
+          outZip.file(p.inputEntryName, inData);
+        }
+        if (outObj) {
+          const outData = await outObj.async('uint8array');
+          outZip.file(p.outputEntryName, outData);
+        }
+        const readPct = basePct + Math.round(((i + 1) / chunk.length) * (spanPct * 0.35));
+        onProgress?.(`Đang tách ${chunkLabel} (${i + 1}/${chunk.length} test)...`, Math.min(95, readPct));
+      }
+
+      const blob = await outZip.generateAsync(
+        {
+          type: 'blob',
+          compression: 'DEFLATE',
+          compressionOptions: { level: 6 },
+        },
+        (meta) => {
+          const pct = basePct + Math.round(spanPct * 0.35 + (meta.percent / 100) * (spanPct * 0.65));
+          onProgress?.(`Đang nén ${chunkLabel}... (${Math.round(meta.percent)}%)`, Math.min(98, pct));
+        }
+      );
+
+      if (blob.size <= SUPABASE_SAFE_PART_LIMIT) {
+        return [{ blob, pairs: chunk }];
+      }
+      if (chunk.length <= 1) {
+        throw new Error(
+          `Riêng test "${chunk[0]?.name || 'Test'}" đã nén tới ${(blob.size / (1024 * 1024)).toFixed(1)} MB, vượt giới hạn 50 MB / file của Supabase Free.`
+        );
+      }
+      // Tự động chia đôi nếu gói con vẫn vượt 48 MB
+      const mid = Math.ceil(chunk.length / 2);
+      const left = await packZipChunk(chunk.slice(0, mid), `${chunkLabel}a`, basePct, spanPct / 2);
+      const right = await packZipChunk(chunk.slice(mid), `${chunkLabel}b`, basePct + spanPct / 2, spanPct / 2);
+      return [...left, ...right];
+    };
+
+    const initialChunks: PairedTestUploadItem[][] = [];
+    let curChunk: PairedTestUploadItem[] = [];
+    let curEst = 0;
+    for (const p of activePairs) {
+      const pairEst = getEntryEstComp(p.inputEntryName) + getEntryEstComp(p.outputEntryName);
+      if (curChunk.length > 0 && curEst + pairEst > TARGET_EST_PART_BYTES) {
+        initialChunks.push(curChunk);
+        curChunk = [];
+        curEst = 0;
+      }
+      curChunk.push(p);
+      curEst += pairEst;
+    }
+    if (curChunk.length > 0) initialChunks.push(curChunk);
+
+    const results: PackedZipPart[] = [];
+    const span = 90 / Math.max(1, initialChunks.length);
+    for (let idx = 0; idx < initialChunks.length; idx++) {
+      const parts = await packZipChunk(
+        initialChunks[idx],
+        `gói ${idx + 1}/${initialChunks.length}`,
+        5 + idx * span,
+        span
+      );
+      results.push(...parts);
+    }
+    return results;
+  }
+
+  // Nhánh 2: Nén từ Thư mục / Danh sách file lẻ
+  const totalRaw = activePairs.reduce(
+    (sum, p) => sum + (p.inputFile?.size || 0) + (p.outputFile?.size || 0),
+    0
+  );
+
+  const packFileChunk = async (
+    chunk: PairedTestUploadItem[],
+    chunkLabel: string,
+    basePct: number,
+    spanPct: number,
+    level: number
+  ): Promise<PackedZipPart[]> => {
+    const blob = await packThemisPairsToZip(
+      chunk,
+      (pct) => {
+        onProgress?.(`Đang nén ${chunkLabel}... (${pct}%)`, Math.min(98, basePct + Math.round((pct / 100) * spanPct)));
+      },
+      level
+    );
+
+    if (blob.size <= SUPABASE_SAFE_PART_LIMIT) {
+      return [{ blob, pairs: chunk }];
+    }
+    if (chunk.length <= 1) {
+      throw new Error(
+        `Riêng test "${chunk[0]?.name || 'Test'}" đã nén tới ${(blob.size / (1024 * 1024)).toFixed(1)} MB, vượt giới hạn 50 MB / file của Supabase Free.`
+      );
+    }
+    const mid = Math.ceil(chunk.length / 2);
+    const left = await packFileChunk(chunk.slice(0, mid), `${chunkLabel}a`, basePct, spanPct / 2, 6);
+    const right = await packFileChunk(chunk.slice(mid), `${chunkLabel}b`, basePct + spanPct / 2, spanPct / 2, 6);
+    return [...left, ...right];
+  };
+
+  // Thư mục nhỏ/vừa (<= 65 MB thô): đóng 1 gói duy nhất (nếu nén xong lỡ > 48 MB sẽ tự động tách đôi)
+  if (totalRaw <= 65 * 1024 * 1024) {
+    const level = totalRaw > 20 * 1024 * 1024 ? 6 : 1;
+    return packFileChunk(activePairs, 'bộ test .ZIP', 5, 90, level);
+  }
+
+  // Thư mục siêu nặng (> 65 MB thô): chủ động chia nhóm theo ước lượng nén ~50% và nén mức 6
+  const initialChunks: PairedTestUploadItem[][] = [];
+  let curChunk: PairedTestUploadItem[] = [];
+  let curEst = 0;
+  for (const p of activePairs) {
+    const pairEst = Math.ceil(((p.inputFile?.size || 0) + (p.outputFile?.size || 0)) * 0.55);
+    if (curChunk.length > 0 && curEst + pairEst > TARGET_EST_PART_BYTES) {
+      initialChunks.push(curChunk);
+      curChunk = [];
+      curEst = 0;
+    }
+    curChunk.push(p);
+    curEst += pairEst;
+  }
+  if (curChunk.length > 0) initialChunks.push(curChunk);
+
+  const results: PackedZipPart[] = [];
+  const span = 90 / Math.max(1, initialChunks.length);
+  for (let idx = 0; idx < initialChunks.length; idx++) {
+    const parts = await packFileChunk(
+      initialChunks[idx],
+      `gói ${idx + 1}/${initialChunks.length}`,
+      5 + idx * span,
+      span,
+      6
+    );
+    results.push(...parts);
+  }
+  return results;
 }
