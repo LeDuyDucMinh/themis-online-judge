@@ -1,4 +1,4 @@
-import type { Topic, Problem, Submission, UserStats, StudentUser, Classroom, ClassStudent, UserRole, AccountRole } from '../types/judge.ts';
+import type { Topic, Problem, Submission, UserStats, StudentUser, Classroom, ClassStudent, UserRole, AccountRole, HomeBanner } from '../types/judge.ts';
 import { isProblemInClass, normalizeOwnerEmail } from '../types/judge.ts';
 import { idbService } from './db.ts';
 
@@ -32,6 +32,7 @@ const STORAGE_KEYS = {
   SUBMISSIONS_VIEW_MODE: 'faminh_judge_submissions_view_mode_v1',
   STUDENT_CUSTOM_NAMES: 'faminh_student_custom_names_v1',
   ADMIN_EMAIL: 'faminh_admin_email_v1',
+  HOME_BANNERS: 'faminh_judge_home_banners_v1',
 };
 
 // Dọn dẹp bộ nhớ đệm mẫu cũ (v1) nếu có trong trình duyệt người dùng
@@ -1454,6 +1455,40 @@ export const storageService = {
       idbService.clearSubmissions();
     } catch {
       // Bỏ qua lỗi
+    }
+  },
+
+  getHomeBanners(): HomeBanner[] {
+    if (typeof localStorage === 'undefined') return [];
+    const raw = localStorage.getItem(STORAGE_KEYS.HOME_BANNERS);
+    if (!raw) return [];
+    try {
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return [];
+      return [...parsed].sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
+    } catch {
+      return [];
+    }
+  },
+
+  saveHomeBanners(list: HomeBanner[]): void {
+    if (typeof localStorage === 'undefined') return;
+    const sorted = [...list]
+      .map((b, idx) => ({ ...b, order: Number.isFinite(Number(b.order)) ? Number(b.order) : idx + 1 }))
+      .sort((a, b) => a.order - b.order);
+    try {
+      localStorage.setItem(STORAGE_KEYS.HOME_BANNERS, JSON.stringify(sorted));
+    } catch {
+      // Nếu ảnh base64 lớn làm đầy localStorage, lưu bản metadata rút gọn (bản đầy đủ vẫn lưu trên Cloud)
+      try {
+        const slim = sorted.map((b) => ({
+          ...b,
+          imageUrl: b.imageUrl && b.imageUrl.length > 50000 ? undefined : b.imageUrl,
+        }));
+        localStorage.setItem(STORAGE_KEYS.HOME_BANNERS, JSON.stringify(slim));
+      } catch {
+        // Bỏ qua nếu trình duyệt chặn localStorage
+      }
     }
   },
 };

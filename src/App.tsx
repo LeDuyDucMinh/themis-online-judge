@@ -10,6 +10,7 @@ import { TopicManager } from './components/admin/TopicManager';
 import { TeacherClassList } from './components/admin/TeacherClassList';
 import { TeacherClassDetail } from './components/admin/TeacherClassDetail';
 import { UserManager } from './components/admin/UserManager';
+import { BannerManager } from './components/admin/BannerManager';
 import { AdminLayout, type AdminTabType } from './components/admin/AdminLayout';
 import { AuthModal } from './components/auth/AuthModal';
 import { ChangeNameModal } from './components/user/ChangeNameModal';
@@ -39,6 +40,7 @@ function MainApp() {
     if (typeof window !== 'undefined' && window.location.hash) {
       const hash = window.location.hash.replace(/^#\/?/, '');
       if (hash.startsWith('submissions')) return 'submissions';
+      if (hash.startsWith('admin/banners')) return 'admin_banners';
       if (hash.startsWith('admin/users')) return 'admin_users';
       if (hash.startsWith('admin/topics')) return 'admin_topics';
       if (hash.startsWith('admin/classes') || hash === 'admin') return 'admin_classes';
@@ -48,7 +50,14 @@ function MainApp() {
     const saved = storageService.getCurrentTab() as AdminTabType | null;
     if (saved === 'submissions') return 'submissions';
     if (isAdminAuthenticated) {
-      if (saved === 'admin_classes' || saved === 'admin_topics' || saved === 'admin_users') return saved;
+      if (
+        saved === 'admin_classes' ||
+        saved === 'admin_topics' ||
+        saved === 'admin_users' ||
+        saved === 'admin_banners'
+      ) {
+        return saved;
+      }
       return 'admin_classes';
     } else {
       return 'classes';
@@ -109,7 +118,8 @@ function MainApp() {
       currentPath.startsWith('admin') ||
       currentTab === 'admin_users' ||
       currentTab === 'admin_classes' ||
-      currentTab === 'admin_topics';
+      currentTab === 'admin_topics' ||
+      currentTab === 'admin_banners';
 
     if (isTargetingAdmin && !isAdminAuthenticated) {
       console.warn('[Route Guard] Chặn truy cập trái phép vào khu vực Admin. Chuyển hướng về trang chủ.');
@@ -146,7 +156,8 @@ function MainApp() {
       if (
         currentTab === 'admin_classes' ||
         currentTab === 'admin_topics' ||
-        currentTab === 'admin_users'
+        currentTab === 'admin_users' ||
+        currentTab === 'admin_banners'
       ) {
         setCurrentTab('classes');
         storageService.setCurrentTab('classes');
@@ -162,6 +173,8 @@ function MainApp() {
     if (isAdminAuthenticated) {
       if (currentTab === 'admin_users') {
         targetHash = '#admin/users';
+      } else if (currentTab === 'admin_banners') {
+        targetHash = '#admin/banners';
       } else if (currentTab === 'admin_classes') {
         targetHash = activeClassId ? `#admin/classes/${activeClassId}` : '#admin/classes';
       } else if (currentTab === 'admin_topics') {
@@ -219,7 +232,10 @@ function MainApp() {
           return;
         }
 
-        if (hash.startsWith('admin/users')) {
+        if (hash.startsWith('admin/banners')) {
+          setCurrentTab('admin_banners');
+          storageService.setCurrentTab('admin_banners');
+        } else if (hash.startsWith('admin/users')) {
           setCurrentTab('admin_users');
           storageService.setCurrentTab('admin_users');
           setActiveClassId(null);
@@ -336,6 +352,11 @@ function MainApp() {
           {currentTab === 'submissions' && (
             <SubmissionHistory />
           )}
+
+          {/* 5. Phân vùng BANNER TRANG CHỦ */}
+          {currentTab === 'admin_banners' && (
+            <BannerManager />
+          )}
         </AdminLayout>
       ) : (
         /* GIAO DIỆN HỌC SINH (USER): THIẾT KẾ MỚI CHUẨN FAMINH JUDGE */
@@ -348,7 +369,8 @@ function MainApp() {
               if (
                 (tab === 'admin_classes' ||
                   tab === 'admin_topics' ||
-                  tab === 'admin_users') &&
+                  tab === 'admin_users' ||
+                  tab === 'admin_banners') &&
                 !isAdminAuthenticated
               ) {
                 setIsAuthModalOpen(true);
@@ -390,7 +412,7 @@ function MainApp() {
                   />
                 )
               ) : (
-                <StudentClassList />
+                <StudentClassList onSelectProblem={handleSelectProblem} />
               )
             )}
 

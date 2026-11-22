@@ -1,4 +1,4 @@
-import type { Problem, TestCase, Submission, Classroom, ClassStudent, StudentUser, Topic, TestResult, AccountRole } from '../types/judge';
+import type { Problem, TestCase, Submission, Classroom, ClassStudent, StudentUser, Topic, TestResult, AccountRole, HomeBanner } from '../types/judge';
 import { normalizeOwnerEmail } from '../types/judge';
 import { idbService } from './db';
 import { storageService, DEFAULT_ADMIN_PASSWORD, type ResourceOwnersMap } from './storageService';
@@ -1127,6 +1127,96 @@ export const apiService = {
       }
     } catch (e) {
       console.error('[apiService] saveTopics warn:', e);
+      throw e;
+    }
+  },
+
+  /**
+   * Lấy danh sách Banner trang chủ từ Supabase Cloud (__system_home_banners__)
+   */
+  async fetchHomeBanners(): Promise<HomeBanner[]> {
+    if (isSupabaseConfigured()) {
+      try {
+        const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/classrooms?id=eq.__system_home_banners__&select=description`;
+        const res = await fetch(targetUrl, {
+          headers: this.getAntiCacheHeaders(),
+          cache: 'no-store',
+        });
+        if (res.ok) {
+          const rows = await res.json();
+          if (Array.isArray(rows) && rows.length > 0 && rows[0].description) {
+            const parsed = JSON.parse(rows[0].description);
+            if (Array.isArray(parsed)) {
+              const sorted = [...parsed]
+                .map((b: any, idx: number): HomeBanner => ({
+                  id: String(b.id || `banner_${idx + 1}`),
+                  title: String(b.title || 'Banner'),
+                  imageUrl: typeof b.imageUrl === 'string' && b.imageUrl ? b.imageUrl : undefined,
+                  linkType: b.linkType === 'internal' || b.linkType === 'external' ? b.linkType : 'none',
+                  targetClassId: b.targetClassId ? String(b.targetClassId) : undefined,
+                  targetProblemId: b.targetProblemId ? String(b.targetProblemId) : undefined,
+                  externalUrl: b.externalUrl ? String(b.externalUrl) : undefined,
+                  audienceClassId: b.audienceClassId ? String(b.audienceClassId) : 'ALL',
+                  startDate: b.startDate ? String(b.startDate) : undefined,
+                  endDate: b.endDate ? String(b.endDate) : undefined,
+                  isActive: b.isActive !== false,
+                  order: Number.isFinite(Number(b.order)) ? Number(b.order) : idx + 1,
+                  createdAt: b.createdAt || new Date().toISOString(),
+                  updatedAt: b.updatedAt || new Date().toISOString(),
+                }))
+                .sort((a, b) => a.order - b.order);
+              storageService.saveHomeBanners(sorted);
+              return sorted;
+            }
+          }
+          // Bản ghi tồn tại nhưng rỗng -> trả mảng rỗng đồng bộ
+          if (Array.isArray(rows) && rows.length > 0) {
+            storageService.saveHomeBanners([]);
+            return [];
+          }
+        }
+      } catch (e) {
+        console.warn('[apiService] fetchHomeBanners warn:', e);
+      }
+    }
+    return storageService.getHomeBanners();
+  },
+
+  /**
+   * Lưu danh sách Banner trang chủ lên Supabase Cloud (__system_home_banners__)
+   */
+  async saveHomeBanners(list: HomeBanner[]): Promise<void> {
+    const normalized = [...list]
+      .map((b, idx) => ({
+        ...b,
+        order: idx + 1,
+        updatedAt: b.updatedAt || new Date().toISOString(),
+      }));
+    storageService.saveHomeBanners(normalized);
+    if (!isSupabaseConfigured()) return;
+    try {
+      const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/classrooms?on_conflict=id`;
+      const res = await fetch(targetUrl, {
+        method: 'POST',
+        headers: {
+          ...this.getAntiCacheHeaders(),
+          'Content-Type': 'application/json',
+          Prefer: 'resolution=merge-duplicates',
+        },
+        body: JSON.stringify({
+          id: '__system_home_banners__',
+          class_name: 'HOME_BANNERS',
+          description: JSON.stringify(normalized),
+          join_code: 'BNNR',
+          updated_at: new Date().toISOString(),
+        }),
+      });
+      if (!res.ok) {
+        const detail = await res.text();
+        throw new Error(`Lỗi lưu danh sách banner (${res.status}): ${detail.slice(0, 150)}`);
+      }
+    } catch (e) {
+      console.error('[apiService] saveHomeBanners error:', e);
       throw e;
     }
   },

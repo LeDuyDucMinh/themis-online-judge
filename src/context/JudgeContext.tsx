@@ -9,6 +9,7 @@ import {
   type Classroom,
   type ClassStudent,
   type TestCase,
+  type HomeBanner,
   normalizeOwnerEmail,
 } from '../types/judge';
 import { storageService, resolveStudentFullName } from '../services/storageService';
@@ -124,6 +125,8 @@ interface JudgeContextType {
   problems: Problem[];
   allProblems: Problem[];
   submissions: Submission[];
+  homeBanners: HomeBanner[];
+  saveHomeBanners: (nextList: HomeBanner[]) => Promise<void>;
   activeProblem: Problem | null;
   setActiveProblem: (problem: Problem | null) => void;
   activeTopicId: string | null;
@@ -258,6 +261,13 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   // Multi-Classroom State (allClasses lưu toàn bộ lớp trên hệ thống; classes đã lọc theo giáo viên nếu role === 'TEACHER')
   const [allClasses, setAllClasses] = useState<Classroom[]>(() => storageService.getClasses());
   const [classStudents, setClassStudents] = useState<ClassStudent[]>(() => storageService.getClassStudents());
+  const [homeBanners, setHomeBanners] = useState<HomeBanner[]>(() => storageService.getHomeBanners());
+
+  const saveHomeBanners = async (nextList: HomeBanner[]): Promise<void> => {
+    const normalized = nextList.map((b, idx) => ({ ...b, order: idx + 1 }));
+    await apiService.saveHomeBanners(normalized);
+    setHomeBanners(normalized);
+  };
   const [activeClassId, setActiveClassIdState] = useState<string | null>(() => {
     if (typeof window !== 'undefined' && window.location.hash) {
       const hash = window.location.hash.replace(/^#\/?/, '');
@@ -710,13 +720,14 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       // Làm mới ngầm (định kỳ/khi quay lại tab) không bật cờ "đang đồng bộ" để tránh render lại toàn bộ ứng dụng
       if (!silent) setIsRefreshing(true);
       try {
-        const [cloudClasses, cloudRelations, cloudStudents, cloudTopics, cloudProblems, cloudSubs] = await Promise.all([
+        const [cloudClasses, cloudRelations, cloudStudents, cloudTopics, cloudProblems, cloudSubs, cloudBanners] = await Promise.all([
           apiService.fetchClassrooms(),
           apiService.fetchClassStudents(),
           apiService.fetchStudents(),
           apiService.fetchTopics(),
           apiService.fetchProblems(),
           apiService.fetchSubmissions({ full: force }),
+          apiService.fetchHomeBanners(),
         ]);
 
       // Chỉ cập nhật state khi dữ liệu thực sự thay đổi: tránh render lại toàn bộ ứng dụng mỗi 90 giây
@@ -727,6 +738,11 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
           return false;
         }
       };
+
+      if (cloudBanners) {
+        setHomeBanners((prev) => (sameJson(prev, cloudBanners) ? prev : cloudBanners));
+        storageService.saveHomeBanners(cloudBanners);
+      }
 
       if (cloudClasses) {
         setAllClasses((prev) => (sameJson(prev, cloudClasses) ? prev : cloudClasses));
@@ -2594,6 +2610,8 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         problems,
         allProblems,
         submissions,
+        homeBanners,
+        saveHomeBanners,
         activeProblem,
         setActiveProblem,
         activeTopicId,

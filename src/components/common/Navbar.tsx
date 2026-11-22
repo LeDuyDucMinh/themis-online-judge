@@ -1,23 +1,10 @@
 import React from 'react';
 import { useJudge } from '../../context/JudgeContext';
+import type { AdminTabType } from '../admin/AdminLayout';
 
 interface NavbarProps {
-  currentTab:
-    | 'classes'
-    | 'problems'
-    | 'admin_classes'
-    | 'admin_topics'
-    | 'admin_users'
-    | 'submissions';
-  setCurrentTab: (
-    tab:
-      | 'classes'
-      | 'problems'
-      | 'admin_classes'
-      | 'admin_topics'
-      | 'admin_users'
-      | 'submissions'
-  ) => void;
+  currentTab: AdminTabType;
+  setCurrentTab: (tab: AdminTabType) => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab }) => {

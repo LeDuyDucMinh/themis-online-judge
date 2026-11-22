@@ -151,6 +151,25 @@ export interface UserStats {
   pointsAccumulated: number;
 }
 
+export type BannerLinkType = 'none' | 'internal' | 'external';
+
+export interface HomeBanner {
+  id: string;
+  title: string;
+  imageUrl?: string;
+  linkType: BannerLinkType;
+  targetClassId?: string;
+  targetProblemId?: string;
+  externalUrl?: string;
+  audienceClassId: string; // 'ALL' = Tất cả học sinh, hoặc ID lớp học cụ thể
+  startDate?: string; // YYYY-MM-DD
+  endDate?: string; // YYYY-MM-DD
+  isActive: boolean;
+  order: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
 /**
  * Chuẩn hóa định danh chủ sở hữu (Giáo viên / Admin).
  * Dữ liệu gốc chưa gắn chủ sở hữu hoặc gắn 'admin' mặc định thuộc về giáo viên gốc leduyducminh@gmail.com

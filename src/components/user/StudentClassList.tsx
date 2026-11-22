@@ -1,15 +1,36 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useJudge } from '../../context/JudgeContext';
-import type { Classroom } from '../../types/judge';
+import type { Classroom, HomeBanner, Problem } from '../../types/judge';
 import { isProblemInClass } from '../../types/judge';
 import {
   Plus,
   X,
   KeyRound,
-  LogOut,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 
-export const StudentClassList: React.FC = () => {
+interface StudentClassListProps {
+  onSelectProblem?: (problem: Problem) => void;
+}
+
+function getLocalTodayIso(): string {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function normalizeSafeExternalUrl(raw?: string): string | null {
+  const trimmed = (raw || '').trim();
+  if (!trimmed) return null;
+  if (/^(javascript|data|vbscript):/i.test(trimmed)) return null;
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  return `https://${trimmed}`;
+}
+
+export const StudentClassList: React.FC<StudentClassListProps> = ({ onSelectProblem }) => {
   const {
     classes,
     studentClasses,
@@ -19,6 +40,7 @@ export const StudentClassList: React.FC = () => {
     currentStudent,
     problems,
     topics,
+    homeBanners,
     getProblemStatus,
     refreshAllData,
     showToast,
@@ -37,6 +59,89 @@ export const StudentClassList: React.FC = () => {
   const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
   const [joinCodeInput, setJoinCodeInput] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [activeBannerIdx, setActiveBannerIdx] = useState(0);
+  const [isBannerHovered, setIsBannerHovered] = useState(false);
+
+  // Lọc các banner hợp lệ để hiển thị cho học sinh hiện tại
+  const visibleBanners = useMemo(() => {
+    const today = getLocalTodayIso();
+    const enrolledIds = new Set(studentClasses.map((c) => c.id));
+    return [...homeBanners]
+      .sort((a, b) => (a.order || 0) - (b.order || 0))
+      .filter((b) => {
+        if (!b.isActive) return false;
+        if (b.startDate && today < b.startDate) return false;
+        if (b.endDate && today > b.endDate) return false;
+        if (b.audienceClassId && b.audienceClassId !== 'ALL') {
+          return enrolledIds.has(b.audienceClassId);
+        }
+        return true;
+      });
+  }, [homeBanners, studentClasses]);
+
+  useEffect(() => {
+    if (activeBannerIdx >= visibleBanners.length && visibleBanners.length > 0) {
+      setActiveBannerIdx(0);
+    }
+  }, [visibleBanners.length, activeBannerIdx]);
+
+  useEffect(() => {
+    if (visibleBanners.length <= 1 || isBannerHovered) return;
+    const timer = setInterval(() => {
+      setActiveBannerIdx((prev) => (prev + 1) % visibleBanners.length);
+    }, 6000);
+    return () => clearInterval(timer);
+  }, [visibleBanners.length, isBannerHovered]);
+
+  const handleBannerClick = (banner: HomeBanner) => {
+    if (banner.linkType === 'none') return;
+
+    if (banner.linkType === 'external') {
+      const safeUrl = normalizeSafeExternalUrl(banner.externalUrl);
+      if (safeUrl) {
+        window.open(safeUrl, '_blank', 'noopener,noreferrer');
+      }
+      return;
+    }
+
+    if (banner.linkType === 'internal') {
+      if (banner.targetProblemId) {
+        const targetProb = problems.find((p) => p.id === banner.targetProblemId);
+        if (targetProb) {
+          const matchingEnrolled = studentClasses.find((cls) =>
+            isProblemInClass(targetProb, cls.id, topics, classes)
+          );
+          const fallbackClassId =
+            matchingEnrolled?.id ||
+            (targetProb.classId && targetProb.classId !== 'NONE' && targetProb.classId !== 'ALL'
+              ? targetProb.classId
+              : studentClasses[0]?.id);
+          if (fallbackClassId) {
+            setActiveClassId(fallbackClassId);
+          }
+          onSelectProblem?.(targetProb);
+          return;
+        }
+      }
+
+      if (banner.targetClassId) {
+        const isEnrolled = studentClasses.some((c) => c.id === banner.targetClassId);
+        if (isEnrolled) {
+          setActiveClassId(banner.targetClassId);
+        } else {
+          const targetCls = classes.find((c) => c.id === banner.targetClassId);
+          showToast(
+            'Chưa tham gia lớp học',
+            targetCls
+              ? `Em chưa vào lớp "${targetCls.className}". Hãy bấm "+ Tham gia lớp học" và nhập mã lớp do thầy/cô cung cấp nhé!`
+              : 'Lớp học này hiện chưa mở cho tài khoản của em.',
+            'info'
+          );
+          setIsJoinModalOpen(true);
+        }
+      }
+    }
+  };
 
   const handleLeaveClass = (e: React.MouseEvent, cls: Classroom) => {
     e.stopPropagation();
@@ -99,27 +204,35 @@ export const StudentClassList: React.FC = () => {
     }
   };
 
+  const currentBanner = visibleBanners[activeBannerIdx] || visibleBanners[0] || null;
+  const currentBannerClassProblemsCount = useMemo(() => {
+    if (!currentBanner || currentBanner.linkType !== 'internal' || !currentBanner.targetClassId) {
+      return null;
+    }
+    return problems.filter((p) => isProblemInClass(p, currentBanner.targetClassId, topics, classes)).length;
+  }, [currentBanner, problems, topics, classes]);
+
   return (
     <div className="fj-w" style={{ paddingTop: 32, paddingBottom: 64 }}>
       {/* Header & Chào mừng */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: 24, marginBottom: 32, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: 24, marginBottom: 28, flexWrap: 'wrap' }}>
         <div>
           <p className="fj-m" style={{ margin: '0 0 8px' }}>
             Xin chào, {currentStudent?.fullName || 'Học sinh'}
           </p>
           <h1 style={{ fontSize: 36 }}>Lớp học của tôi</h1>
-          <p className="fj-m" style={{ margin: '8px 0 0' }}>
+          <p className="fj-m" style={{ margin: '8px 0 0', maxWidth: 520, lineHeight: 1.55 }}>
             Chọn lớp học bên dưới để xem chủ đề bài tập, nộp code chuẩn Themis và theo dõi kết quả chấm.
           </p>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ padding: '8px 16px', background: '#FFFDF8', border: '1px solid #D9D2C3', borderRadius: 8, textAlign: 'center' }}>
-            <div className="fj-mono" style={{ fontSize: 18, fontWeight: 700, color: '#2F6B3F' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
+          <div style={{ textAlign: 'right' }}>
+            <div className="fj-mono" style={{ fontSize: 28, fontWeight: 700, color: '#2F6B3F', lineHeight: 1.1 }}>
               {totalSolvedCount}
             </div>
-            <div className="fj-m" style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase' }}>
-              Bài Full AC
+            <div className="fj-m" style={{ fontSize: 12, fontWeight: 500, marginTop: 2 }}>
+              bài Full AC
             </div>
           </div>
 
@@ -132,6 +245,239 @@ export const StudentClassList: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* Banner trang chủ (Carousel tự xoay khi có nhiều banner) */}
+      {currentBanner && (
+        <div
+          onMouseEnter={() => setIsBannerHovered(true)}
+          onMouseLeave={() => setIsBannerHovered(false)}
+          onClick={() => handleBannerClick(currentBanner)}
+          role={currentBanner.linkType !== 'none' ? 'button' : undefined}
+          tabIndex={currentBanner.linkType !== 'none' ? 0 : undefined}
+          onKeyDown={(e) => {
+            if ((e.key === 'Enter' || e.key === ' ') && currentBanner.linkType !== 'none') {
+              e.preventDefault();
+              handleBannerClick(currentBanner);
+            }
+          }}
+          aria-label={currentBanner.title}
+          style={{
+            position: 'relative',
+            borderRadius: 14,
+            overflow: 'hidden',
+            marginBottom: 28,
+            background: '#191715',
+            cursor: currentBanner.linkType !== 'none' ? 'pointer' : 'default',
+            minHeight: 196,
+            boxShadow: '0 2px 12px rgba(31, 29, 26, 0.08)',
+          }}
+        >
+          {currentBanner.imageUrl ? (
+            <div
+              style={{
+                width: '100%',
+                aspectRatio: '24 / 5',
+                minHeight: 185,
+                maxHeight: 260,
+                position: 'relative',
+                background: '#191715',
+              }}
+            >
+              <img
+                src={currentBanner.imageUrl}
+                alt={currentBanner.title}
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'cover',
+                  objectPosition: 'center',
+                  display: 'block',
+                }}
+              />
+            </div>
+          ) : (
+            <div
+              style={{
+                padding: '32px 44px 40px',
+                minHeight: 218,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 28,
+                color: '#FFFFFF',
+                background: '#191715',
+              }}
+            >
+              <div style={{ minWidth: 0, maxWidth: 640 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: '#E57368', marginBottom: 8 }}>
+                  {currentBanner.linkType === 'external' ? 'Thông báo' : 'Bộ đề mới'}
+                </div>
+                <h2
+                  style={{
+                    fontSize: 'clamp(22px, 3vw, 34px)',
+                    fontWeight: 700,
+                    color: '#FFFFFF',
+                    margin: 0,
+                    lineHeight: 1.2,
+                    letterSpacing: '-0.02em',
+                  }}
+                >
+                  {currentBanner.title}
+                </h2>
+                <p
+                  style={{
+                    fontSize: 14.5,
+                    color: '#B8B1A6',
+                    margin: '10px 0 0',
+                    lineHeight: 1.5,
+                  }}
+                >
+                  {currentBannerClassProblemsCount !== null
+                    ? `${currentBannerClassProblemsCount} bài tập · làm trực tiếp trên web · chấm tự động chuẩn Themis`
+                    : currentBanner.linkType === 'external' && currentBanner.externalUrl
+                    ? currentBanner.externalUrl.replace(/^https?:\/\//i, '')
+                    : 'Luyện tập trực tiếp trên FAMINH Judge'}
+                </p>
+
+                {currentBanner.linkType !== 'none' && (
+                  <div style={{ marginTop: 20 }}>
+                    <span
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        background: '#B4281F',
+                        color: '#FFFFFF',
+                        padding: '10px 18px',
+                        borderRadius: 8,
+                        fontSize: 13.5,
+                        fontWeight: 600,
+                      }}
+                    >
+                      {currentBanner.linkType === 'external' ? 'Mở liên kết →' : 'Xem các đề →'}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              <svg
+                viewBox="0 0 64 64"
+                fill="none"
+                style={{ width: 120, height: 120, color: '#EFECE6', flexShrink: 0 }}
+                className="hidden sm:block"
+                aria-hidden="true"
+              >
+                <path
+                  d="M32 6L55 19V45L32 58L9 45V19L32 6Z"
+                  stroke="currentColor"
+                  strokeWidth="4.5"
+                  strokeLinejoin="round"
+                />
+                <path d="M32 32V58M32 32L55 19M32 32L9 19" stroke="currentColor" strokeWidth="4.5" strokeLinejoin="round" />
+                <path d="M20 26L32 33L44 26" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </div>
+          )}
+
+          {/* Chấm phân trang góc dưới trái (khi có > 1 banner) */}
+          {visibleBanners.length > 1 && (
+            <>
+              <div
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                  position: 'absolute',
+                  left: 24,
+                  bottom: 14,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '5px 10px',
+                  borderRadius: 999,
+                  background: 'rgba(25, 23, 21, 0.45)',
+                  backdropFilter: 'blur(4px)',
+                }}
+              >
+                {visibleBanners.map((b, idx) => (
+                  <button
+                    key={b.id}
+                    type="button"
+                    aria-label={`Xem banner ${idx + 1}: ${b.title}`}
+                    onClick={() => setActiveBannerIdx(idx)}
+                    style={{
+                      width: idx === activeBannerIdx ? 9 : 7,
+                      height: idx === activeBannerIdx ? 9 : 7,
+                      borderRadius: '50%',
+                      border: 'none',
+                      padding: 0,
+                      cursor: 'pointer',
+                      background: idx === activeBannerIdx ? '#FFFFFF' : 'rgba(255,255,255,0.42)',
+                      transition: 'all 0.2s ease',
+                    }}
+                  />
+                ))}
+              </div>
+
+              {/* Nút chuyển trái / phải nhẹ khi hover */}
+              {isBannerHovered && (
+                <>
+                  <button
+                    type="button"
+                    aria-label="Banner trước"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setActiveBannerIdx((prev) => (prev - 1 + visibleBanners.length) % visibleBanners.length);
+                    }}
+                    style={{
+                      position: 'absolute',
+                      left: 12,
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      width: 34,
+                      height: 34,
+                      borderRadius: '50%',
+                      border: 'none',
+                      background: 'rgba(25, 23, 21, 0.6)',
+                      color: '#FFFFFF',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <ChevronLeft style={{ width: 18, height: 18 }} />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Banner tiếp theo"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setActiveBannerIdx((prev) => (prev + 1) % visibleBanners.length);
+                    }}
+                    style={{
+                      position: 'absolute',
+                      right: 12,
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      width: 34,
+                      height: 34,
+                      borderRadius: '50%',
+                      border: 'none',
+                      background: 'rgba(25, 23, 21, 0.6)',
+                      color: '#FFFFFF',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <ChevronRight style={{ width: 18, height: 18 }} />
+                  </button>
+                </>
+              )}
+            </>
+          )}
+        </div>
+      )}
 
       {/* Mục Lớp Đang Chờ Giáo Viên Phê Duyệt */}
       {pendingClasses.length > 0 && (
@@ -222,10 +568,10 @@ export const StudentClassList: React.FC = () => {
                       <button
                         type="button"
                         onClick={(e) => handleLeaveClass(e, cls)}
-                        style={{ background: 'none', border: 'none', color: '#6B655C', cursor: 'pointer', padding: 4 }}
+                        style={{ background: 'none', border: 'none', color: '#6B655C', cursor: 'pointer', padding: '2px 4px', fontSize: 12.5, fontWeight: 500 }}
                         title="Rời khỏi lớp này"
                       >
-                        <LogOut style={{ width: 14, height: 14 }} />
+                        Rời lớp
                       </button>
                     </div>
 
@@ -235,10 +581,17 @@ export const StudentClassList: React.FC = () => {
 
                     <div style={{ marginBottom: 16 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 6 }}>
-                        <span className="fj-m">Tiến độ bài tập:</span>
+                        <span className="fj-m">Tiến độ bài tập</span>
                         <b className="fj-mono">{solvedInClass}/{totalProblems} ({percent}%)</b>
                       </div>
-                      <div className="fj-bar"><i style={{ width: `${percent}%` }}></i></div>
+                      <div className="fj-bar">
+                        <i
+                          style={{
+                            width: `${percent}%`,
+                            background: percent === 100 && totalProblems > 0 ? '#2F6B3F' : '#B4281F',
+                          }}
+                        ></i>
+                      </div>
                     </div>
                   </div>
 

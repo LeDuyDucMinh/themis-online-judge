@@ -1011,3 +1011,30 @@ html.light .tc-editorial-modal label.tc-btn-primary:hover {
   background-color: #962018 !important;
 }
 
+/* ====================================================
+   BANNER MANAGER PAGE — WARM EDITORIAL PROTECTION
+   ==================================================== */
+html.light .banner-editorial-page input:not([type="checkbox"]):not([type="radio"]),
+html.light .banner-editorial-page select,
+html.light .banner-editorial-page textarea {
+  background-color: #ffffff !important;
+  color: #1F1D1A !important;
+  border-color: #D9D2C3 !important;
+}
+
+html.light .banner-editorial-page input:not([type="checkbox"]):not([type="radio"]):focus,
+html.light .banner-editorial-page select:focus,
+html.light .banner-editorial-page textarea:focus {
+  border-color: #1F1D1A !important;
+}
+
+html.light .banner-editorial-page button.banner-pill-active {
+  background-color: #1F1D1A !important;
+  border-color: #1F1D1A !important;
+  color: #ffffff !important;
+}
+
+html.light .banner-editorial-page label.banner-btn-outline {
+  color: #1F1D1A !important;
+}
+
