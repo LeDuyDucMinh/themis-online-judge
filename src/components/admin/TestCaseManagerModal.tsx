@@ -36,6 +36,27 @@ const formatSizeMb = (bytes: number): string => {
   return `${bytes} B`;
 };
 
+const parseDecimalInput = (raw: string): number => {
+  const normalized = raw.replace(',', '.').trim();
+  if (!normalized || normalized === '.' || normalized === '-') return NaN;
+  const val = parseFloat(normalized);
+  return Number.isFinite(val) ? val : NaN;
+};
+
+const formatPointValue = (val: number): string => {
+  if (!Number.isFinite(val)) return '0';
+  return Number(val.toFixed(3)).toString();
+};
+
+const distributePointsEvenly = (tests: TestCase[], target: number): TestCase[] => {
+  if (tests.length === 0 || !(target > 0)) return tests;
+  const pts = +(target / tests.length).toFixed(3);
+  return tests.map((tc, idx, arr) => ({
+    ...tc,
+    points: idx === arr.length - 1 ? +(target - pts * (arr.length - 1)).toFixed(3) : pts,
+  }));
+};
+
 export const TestCaseManagerModal: React.FC<TestCaseManagerModalProps> = ({
   problem,
   onClose,
@@ -45,6 +66,10 @@ export const TestCaseManagerModal: React.FC<TestCaseManagerModalProps> = ({
   const [timeLimit, setTimeLimit] = useState(problem.timeLimit || 1.0);
   const [memoryLimit, setMemoryLimit] = useState(problem.memoryLimit || 1024);
   const [totalPoints, setTotalPoints] = useState(problem.totalPoints || 10);
+  const [totalPointsInput, setTotalPointsInput] = useState(() =>
+    formatPointValue(problem.totalPoints || 10)
+  );
+  const [pointDrafts, setPointDrafts] = useState<Record<string, string>>({});
   const [testCases, setTestCases] = useState<TestCase[]>(() => {
     if (!problem.testCases || problem.testCases.length === 0) return [];
     const seen = new Set<string>();
@@ -106,22 +131,23 @@ export const TestCaseManagerModal: React.FC<TestCaseManagerModalProps> = ({
   // Tự động chia đều điểm cho các test case
   const handleAutoDistributePoints = () => {
     if (testCases.length === 0) return;
-    const target = Number(totalPoints) || 10;
-    const pts = +(target / testCases.length).toFixed(2);
-    setTestCases(
-      testCases.map((tc, idx, arr) => ({
-        ...tc,
-        points: idx === arr.length - 1 ? +(target - pts * (arr.length - 1)).toFixed(2) : pts,
-      }))
+    const target = Number(totalPoints) > 0 ? Number(totalPoints) : 10;
+    const distributed = distributePointsEvenly(testCases, target);
+    const pts = +(target / testCases.length).toFixed(3);
+    setTestCases(distributed);
+    setPointDrafts({});
+    showToast(
+      'Tự động chia điểm',
+      `Đã chia đều ${formatPointValue(target)} điểm cho ${testCases.length} tests (${formatPointValue(pts)} điểm/test)`,
+      'success'
     );
-    showToast('Tự động chia điểm', `Đã chia đều ${target} điểm cho ${testCases.length} tests (${pts} điểm/test)`, 'success');
   };
 
   // Thêm test case thủ công (vẫn hỗ trợ song song cho bài nhỏ)
   const handleAddManualTest = () => {
     const nextIdx = testCases.length + 1;
     const newId = `${problem.id}_tc_m_${Date.now()}_${nextIdx}`;
-    const defaultPts = +(totalPoints / Math.max(1, nextIdx)).toFixed(2);
+    const defaultPts = +(totalPoints / Math.max(1, nextIdx)).toFixed(3);
     const newTest: TestCase = {
       id: newId,
       name: `Test #${String(nextIdx).padStart(2, '0')}`,
@@ -272,15 +298,15 @@ export const TestCaseManagerModal: React.FC<TestCaseManagerModalProps> = ({
       setIsLoadingTests(true);
       setParseError(null);
 
-      const targetPoints = Number(totalPoints) || 10;
+      const parsedInputTotal = parseDecimalInput(totalPointsInput);
+      const targetPoints =
+        Number.isFinite(parsedInputTotal) && parsedInputTotal > 0
+          ? +parsedInputTotal.toFixed(3)
+          : (Number(totalPoints) > 0 ? +Number(totalPoints).toFixed(3) : 10);
       const currentSum = testCases.reduce((sum, tc) => sum + (Number(tc.points) || 0), 0);
       let finalizedTests = [...testCases];
       if (finalizedTests.length > 0 && Math.abs(currentSum - targetPoints) > 0.05) {
-        const pts = +(targetPoints / finalizedTests.length).toFixed(2);
-        finalizedTests = finalizedTests.map((tc, idx, arr) => ({
-          ...tc,
-          points: idx === arr.length - 1 ? +(targetPoints - pts * (arr.length - 1)).toFixed(2) : pts,
-        }));
+        finalizedTests = distributePointsEvenly(finalizedTests, targetPoints);
       }
 
       if (pendingUpload) {
@@ -512,24 +538,36 @@ export const TestCaseManagerModal: React.FC<TestCaseManagerModalProps> = ({
               </label>
               <div className="flex items-center gap-2">
                 <input
-                  type="number"
-                  min="1"
-                  max="1000"
-                  value={totalPoints}
+                  type="text"
+                  inputMode="decimal"
+                  value={totalPointsInput}
                   onChange={(e) => {
-                    const newTotal = parseInt(e.target.value) || 0;
-                    setTotalPoints(newTotal);
-                    if (newTotal > 0 && testCases.length > 0) {
-                      const pts = +(newTotal / testCases.length).toFixed(2);
-                      setTestCases((prev) =>
-                        prev.map((tc, idx, arr) => ({
-                          ...tc,
-                          points: idx === arr.length - 1 ? +(newTotal - pts * (arr.length - 1)).toFixed(2) : pts,
-                        }))
-                      );
+                    const raw = e.target.value;
+                    // Chỉ cho phép số và tối đa 1 dấu chấm/phẩy thập phân
+                    if (!/^\d*([.,]\d*)?$/.test(raw)) return;
+                    setTotalPointsInput(raw);
+                    const newTotal = parseDecimalInput(raw);
+                    if (Number.isFinite(newTotal) && newTotal > 0 && newTotal <= 1000) {
+                      const cleanTotal = +newTotal.toFixed(3);
+                      setTotalPoints(cleanTotal);
+                      if (testCases.length > 0) {
+                        setTestCases((prev) => distributePointsEvenly(prev, cleanTotal));
+                        setPointDrafts({});
+                      }
                     }
                   }}
-                  className="h-10 w-[68px] shrink-0 px-3 bg-white border border-[#D9D2C3] rounded-lg text-[14px] text-[#1F1D1A] font-mono focus:outline-none focus:border-[#1F1D1A] transition-colors"
+                  onBlur={() => {
+                    const parsed = parseDecimalInput(totalPointsInput);
+                    if (Number.isFinite(parsed) && parsed > 0 && parsed <= 1000) {
+                      const cleanTotal = +parsed.toFixed(3);
+                      setTotalPoints(cleanTotal);
+                      setTotalPointsInput(formatPointValue(cleanTotal));
+                    } else {
+                      setTotalPointsInput(formatPointValue(totalPoints));
+                    }
+                  }}
+                  placeholder="10"
+                  className="h-10 w-[76px] shrink-0 px-3 bg-white border border-[#D9D2C3] rounded-lg text-[14px] text-[#1F1D1A] font-mono focus:outline-none focus:border-[#1F1D1A] transition-colors"
                 />
                 <div className="flex items-center gap-1.5 shrink-0">
                   {[5, 10, 100].map((preset) => (
@@ -538,18 +576,14 @@ export const TestCaseManagerModal: React.FC<TestCaseManagerModalProps> = ({
                       type="button"
                       onClick={() => {
                         setTotalPoints(preset);
+                        setTotalPointsInput(String(preset));
                         if (testCases.length > 0) {
-                          const pts = +(preset / testCases.length).toFixed(2);
-                          setTestCases((prev) =>
-                            prev.map((tc, idx, arr) => ({
-                              ...tc,
-                              points: idx === arr.length - 1 ? +(preset - pts * (arr.length - 1)).toFixed(2) : pts,
-                            }))
-                          );
+                          setTestCases((prev) => distributePointsEvenly(prev, preset));
+                          setPointDrafts({});
                         }
                       }}
                       className={`h-10 min-w-[38px] px-2.5 rounded-lg text-[13px] font-medium border transition-colors cursor-pointer ${
-                        totalPoints === preset
+                        Math.abs(totalPoints - preset) < 1e-6
                           ? 'tc-preset-active bg-[#1F1D1A] text-white border-[#1F1D1A]'
                           : 'bg-white text-[#1F1D1A] border-[#D9D2C3] hover:border-[#1F1D1A]'
                       }`}
@@ -741,7 +775,7 @@ export const TestCaseManagerModal: React.FC<TestCaseManagerModalProps> = ({
                       <span className="text-[#6B655C] ml-2">
                         tổng điểm{' '}
                         <span className="font-mono text-[#1F1D1A]">
-                          {currentSumPoints.toFixed(1)} / {totalPoints}
+                          {formatPointValue(currentSumPoints)} / {formatPointValue(totalPoints)}
                         </span>
                       </span>
                     </div>
@@ -793,7 +827,7 @@ export const TestCaseManagerModal: React.FC<TestCaseManagerModalProps> = ({
                 <span className="text-[13px] text-[#6B655C]">
                   Tổng{' '}
                   <span className="font-mono text-[#1F1D1A] ml-1">
-                    {currentSumPoints.toFixed(1)} / {totalPoints}
+                    {formatPointValue(currentSumPoints)} / {formatPointValue(totalPoints)}
                   </span>
                 </span>
 
@@ -880,14 +914,33 @@ export const TestCaseManagerModal: React.FC<TestCaseManagerModalProps> = ({
 
                             <div className="flex items-center gap-1.5">
                               <input
-                                type="number"
-                                step="0.05"
-                                min="0"
-                                value={tc.points}
-                                onChange={(e) =>
-                                  handleUpdateTest(tc.id, 'points', parseFloat(e.target.value) || 0)
+                                type="text"
+                                inputMode="decimal"
+                                value={
+                                  pointDrafts[tc.id] !== undefined
+                                    ? pointDrafts[tc.id]
+                                    : formatPointValue(Number(tc.points) || 0)
                                 }
-                                className="w-[62px] h-8 px-2 bg-white border border-[#D9D2C3] rounded-md text-[13px] text-[#1F1D1A] font-mono text-right focus:outline-none focus:border-[#1F1D1A] transition-colors"
+                                onChange={(e) => {
+                                  const raw = e.target.value;
+                                  if (!/^\d*([.,]\d*)?$/.test(raw)) return;
+                                  setPointDrafts((prev) => ({ ...prev, [tc.id]: raw }));
+                                  const parsed = parseDecimalInput(raw);
+                                  if (Number.isFinite(parsed) && parsed >= 0) {
+                                    handleUpdateTest(tc.id, 'points', +parsed.toFixed(3));
+                                  } else if (raw === '') {
+                                    handleUpdateTest(tc.id, 'points', 0);
+                                  }
+                                }}
+                                onBlur={() => {
+                                  setPointDrafts((prev) => {
+                                    if (!(tc.id in prev)) return prev;
+                                    const next = { ...prev };
+                                    delete next[tc.id];
+                                    return next;
+                                  });
+                                }}
+                                className="w-[68px] h-8 px-2 bg-white border border-[#D9D2C3] rounded-md text-[13px] text-[#1F1D1A] font-mono text-right focus:outline-none focus:border-[#1F1D1A] transition-colors"
                               />
                               <span className="text-[13px] text-[#6B655C]">đ</span>
                             </div>
@@ -1014,7 +1067,7 @@ export const TestCaseManagerModal: React.FC<TestCaseManagerModalProps> = ({
         {/* Sticky Footer */}
         <div className="shrink-0 px-7 py-4 bg-white border-t border-[#E6E0D3] flex items-center justify-between gap-4">
           <span className="text-[13px] text-[#6B655C]">
-            Tổng {testCases.length} test · thang điểm {totalPoints}
+            Tổng {testCases.length} test · thang điểm {formatPointValue(totalPoints)}
           </span>
 
           <div className="flex items-center gap-5">

@@ -119,7 +119,7 @@ export async function parseExcelFile(
       const description = getVal(['mô tả', 'đề bài', 'description']) || 'Mô tả bài toán...';
       const timeLimit = parseFloat(getVal(['thời gian', 'time'])) || 1.0;
       const memoryLimit = parseInt(getVal(['bộ nhớ', 'memory'])) || 1024;
-      const totalPoints = parseInt(getVal(['điểm', 'points', 'thang điểm'])) || 10;
+      const totalPoints = parseFloat(String(getVal(['điểm', 'points', 'thang điểm'])).replace(',', '.')) || 10;
 
       return {
         id: `prob_imported_${Date.now()}_${index}`,
@@ -650,12 +650,12 @@ export async function inspectThemisZipForUpload(
   }
 
   const { validPairs, warnings } = pairTestHandles(validEntries);
-  const ptsPerTest = +(totalPoints / validPairs.length).toFixed(2);
+  const ptsPerTest = +(totalPoints / validPairs.length).toFixed(3);
   const pairs: PairedTestUploadItem[] = validPairs.map((pair, idx, arr) => ({
     index: idx + 1,
     key: pair.key,
     name: `Test #${String(idx + 1).padStart(2, '0')}`,
-    points: idx === arr.length - 1 ? +(totalPoints - ptsPerTest * (arr.length - 1)).toFixed(2) : ptsPerTest,
+    points: idx === arr.length - 1 ? +(totalPoints - ptsPerTest * (arr.length - 1)).toFixed(3) : ptsPerTest,
     isHidden: idx >= 3,
     inputEntryName: pair.input.rawZipPath,
     outputEntryName: pair.output.rawZipPath,
@@ -694,7 +694,7 @@ export function inspectThemisFilesForUpload(
   }
 
   const { validPairs, warnings } = pairTestHandles(validFiles);
-  const ptsPerTest = +(totalPoints / validPairs.length).toFixed(2);
+  const ptsPerTest = +(totalPoints / validPairs.length).toFixed(3);
   let totalRawBytes = 0;
 
   const pairs: PairedTestUploadItem[] = validPairs.map((pair, idx, arr) => {
@@ -703,7 +703,7 @@ export function inspectThemisFilesForUpload(
       index: idx + 1,
       key: pair.key,
       name: `Test #${String(idx + 1).padStart(2, '0')}`,
-      points: idx === arr.length - 1 ? +(totalPoints - ptsPerTest * (arr.length - 1)).toFixed(2) : ptsPerTest,
+      points: idx === arr.length - 1 ? +(totalPoints - ptsPerTest * (arr.length - 1)).toFixed(3) : ptsPerTest,
       isHidden: idx >= 3,
       inputEntryName: `tc_${idx + 1}.inp`,
       outputEntryName: `tc_${idx + 1}.out`,
