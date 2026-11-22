@@ -11,26 +11,9 @@ import {
 } from '../../services/fileParserService';
 import {
   X,
-  Plus,
-  Trash2,
   FolderArchive,
-  Save,
-  Clock,
-  HardDrive,
-  Award,
-  Layers,
-  Eye,
-  EyeOff,
-  Sparkles,
-  Files,
-  FolderUp,
-  FileCheck,
   Loader2,
   AlertTriangle,
-  CheckCircle2,
-  ChevronDown,
-  ChevronUp,
-  CloudUpload,
 } from 'lucide-react';
 
 interface TestCaseManagerModalProps {
@@ -433,49 +416,64 @@ export const TestCaseManagerModal: React.FC<TestCaseManagerModalProps> = ({
   };
 
   const currentSumPoints = testCases.reduce((sum, tc) => sum + (Number(tc.points) || 0), 0);
+  const problemCodeText =
+    typeof problem.code === 'object' ? JSON.stringify(problem.code) : String(problem.code || '');
+  const problemTitleText =
+    typeof problem.title === 'object' ? JSON.stringify(problem.title) : String(problem.title || '');
+  const headerIdentifier = problemCodeText.trim() || problemTitleText.trim();
+  const hasStatusSection =
+    (isLoadingTests && Boolean(uploadStage)) ||
+    (!isLoadingTests && Boolean(pendingUpload)) ||
+    (!isLoadingTests && !pendingUpload && testCases.length > 0) ||
+    Boolean(parseError);
 
   return (
     <div
       onClick={(e) => {
         if (e.target === e.currentTarget) handleSafeClose();
       }}
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-150"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/45 backdrop-blur-[2px] animate-in fade-in duration-150"
+      style={{ fontFamily: "'Be Vietnam Pro', sans-serif" }}
     >
-      <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-5xl w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden relative">
-        {/* Sticky Header */}
-        <div className="shrink-0 p-4 sm:p-5 border-b border-slate-800 flex items-center justify-between bg-slate-800/90 backdrop-blur sticky top-0 z-10">
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-red-500/20 text-red-400 border border-red-500/30">
-                {typeof problem.code === 'object' ? JSON.stringify(problem.code) : String(problem.code || '')}
-              </span>
-              <h3 className="text-base sm:text-lg font-bold text-white">
-                Quản Lý Test Case Chuẩn VNOI / Themis: {typeof problem.title === 'object' ? JSON.stringify(problem.title) : String(problem.title || '')}
-              </h3>
-            </div>
-            <p className="text-xs text-slate-400">
-              Nạp siêu tốc qua gói nén .ZIP (Storage) • Tự phân cặp .INP/.OUT • Không tải nội dung nặng về trình duyệt
+      <div className="tc-editorial-modal bg-white border border-[#D9D2C3] rounded-2xl max-w-[820px] w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden relative text-[#1F1D1A]">
+        {/* Header */}
+        <div className="shrink-0 px-7 pt-6 pb-4 border-b border-[#E6E0D3] flex items-start justify-between gap-4 bg-white">
+          <div className="min-w-0">
+            <h3
+              className="text-[21px] sm:text-[22px] font-bold tracking-tight text-[#1F1D1A] leading-snug truncate"
+              style={{ fontFamily: "'Be Vietnam Pro', sans-serif" }}
+            >
+              Test case
+              {headerIdentifier && (
+                <>
+                  <span className="text-[#6B655C] font-normal mx-1.5">·</span>
+                  <span>{headerIdentifier}</span>
+                </>
+              )}
+            </h3>
+            <p className="text-[13px] text-[#6B655C] mt-1 leading-relaxed">
+              Nạp bộ test dạng .ZIP, hệ thống tự ghép cặp .INP / .OUT. File đi thẳng lên kho lưu trữ, không nặng trình duyệt.
             </p>
           </div>
 
           <button
+            type="button"
             onClick={handleSafeClose}
             disabled={isLoadingTests}
-            className="p-2 rounded-xl bg-slate-800 hover:bg-rose-600 text-slate-400 hover:text-white transition-all flex items-center gap-1 text-xs font-semibold disabled:opacity-40"
+            className="p-1.5 -mr-1.5 rounded-lg text-[#6B655C] hover:text-[#1F1D1A] hover:bg-[#FAF7EE] transition-colors cursor-pointer disabled:opacity-40 shrink-0"
             title="Đóng (Phím ESC hoặc click ra ngoài)"
           >
             <X className="w-5 h-5" />
-            <span className="hidden sm:inline">Đóng</span>
           </button>
         </div>
 
         {/* Scrollable Body */}
-        <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-5">
-          {/* Top Config Row: Time Limit, Memory Limit, Total Points */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 rounded-2xl bg-slate-800/40 border border-slate-700/60">
+        <div className="flex-1 overflow-y-auto bg-white">
+          {/* Top Config Row: Giới hạn thời gian · Giới hạn bộ nhớ · Thang điểm */}
+          <div className="px-7 py-5 border-b border-[#E6E0D3] grid grid-cols-1 md:grid-cols-[1fr_1fr_1.55fr] gap-5 items-end">
             <div>
-              <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5 mb-1">
-                <Clock className="w-3.5 h-3.5 text-blue-400" /> Giới hạn thời gian (Time Limit):
+              <label className="block text-[13px] font-bold text-[#1F1D1A] mb-2">
+                Giới hạn thời gian
               </label>
               <div className="flex items-center gap-2">
                 <input
@@ -485,15 +483,15 @@ export const TestCaseManagerModal: React.FC<TestCaseManagerModalProps> = ({
                   max="10.0"
                   value={timeLimit}
                   onChange={(e) => setTimeLimit(parseFloat(e.target.value))}
-                  className="w-full px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white font-mono focus:outline-none focus:ring-1 focus:ring-red-500"
+                  className="h-10 w-full px-3.5 bg-white border border-[#D9D2C3] rounded-lg text-[14px] text-[#1F1D1A] font-mono focus:outline-none focus:border-[#1F1D1A] transition-colors"
                 />
-                <span className="text-xs text-slate-400">giây</span>
+                <span className="text-[13px] text-[#6B655C] shrink-0">giây</span>
               </div>
             </div>
 
             <div>
-              <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5 mb-1">
-                <HardDrive className="w-3.5 h-3.5 text-indigo-400" /> Giới hạn bộ nhớ (Memory Limit):
+              <label className="block text-[13px] font-bold text-[#1F1D1A] mb-2">
+                Giới hạn bộ nhớ
               </label>
               <div className="flex items-center gap-2">
                 <input
@@ -502,27 +500,16 @@ export const TestCaseManagerModal: React.FC<TestCaseManagerModalProps> = ({
                   max="2048"
                   value={memoryLimit}
                   onChange={(e) => setMemoryLimit(parseInt(e.target.value))}
-                  className="w-full px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white font-mono focus:outline-none focus:ring-1 focus:ring-red-500"
+                  className="h-10 w-full px-3.5 bg-white border border-[#D9D2C3] rounded-lg text-[14px] text-[#1F1D1A] font-mono focus:outline-none focus:border-[#1F1D1A] transition-colors"
                 />
-                <span className="text-xs text-slate-400">MB</span>
+                <span className="text-[13px] text-[#6B655C] shrink-0">MB</span>
               </div>
             </div>
 
             <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
-                  <Award className="w-3.5 h-3.5 text-amber-400" /> Thang điểm:
-                </label>
-                {testCases.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={handleAutoDistributePoints}
-                    className="text-[10px] text-amber-400 hover:text-amber-300 font-semibold underline cursor-pointer"
-                  >
-                    Chia đều lại điểm
-                  </button>
-                )}
-              </div>
+              <label className="block text-[13px] font-bold text-[#1F1D1A] mb-2">
+                Thang điểm
+              </label>
               <div className="flex items-center gap-2">
                 <input
                   type="number"
@@ -542,9 +529,9 @@ export const TestCaseManagerModal: React.FC<TestCaseManagerModalProps> = ({
                       );
                     }
                   }}
-                  className="w-full px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white font-mono focus:outline-none focus:ring-1 focus:ring-red-500"
+                  className="h-10 w-[68px] shrink-0 px-3 bg-white border border-[#D9D2C3] rounded-lg text-[14px] text-[#1F1D1A] font-mono focus:outline-none focus:border-[#1F1D1A] transition-colors"
                 />
-                <div className="flex items-center gap-1 shrink-0">
+                <div className="flex items-center gap-1.5 shrink-0">
                   {[5, 10, 100].map((preset) => (
                     <button
                       key={preset}
@@ -561,52 +548,87 @@ export const TestCaseManagerModal: React.FC<TestCaseManagerModalProps> = ({
                           );
                         }
                       }}
-                      className={`px-2 py-1 rounded-lg text-xs font-bold border transition-colors cursor-pointer ${
+                      className={`h-10 min-w-[38px] px-2.5 rounded-lg text-[13px] font-medium border transition-colors cursor-pointer ${
                         totalPoints === preset
-                          ? 'bg-amber-600 text-white border-amber-500 shadow-sm'
-                          : 'bg-slate-800 text-slate-300 border-slate-700 hover:text-white'
+                          ? 'tc-preset-active bg-[#1F1D1A] text-white border-[#1F1D1A]'
+                          : 'bg-white text-[#1F1D1A] border-[#D9D2C3] hover:border-[#1F1D1A]'
                       }`}
                     >
-                      {preset}đ
+                      {preset}
                     </button>
                   ))}
                 </div>
+                {testCases.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleAutoDistributePoints}
+                    className="text-[12.5px] leading-[1.25] text-[#B4281F] hover:text-[#8F1F18] underline underline-offset-2 text-left ml-1 max-w-[78px] cursor-pointer transition-colors"
+                  >
+                    Chia đều lại điểm
+                  </button>
+                )}
               </div>
             </div>
           </div>
 
-          {/* Hộp Nạp Bộ Test Siêu Tốc Chuẩn VNOI */}
-          <div
-            onDragOver={(e) => {
-              e.preventDefault();
-              setIsDragOver(true);
-            }}
-            onDragLeave={() => setIsDragOver(false)}
-            onDrop={handleDrop}
-            className={`p-5 rounded-3xl border-2 transition-all ${
-              isDragOver
-                ? 'bg-red-950/40 border-red-500 border-dashed scale-[1.01]'
-                : 'bg-gradient-to-r from-red-950/20 via-slate-800/40 to-slate-900 border-slate-700/80 hover:border-red-500/50'
-            }`}
-          >
-            <div className="flex flex-col md:flex-row items-center justify-between gap-5">
-              <div className="space-y-1 text-center md:text-left">
-                <div className="inline-flex items-center gap-2 text-xs font-bold text-red-400 uppercase tracking-wider">
-                  <FileCheck className="w-4 h-4" /> Nạp Bộ Test Siêu Tốc Chuẩn VNOI (.ZIP / Thư mục)
-                </div>
-                <h4 className="text-base font-bold text-white">
-                  {isLoadingTests ? 'Đang xử lý gói test...' : 'Chọn file .ZIP (nhanh nhất) hoặc cả Thư mục Test'}
-                </h4>
-                <p className="text-xs text-slate-400 max-w-xl leading-relaxed">
-                  File <b>.ZIP</b> được đẩy thẳng lên kho lưu trữ Cloud (tối đa 50 MB nén ≈ 250 MB test gốc) mà <b>không giải nén ra trình duyệt</b>. Chọn Thư mục sẽ tự động nén .ZIP gọn nhẹ trước khi tải.
-                </p>
-              </div>
+          {/* Dropzone Nạp Bộ Test */}
+          <div className="px-7 py-6 border-b border-[#E6E0D3]">
+            <div
+              onDragOver={(e) => {
+                e.preventDefault();
+                setIsDragOver(true);
+              }}
+              onDragLeave={() => setIsDragOver(false)}
+              onDrop={handleDrop}
+              className={`rounded-xl border border-dashed px-6 py-7 text-center transition-all ${
+                isDragOver
+                  ? 'bg-[#FDF2F0] border-[#B4281F] scale-[1.005]'
+                  : 'bg-[#FAF7EE] border-[#D5CCBC] hover:border-[#B4281F]/60'
+              }`}
+            >
+              {/* Biểu tượng thư mục .ZIP tối giản */}
+              <svg
+                className="w-16 h-12 mx-auto mb-3.5"
+                viewBox="0 0 64 48"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+                aria-hidden="true"
+              >
+                <path
+                  d="M6 10.5C6 8.84315 7.34315 7.5 9 7.5H23.5L28 13H55C56.6569 13 58 14.3431 58 16V38.5C58 40.1569 56.6569 41.5 55 41.5H9C7.34315 41.5 6 40.1569 6 38.5V10.5Z"
+                  stroke="#1F1D1A"
+                  strokeWidth="1.75"
+                  strokeLinejoin="round"
+                />
+                <line
+                  x1="32"
+                  y1="14"
+                  x2="32"
+                  y2="40.5"
+                  stroke="#B4281F"
+                  strokeWidth="2"
+                  strokeDasharray="4 3.5"
+                  strokeLinecap="round"
+                />
+              </svg>
 
-              <div className="flex flex-wrap items-center justify-center gap-2.5 shrink-0">
-                {/* 1. Nạp File ZIP (Nhanh nhất) */}
-                <label className={`cursor-pointer inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold transition-all shadow-lg shadow-red-600/25 ${isLoadingTests ? 'opacity-50 pointer-events-none' : ''}`}>
-                  <FolderArchive className="w-4 h-4" />
-                  <span>Nạp File .ZIP (Nhanh nhất)</span>
+              <h4
+                className="text-[16px] font-bold text-[#1F1D1A]"
+                style={{ fontFamily: "'Be Vietnam Pro', sans-serif" }}
+              >
+                {isLoadingTests ? 'Đang xử lý gói test...' : 'Kéo thả file .ZIP vào đây'}
+              </h4>
+              <p className="text-[13px] text-[#6B655C] mt-1.5 max-w-[440px] mx-auto leading-relaxed">
+                Tối đa 50 MB sau khi nén, khoảng 250 MB test gốc. Chọn cả thư mục thì hệ thống tự nén .ZIP trước khi tải.
+              </p>
+
+              <div className="flex flex-wrap items-center justify-center gap-2.5 mt-5">
+                <label
+                  className={`tc-btn-primary cursor-pointer inline-flex items-center justify-center px-5 py-2.5 rounded-lg bg-[#B4281F] hover:bg-[#962018] text-white text-[13px] font-semibold transition-colors ${
+                    isLoadingTests ? 'opacity-50 pointer-events-none' : ''
+                  }`}
+                >
+                  <span>Nạp file .ZIP</span>
                   <input
                     type="file"
                     accept=".zip"
@@ -619,10 +641,12 @@ export const TestCaseManagerModal: React.FC<TestCaseManagerModalProps> = ({
                   />
                 </label>
 
-                {/* 2. Chọn nguyên cả Folder Test */}
-                <label className={`cursor-pointer inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white text-xs font-semibold border border-slate-700 transition-all ${isLoadingTests ? 'opacity-50 pointer-events-none' : ''}`}>
-                  <FolderUp className="w-4 h-4 text-amber-400" />
-                  <span>Nạp cả Thư mục Test</span>
+                <label
+                  className={`cursor-pointer inline-flex items-center justify-center px-5 py-2.5 rounded-lg bg-white hover:bg-[#F3EFE4] text-[#1F1D1A] text-[13px] font-semibold border border-[#1F1D1A] transition-colors ${
+                    isLoadingTests ? 'opacity-50 pointer-events-none' : ''
+                  }`}
+                >
+                  <span>Nạp cả thư mục</span>
                   <input
                     type="file"
                     // @ts-expect-error webkitdirectory là thuộc tính chuẩn của browser
@@ -638,9 +662,11 @@ export const TestCaseManagerModal: React.FC<TestCaseManagerModalProps> = ({
                   />
                 </label>
 
-                {/* 3. Chọn nhiều file lẻ */}
-                <label className={`cursor-pointer inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white text-xs font-semibold border border-slate-700 transition-all ${isLoadingTests ? 'opacity-50 pointer-events-none' : ''}`}>
-                  <Files className="w-4 h-4 text-blue-400" />
+                <label
+                  className={`cursor-pointer inline-flex items-center justify-center px-5 py-2.5 rounded-lg bg-white hover:bg-[#F3EFE4] text-[#1F1D1A] text-[13px] font-semibold border border-[#1F1D1A] transition-colors ${
+                    isLoadingTests ? 'opacity-50 pointer-events-none' : ''
+                  }`}
+                >
                   <span>Chọn file lẻ</span>
                   <input
                     type="file"
@@ -656,299 +682,359 @@ export const TestCaseManagerModal: React.FC<TestCaseManagerModalProps> = ({
                 </label>
               </div>
             </div>
-
-            <div className="mt-3 text-center text-[11px] text-slate-500">
-              💡 Mẹo: Nếu bộ test nặng hàng chục MB (như <b>NTO</b>), hãy nén thư mục test thành <b>1 file .ZIP</b> rồi kéo thả vào đây — nạp xong chỉ trong <b>2–4 giây</b>!
-            </div>
           </div>
 
-          {/* Thanh tiến trình nén / tải lên Cloud có % thực tế */}
-          {isLoadingTests && uploadStage && (
-            <div className="p-4 rounded-2xl bg-blue-950/40 border border-blue-500/40 space-y-2">
-              <div className="flex items-center justify-between gap-3 text-blue-300">
-                <div className="flex items-center gap-2.5">
-                  <Loader2 className="w-4 h-4 animate-spin text-blue-400 shrink-0" />
-                  <span className="text-xs font-semibold">{uploadStage.label}</span>
-                </div>
-                <span className="text-xs font-mono font-bold text-blue-200">{uploadStage.percent}%</span>
-              </div>
-              <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-gradient-to-r from-blue-500 to-emerald-400 transition-all duration-200"
-                  style={{ width: `${Math.max(4, uploadStage.percent)}%` }}
-                />
-              </div>
-            </div>
-          )}
-
-          {/* Banner trạng thái bộ test hiện tại */}
-          {!isLoadingTests && pendingUpload && (
-            <div className="p-3.5 rounded-2xl bg-amber-950/40 border border-amber-500/40 flex flex-wrap items-center justify-between gap-3 text-amber-200">
-              <div className="flex items-center gap-2.5 text-xs">
-                <CloudUpload className="w-4 h-4 text-amber-400 shrink-0" />
-                <span>
-                  <b>Gói test mới sẵn sàng tải lên:</b> {pendingUpload.pairs.length} tests ({formatSizeMb(pendingUpload.totalBytes)}
-                  {pendingUpload.mode === 'zip' ? ' file .ZIP' : ' gốc — sẽ tự nén .ZIP'}). Hãy bấm nút <b>"Lưu cấu hình Test"</b> ở góc dưới bên phải để hoàn tất!
-                </span>
-              </div>
-            </div>
-          )}
-
-          {!isLoadingTests && !pendingUpload && testCases.length > 0 && (
-            <div className="p-3.5 rounded-2xl bg-emerald-950/30 border border-emerald-500/30 flex items-center gap-2.5 text-emerald-300 text-xs">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-              <span>
-                <b>Đã nạp thành công {testCases.length} bộ test trên Cloud</b> (Tổng điểm: <b>{currentSumPoints.toFixed(1)}/{totalPoints}đ</b>). Hệ thống ẩn sẵn nội dung test để mở trang tức thì — bấm <b>Xem / Sửa</b> trên từng dòng nếu cần kiểm tra lẻ.
-              </span>
-            </div>
-          )}
-
-          {/* Thông báo lỗi */}
-          {parseError && (
-            <div className="p-4 rounded-2xl bg-rose-950/40 border border-rose-500/50 flex items-start justify-between gap-3 text-rose-300 animate-in fade-in duration-150">
-              <div className="flex items-start gap-2.5">
-                <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
-                <div>
-                  <h5 className="font-bold text-xs text-rose-200">Có lỗi xảy ra</h5>
-                  <p className="text-xs text-rose-300/90 mt-0.5 leading-relaxed">{parseError}</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setParseError(null)}
-                className="p-1 rounded-lg hover:bg-rose-900/40 text-rose-400 hover:text-white transition-colors"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-          )}
-
-          {/* Test Cases List Header & Actions */}
-          <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
-            <div className="flex items-center gap-3">
-              <h4 className="font-bold text-sm text-white flex items-center gap-2">
-                <Layers className="w-4 h-4 text-red-400" />
-                Danh sách Test Cases ({testCases.length} tests)
-              </h4>
-              <span className="text-xs font-mono text-slate-400">
-                Tổng điểm: <b className="text-amber-400">{currentSumPoints.toFixed(1)}</b> / {totalPoints}
-              </span>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={handleAutoDistributePoints}
-                className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold flex items-center gap-1.5 border border-slate-700 transition-colors"
-              >
-                <Sparkles className="w-3.5 h-3.5 text-amber-400" /> Chia đều điểm
-              </button>
-
-              <button
-                type="button"
-                onClick={handleAddManualTest}
-                className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold flex items-center gap-1.5 border border-slate-700 transition-colors"
-              >
-                <Plus className="w-3.5 h-3.5 text-emerald-400" /> Thêm Test thủ công
-              </button>
-            </div>
-          </div>
-
-          {/* Danh sách Test gọn nhẹ chuẩn VNOI */}
-          {testCases.length === 0 ? (
-            <div className="p-10 text-center bg-slate-950/60 rounded-2xl border border-dashed border-slate-800 text-slate-500">
-              <FolderArchive className="w-10 h-10 mx-auto text-slate-600 mb-2" />
-              <p className="text-xs">Chưa có test case nào cho bài tập này.</p>
-              <p className="text-xs mt-1 text-slate-400">
-                Hãy bấm <b>"Nạp File .ZIP (Nhanh nhất)"</b> hoặc <b>"Nạp cả Thư mục Test"</b> ở trên.
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {testCases.map((tc, idx) => {
-                const isExpanded = expandedTestId === tc.id;
-                const isZipBacked =
-                  (typeof tc.input === 'string' && tc.input.startsWith('__STORAGE_ZIP__:')) ||
-                  Boolean(pendingUpload && !dirtyManualIds.has(tc.id));
-                const isInputTruncated = !isZipBacked && (tc.input || '').length > 1000;
-                const isOutputTruncated = !isZipBacked && (tc.expectedOutput || '').length > 1000;
-
-                return (
-                  <div
-                    key={tc.id || idx}
-                    className="bg-slate-950 border border-slate-800 rounded-xl p-3 transition-colors hover:border-slate-700"
-                  >
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <span className="w-6 h-6 rounded-lg bg-slate-800 text-slate-300 flex items-center justify-center font-mono text-xs font-bold shrink-0">
-                          {idx + 1}
-                        </span>
-                        <input
-                          type="text"
-                          value={typeof tc.name === 'object' ? JSON.stringify(tc.name) : String(tc.name || '')}
-                          onChange={(e) => handleUpdateTest(tc.id, 'name', e.target.value)}
-                          className="bg-transparent border-0 font-bold text-xs text-white focus:ring-0 p-0 hover:underline w-28 sm:w-36"
-                        />
-                        {pendingUpload && !dirtyManualIds.has(tc.id) ? (
-                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/25">
-                            Chờ tải .ZIP
-                          </span>
-                        ) : dirtyManualIds.has(tc.id) ? (
-                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-300 border border-blue-500/25">
-                            Test thủ công
-                          </span>
-                        ) : (
-                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/25">
-                            ✓ Đã nạp trên Cloud
-                          </span>
-                        )}
-                      </div>
-
-                      <div className="flex items-center gap-2.5">
-                        {/* Điểm */}
-                        <div className="flex items-center gap-1 text-xs text-slate-400">
-                          <span>Điểm:</span>
-                          <input
-                            type="number"
-                            step="0.05"
-                            min="0"
-                            value={tc.points}
-                            onChange={(e) => handleUpdateTest(tc.id, 'points', parseFloat(e.target.value) || 0)}
-                            className="w-16 px-2 py-0.5 bg-slate-800 border border-slate-700 rounded text-xs text-amber-300 font-mono font-bold text-center focus:outline-none"
-                          />
-                          <span>đ</span>
-                        </div>
-
-                        {/* Ẩn/Hiện */}
-                        <button
-                          type="button"
-                          onClick={() => handleUpdateTest(tc.id, 'isHidden', !tc.isHidden)}
-                          className={`px-2 py-1 rounded-lg text-xs flex items-center gap-1 transition-colors ${
-                            tc.isHidden
-                              ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                              : 'bg-slate-800 text-slate-300 hover:text-white'
-                          }`}
-                          title={tc.isHidden ? 'Test ẩn (học sinh không xem được dữ liệu)' : 'Test công khai'}
-                        >
-                          {tc.isHidden ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                          <span className="text-[10px]">{tc.isHidden ? 'Ẩn' : 'Hiện'}</span>
-                        </button>
-
-                        {/* Nút Xem/Sửa theo yêu cầu */}
-                        <button
-                          type="button"
-                          onClick={() => handleToggleExpandTest(tc)}
-                          className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-[10px] font-semibold flex items-center gap-1 transition-colors"
-                          title="Mở xem hoặc sửa nội dung test này"
-                        >
-                          {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                          <span>{isExpanded ? 'Thu gọn' : 'Xem / Sửa'}</span>
-                        </button>
-
-                        {/* Xóa */}
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveTest(tc.id)}
-                          className="p-1.5 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-slate-800 transition-colors"
-                          title="Xóa test này"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
+          {/* Dải trạng thái Cloud / Tiến trình / Cảnh báo lỗi */}
+          {hasStatusSection && (
+            <div className="px-7 py-4 border-b border-[#E6E0D3] space-y-3">
+              {isLoadingTests && uploadStage && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2 text-[13px] font-semibold text-[#1F1D1A]">
+                      <Loader2 className="w-4 h-4 animate-spin text-[#B4281F] shrink-0" />
+                      <span>{uploadStage.label}</span>
                     </div>
-
-                    {/* Khung chi tiết chỉ mở khi giáo viên chủ động bấm "Xem / Sửa" */}
-                    {isExpanded && (
-                      <div className="mt-3 pt-3 border-t border-slate-800/80">
-                        {loadingDetailId === tc.id ? (
-                          <div className="flex items-center gap-2 text-xs text-slate-400 py-2">
-                            <Loader2 className="w-3.5 h-3.5 animate-spin" /> Đang tải nội dung test...
-                          </div>
-                        ) : isZipBacked ? (
-                          <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 text-xs text-slate-300 flex items-center gap-2">
-                            <FolderArchive className="w-4 h-4 text-emerald-400 shrink-0" />
-                            <span>
-                              Dữ liệu test được lưu gọn trong gói nén <b>.ZIP (chuẩn VNOI)</b> trên Storage nên không tải về trình duyệt. Nếu cần sửa nội dung test, bạn hãy sửa file trên máy tính rồi kéo thả nạp lại gói .ZIP / Thư mục.
-                            </span>
-                          </div>
-                        ) : (
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            <div>
-                              <div className="flex items-center justify-between mb-1">
-                                <span className="text-[11px] font-bold text-slate-400 uppercase">Input:</span>
-                                {isInputTruncated && (
-                                  <span className="text-[10px] font-mono text-amber-400">
-                                    {formatSizeMb((tc.input || '').length)} (Chỉ xem trước)
-                                  </span>
-                                )}
-                              </div>
-                              <textarea
-                                rows={3}
-                                value={formatPreview(tc.input)}
-                                readOnly={isInputTruncated}
-                                onChange={(e) => {
-                                  if (!isInputTruncated) handleUpdateTest(tc.id, 'input', e.target.value);
-                                }}
-                                placeholder="Dữ liệu vào..."
-                                className={`w-full p-2 bg-slate-900 border border-slate-800 rounded-xl text-xs text-slate-200 font-mono ${
-                                  isInputTruncated ? 'cursor-not-allowed opacity-90' : ''
-                                }`}
-                              />
-                            </div>
-                            <div>
-                              <div className="flex items-center justify-between mb-1">
-                                <span className="text-[11px] font-bold text-slate-400 uppercase">Expected Output:</span>
-                                {isOutputTruncated && (
-                                  <span className="text-[10px] font-mono text-emerald-400">
-                                    {formatSizeMb((tc.expectedOutput || '').length)} (Chỉ xem trước)
-                                  </span>
-                                )}
-                              </div>
-                              <textarea
-                                rows={3}
-                                value={formatPreview(tc.expectedOutput)}
-                                readOnly={isOutputTruncated}
-                                onChange={(e) => {
-                                  if (!isOutputTruncated) handleUpdateTest(tc.id, 'expectedOutput', e.target.value);
-                                }}
-                                placeholder="Đáp án đúng..."
-                                className={`w-full p-2 bg-slate-900 border border-slate-800 rounded-xl text-xs text-emerald-400 font-mono ${
-                                  isOutputTruncated ? 'cursor-not-allowed opacity-90' : ''
-                                }`}
-                              />
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
+                    <span className="text-[13px] font-mono font-semibold text-[#1F1D1A]">
+                      {uploadStage.percent}%
+                    </span>
                   </div>
-                );
-              })}
+                  <div className="w-full h-1.5 bg-[#EAE4D7] rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-[#B4281F] transition-all duration-200"
+                      style={{ width: `${Math.max(4, uploadStage.percent)}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {!isLoadingTests && pendingUpload && (
+                <div className="flex items-start gap-2.5">
+                  <span className="w-2.5 h-2.5 rounded-[2px] bg-[#C26D00] mt-1.5 shrink-0" />
+                  <div className="text-[13.5px] leading-snug">
+                    <div>
+                      <span className="font-bold text-[#B45309]">
+                        Gói test mới sẵn sàng tải lên ({pendingUpload.pairs.length} test)
+                      </span>
+                      <span className="text-[#6B655C] ml-1.5">
+                        dung lượng{' '}
+                        <span className="font-mono text-[#1F1D1A]">
+                          {formatSizeMb(pendingUpload.totalBytes)}
+                        </span>
+                        {pendingUpload.mode === 'zip' ? ' (.ZIP)' : ' (tự nén .ZIP)'}
+                      </span>
+                    </div>
+                    <p className="text-[12.5px] text-[#6B655C] mt-1">
+                      Bấm <b>Lưu cấu hình test</b> ở góc dưới bên phải để tải gói test lên Cloud.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {!isLoadingTests && !pendingUpload && testCases.length > 0 && (
+                <div className="flex items-start gap-2.5">
+                  <span className="w-2.5 h-2.5 rounded-[2px] bg-[#2E7D32] mt-1.5 shrink-0" />
+                  <div className="text-[13.5px] leading-snug">
+                    <div>
+                      <span className="font-bold text-[#2E7D32]">
+                        Đã nạp {testCases.length} test lên Cloud
+                      </span>
+                      <span className="text-[#6B655C] ml-2">
+                        tổng điểm{' '}
+                        <span className="font-mono text-[#1F1D1A]">
+                          {currentSumPoints.toFixed(1)} / {totalPoints}
+                        </span>
+                      </span>
+                    </div>
+                    <p className="text-[12.5px] text-[#6B655C] mt-1">
+                      Nội dung test được ẩn sẵn để mở trang nhanh. Bấm Xem / Sửa ở từng dòng khi cần kiểm tra.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {parseError && (
+                <div className="p-3.5 rounded-lg bg-[#FDF2F0] border border-[#EBC5BF] flex items-start justify-between gap-3 text-[#8F1F18] animate-in fade-in duration-150">
+                  <div className="flex items-start gap-2.5">
+                    <AlertTriangle className="w-4 h-4 text-[#B4281F] shrink-0 mt-0.5" />
+                    <div>
+                      <h5
+                        className="font-bold text-[13px] text-[#8F1F18]"
+                        style={{ fontFamily: "'Be Vietnam Pro', sans-serif" }}
+                      >
+                        Có lỗi xảy ra
+                      </h5>
+                      <p className="text-[12.5px] text-[#8F1F18]/90 mt-0.5 leading-relaxed">{parseError}</p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setParseError(null)}
+                    className="p-1 rounded-md hover:bg-[#B4281F]/10 text-[#B4281F] transition-colors cursor-pointer"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
             </div>
           )}
+
+          {/* Danh sách Test */}
+          <div className="px-7 py-5">
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+              <h4
+                className="text-[17px] font-bold text-[#1F1D1A]"
+                style={{ fontFamily: "'Be Vietnam Pro', sans-serif" }}
+              >
+                Danh sách test{' '}
+                <span className="font-normal text-[#6B655C]">({testCases.length})</span>
+              </h4>
+
+              <div className="flex flex-wrap items-center gap-4">
+                <span className="text-[13px] text-[#6B655C]">
+                  Tổng{' '}
+                  <span className="font-mono text-[#1F1D1A] ml-1">
+                    {currentSumPoints.toFixed(1)} / {totalPoints}
+                  </span>
+                </span>
+
+                <button
+                  type="button"
+                  onClick={handleAutoDistributePoints}
+                  className="px-3.5 py-1.5 rounded-lg bg-white hover:bg-[#FAF7EE] text-[#1F1D1A] text-[13px] font-semibold border border-[#1F1D1A] transition-colors cursor-pointer"
+                >
+                  Chia đều điểm
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleAddManualTest}
+                  className="text-[13px] font-semibold text-[#B4281F] hover:text-[#8F1F18] transition-colors cursor-pointer"
+                >
+                  + Thêm test thủ công
+                </button>
+              </div>
+            </div>
+
+            {testCases.length === 0 ? (
+              <div className="py-10 px-6 text-center bg-[#FAF7EE] rounded-xl border border-dashed border-[#D5CCBC] text-[#6B655C]">
+                <FolderArchive className="w-8 h-8 mx-auto text-[#8C8478] mb-2" />
+                <p className="text-[13px] font-medium text-[#1F1D1A]">
+                  Chưa có test case nào cho bài tập này.
+                </p>
+                <p className="text-[12.5px] mt-1 text-[#6B655C]">
+                  Bấm <b>Nạp file .ZIP</b>, <b>Nạp cả thư mục</b> hoặc <b>+ Thêm test thủ công</b> để bắt đầu.
+                </p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <div className="min-w-[600px]">
+                  {/* Header hàng bảng */}
+                  <div className="grid grid-cols-[44px_minmax(130px,1.5fr)_110px_115px_85px_145px] items-center gap-3 py-2.5 border-t-[1.5px] border-t-[#1F1D1A] border-b border-b-[#E6E0D3] text-[12.5px] font-medium text-[#6B655C]">
+                    <span>#</span>
+                    <span>Test</span>
+                    <span>Trạng thái</span>
+                    <span>Điểm</span>
+                    <span>Hiển thị</span>
+                    <span className="text-right" />
+                  </div>
+
+                  {/* Các dòng Test */}
+                  <div>
+                    {testCases.map((tc, idx) => {
+                      const isExpanded = expandedTestId === tc.id;
+                      const isZipBacked =
+                        (typeof tc.input === 'string' && tc.input.startsWith('__STORAGE_ZIP__:')) ||
+                        Boolean(pendingUpload && !dirtyManualIds.has(tc.id));
+                      const isInputTruncated = !isZipBacked && (tc.input || '').length > 1000;
+                      const isOutputTruncated = !isZipBacked && (tc.expectedOutput || '').length > 1000;
+
+                      return (
+                        <div key={tc.id || idx} className="border-b border-[#ECE7DC]">
+                          <div className="grid grid-cols-[44px_minmax(130px,1.5fr)_110px_115px_85px_145px] items-center gap-3 py-3 hover:bg-[#FAF7EE]/70 transition-colors">
+                            <span className="font-mono text-[13.5px] text-[#6B655C]">
+                              {idx + 1}
+                            </span>
+
+                            <input
+                              type="text"
+                              value={typeof tc.name === 'object' ? JSON.stringify(tc.name) : String(tc.name || '')}
+                              onChange={(e) => handleUpdateTest(tc.id, 'name', e.target.value)}
+                              className="tc-inline-name bg-transparent border-0 p-0 font-bold text-[14px] text-[#1F1D1A] focus:outline-none focus:underline w-full"
+                            />
+
+                            <div>
+                              {pendingUpload && !dirtyManualIds.has(tc.id) ? (
+                                <span className="text-[13px] font-semibold text-[#B45309]">
+                                  Chờ tải .ZIP
+                                </span>
+                              ) : dirtyManualIds.has(tc.id) ? (
+                                <span className="text-[13px] font-semibold text-[#1D4ED8]">
+                                  Thủ công
+                                </span>
+                              ) : (
+                                <span className="text-[13px] font-semibold text-[#2E7D32]">
+                                  Đã nạp
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="flex items-center gap-1.5">
+                              <input
+                                type="number"
+                                step="0.05"
+                                min="0"
+                                value={tc.points}
+                                onChange={(e) =>
+                                  handleUpdateTest(tc.id, 'points', parseFloat(e.target.value) || 0)
+                                }
+                                className="w-[62px] h-8 px-2 bg-white border border-[#D9D2C3] rounded-md text-[13px] text-[#1F1D1A] font-mono text-right focus:outline-none focus:border-[#1F1D1A] transition-colors"
+                              />
+                              <span className="text-[13px] text-[#6B655C]">đ</span>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => handleUpdateTest(tc.id, 'isHidden', !tc.isHidden)}
+                              className={`text-left text-[13px] font-medium cursor-pointer transition-colors ${
+                                tc.isHidden
+                                  ? 'text-[#6B655C] hover:text-[#1F1D1A]'
+                                  : 'text-[#1F1D1A] hover:text-[#B4281F]'
+                              }`}
+                              title={
+                                tc.isHidden
+                                  ? 'Test ẩn (học sinh không xem được dữ liệu) — bấm để đổi sang Hiện'
+                                  : 'Test công khai — bấm để đổi sang Ẩn'
+                              }
+                            >
+                              {tc.isHidden ? 'Ẩn' : 'Hiện'}
+                            </button>
+
+                            <div className="flex items-center justify-end gap-5">
+                              <button
+                                type="button"
+                                onClick={() => handleToggleExpandTest(tc)}
+                                className="text-[13px] font-semibold text-[#B4281F] hover:text-[#8F1F18] transition-colors cursor-pointer"
+                                title="Mở xem hoặc sửa nội dung test này"
+                              >
+                                {isExpanded ? 'Thu gọn' : 'Xem / Sửa'}
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveTest(tc.id)}
+                                className="text-[13px] font-medium text-[#6B655C] hover:text-[#B4281F] transition-colors cursor-pointer"
+                                title="Xóa test này"
+                              >
+                                Xóa
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Khung chi tiết khi giáo viên bấm Xem / Sửa */}
+                          {isExpanded && (
+                            <div className="mb-3 p-4 rounded-xl bg-[#FAF7EE] border border-[#E6E0D3]">
+                              {loadingDetailId === tc.id ? (
+                                <div className="flex items-center gap-2 text-[13px] text-[#6B655C] py-1">
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin text-[#B4281F]" />
+                                  <span>Đang tải nội dung test...</span>
+                                </div>
+                              ) : isZipBacked ? (
+                                <div className="flex items-start gap-2.5 text-[13px] text-[#1F1D1A]">
+                                  <FolderArchive className="w-4 h-4 text-[#2E7D32] shrink-0 mt-0.5" />
+                                  <span className="leading-relaxed text-[#6B655C]">
+                                    Dữ liệu test được lưu gọn trong gói nén <b className="text-[#1F1D1A]">.ZIP</b> trên Cloud Storage nên không tải về trình duyệt. Nếu cần sửa nội dung, hãy chỉnh file trên máy tính rồi kéo thả nạp lại gói .ZIP / Thư mục.
+                                  </span>
+                                </div>
+                              ) : (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                                  <div>
+                                    <div className="flex items-center justify-between mb-1.5">
+                                      <span className="text-[11.5px] font-bold text-[#6B655C] uppercase tracking-wide">
+                                        Input
+                                      </span>
+                                      {isInputTruncated && (
+                                        <span className="text-[11px] font-mono text-[#B45309]">
+                                          {formatSizeMb((tc.input || '').length)} (Chỉ xem trước)
+                                        </span>
+                                      )}
+                                    </div>
+                                    <textarea
+                                      rows={3}
+                                      value={formatPreview(tc.input)}
+                                      readOnly={isInputTruncated}
+                                      onChange={(e) => {
+                                        if (!isInputTruncated) handleUpdateTest(tc.id, 'input', e.target.value);
+                                      }}
+                                      placeholder="Dữ liệu vào..."
+                                      className={`w-full p-2.5 bg-white border border-[#D9D2C3] rounded-lg text-[12.5px] text-[#1F1D1A] font-mono focus:outline-none focus:border-[#1F1D1A] ${
+                                        isInputTruncated ? 'cursor-not-allowed opacity-85' : ''
+                                      }`}
+                                    />
+                                  </div>
+
+                                  <div>
+                                    <div className="flex items-center justify-between mb-1.5">
+                                      <span className="text-[11.5px] font-bold text-[#6B655C] uppercase tracking-wide">
+                                        Expected Output
+                                      </span>
+                                      {isOutputTruncated && (
+                                        <span className="text-[11px] font-mono text-[#2E7D32]">
+                                          {formatSizeMb((tc.expectedOutput || '').length)} (Chỉ xem trước)
+                                        </span>
+                                      )}
+                                    </div>
+                                    <textarea
+                                      rows={3}
+                                      value={formatPreview(tc.expectedOutput)}
+                                      readOnly={isOutputTruncated}
+                                      onChange={(e) => {
+                                        if (!isOutputTruncated)
+                                          handleUpdateTest(tc.id, 'expectedOutput', e.target.value);
+                                      }}
+                                      placeholder="Đáp án đúng..."
+                                      className={`w-full p-2.5 bg-white border border-[#D9D2C3] rounded-lg text-[12.5px] text-[#1F1D1A] font-mono focus:outline-none focus:border-[#1F1D1A] ${
+                                        isOutputTruncated ? 'cursor-not-allowed opacity-85' : ''
+                                      }`}
+                                    />
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Sticky Footer */}
-        <div className="shrink-0 p-4 bg-slate-800/90 border-t border-slate-800 flex items-center justify-between sticky bottom-0 z-10">
-          <span className="text-xs text-slate-400">
-            Tổng cộng: <b>{testCases.length}</b> tests • Thang điểm:{' '}
-            <b className="text-amber-400">{totalPoints}đ</b>
+        <div className="shrink-0 px-7 py-4 bg-white border-t border-[#E6E0D3] flex items-center justify-between gap-4">
+          <span className="text-[13px] text-[#6B655C]">
+            Tổng {testCases.length} test · thang điểm {totalPoints}
           </span>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-5">
             <button
+              type="button"
               onClick={handleSafeClose}
               disabled={isLoadingTests}
-              className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-semibold border border-slate-700 transition-colors disabled:opacity-40"
+              className="text-[13.5px] font-semibold text-[#1F1D1A] hover:text-[#B4281F] transition-colors cursor-pointer disabled:opacity-40"
             >
-              Đóng / Hủy
+              Đóng
             </button>
+
             <button
+              type="button"
               onClick={handleSaveAll}
               disabled={isLoadingTests}
-              className="px-5 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-lg shadow-red-600/25 transition-all disabled:opacity-50"
+              className="tc-btn-primary px-5 py-2.5 rounded-lg bg-[#B4281F] hover:bg-[#962018] text-white text-[13.5px] font-semibold inline-flex items-center gap-2 transition-colors cursor-pointer disabled:opacity-50"
             >
-              {isLoadingTests ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-              {pendingUpload ? 'Tải gói .ZIP & Lưu cấu hình' : 'Lưu cấu hình Test'}
+              {isLoadingTests && <Loader2 className="w-4 h-4 animate-spin" />}
+              <span>{pendingUpload ? 'Tải gói .ZIP & Lưu cấu hình' : 'Lưu cấu hình test'}</span>
             </button>
           </div>
         </div>

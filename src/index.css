@@ -962,3 +962,42 @@ html[data-theme="light"] .bg-amber-50:not(aside *) strong {
   align-items: center;
 }
 
+/* ====================================================
+   TEST CASE MANAGER MODAL — WARM EDITORIAL PROTECTION
+   Giữ nguyên bảng màu giấy ấm & viền #D9D2C3 trong Light Mode
+   ==================================================== */
+html.light .tc-editorial-modal input:not([type="checkbox"]):not([type="radio"]),
+html.light .tc-editorial-modal textarea {
+  background-color: #ffffff !important;
+  color: #1F1D1A !important;
+  border-color: #D9D2C3 !important;
+}
+
+html.light .tc-editorial-modal input:not([type="checkbox"]):not([type="radio"]):focus,
+html.light .tc-editorial-modal textarea:focus {
+  border-color: #1F1D1A !important;
+}
+
+html.light .tc-editorial-modal input.tc-inline-name {
+  background-color: transparent !important;
+  border-color: transparent !important;
+  color: #1F1D1A !important;
+}
+
+html.light .tc-editorial-modal button.tc-preset-active {
+  background-color: #1F1D1A !important;
+  border-color: #1F1D1A !important;
+  color: #ffffff !important;
+}
+
+html.light .tc-editorial-modal button.tc-btn-primary,
+html.light .tc-editorial-modal label.tc-btn-primary {
+  background-color: #B4281F !important;
+  color: #ffffff !important;
+}
+
+html.light .tc-editorial-modal button.tc-btn-primary:hover,
+html.light .tc-editorial-modal label.tc-btn-primary:hover {
+  background-color: #962018 !important;
+}
+
