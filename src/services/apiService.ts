@@ -158,6 +158,12 @@ const HOME_MEDIA_CHECK_TTL_MS = 3 * 60 * 1000;
 let homeMediaLastCheckedAt = 0;
 let homeMediaInflight: Promise<{ banners: HomeBanner[]; countdowns: ExamCountdown[] }> | null = null;
 
+// Bộ nhớ đệm số lượng test case của tất cả bài tập trên Cloud (chỉ gọi cho màn Giáo viên):
+// 1 query duy nhất lấy cột `problem_id` (~15 KB cho 1.400 test), cache 3 phút.
+const PROBLEM_TEST_COUNTS_TTL_MS = 3 * 60 * 1000;
+let problemTestCountsCache: { at: number; value: Record<string, number> } | null = null;
+let problemTestCountsInflight: Promise<Record<string, number>> | null = null;
+
 function sameVersionTimestamp(a?: string | null, b?: string | null): boolean {
   if (!a || !b) return false;
   if (a === b) return true;
@@ -1887,6 +1893,7 @@ export const apiService = {
             console.warn('[apiService] Dọn test_cases cũ warn:', delErr);
           }
         }
+        this.invalidateProblemTestCounts();
       } catch (err: unknown) {
         console.error('[apiService] Lỗi lưu test cases lên Supabase Cloud:', err);
         throw new Error(
@@ -2010,6 +2017,116 @@ export const apiService = {
     }
 
     return { bucket, objectPath, version };
+  },
+
+  /**
+   * Xóa cache đếm số test trên Cloud (gọi sau khi nạp/xóa test hoặc xóa bài)
+   */
+  invalidateProblemTestCounts(): void {
+    problemTestCountsCache = null;
+  },
+
+  /**
+   * Siêu nhẹ (~15 KB cho 1.400 test, cache 3 phút):
+   * Lấy số lượng test case thật trên Supabase cho TẤT CẢ bài tập bằng 1 request duy nhất (`select=problem_id`),
+   * tuyệt đối KHÔNG tải input/expected_output. Chỉ dùng cho màn Giáo viên (Tổng quan & Kho bài).
+   */
+  async fetchProblemTestCounts(options?: { force?: boolean }): Promise<Record<string, number>> {
+    const force = Boolean(options?.force);
+    const now = Date.now();
+    if (
+      !force &&
+      problemTestCountsCache &&
+      now - problemTestCountsCache.at < PROBLEM_TEST_COUNTS_TTL_MS
+    ) {
+      return problemTestCountsCache.value;
+    }
+    if (!isSupabaseConfigured()) {
+      return problemTestCountsCache?.value || {};
+    }
+    if (problemTestCountsInflight) return problemTestCountsInflight;
+
+    problemTestCountsInflight = (async () => {
+      try {
+        const baseUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/test_cases?select=problem_id`;
+        const PAGE_SIZE = 1000;
+        const counts: Record<string, number> = {};
+        const accumulate = (rows: unknown) => {
+          if (!Array.isArray(rows)) return 0;
+          for (const r of rows) {
+            const pid = (r as any)?.problem_id;
+            if (typeof pid === 'string' && pid) {
+              counts[pid] = (counts[pid] || 0) + 1;
+            }
+          }
+          return rows.length;
+        };
+
+        // Trang 1 kèm Prefer: count=exact để biết tổng số dòng thực tế (tránh giới hạn 1.000 dòng/request của PostgREST)
+        const firstRes = await fetch(`${baseUrl}&limit=${PAGE_SIZE}&offset=0`, {
+          headers: {
+            ...this.getAntiCacheHeaders(),
+            Prefer: 'count=exact',
+          },
+          cache: 'no-store',
+        });
+        if (!firstRes.ok) {
+          return problemTestCountsCache?.value || {};
+        }
+
+        const firstRows = await firstRes.json();
+        const firstCount = accumulate(firstRows);
+
+        // Đọc tổng số dòng từ Content-Range (VD: "0-999/1845") để tải song song các trang còn lại nếu > 1.000 test
+        const contentRange = firstRes.headers.get('content-range') || '';
+        const totalMatch = contentRange.match(/\/(\d+)$/);
+        const totalRows = totalMatch ? parseInt(totalMatch[1], 10) : 0;
+
+        if (totalRows > firstCount && firstCount > 0) {
+          const offsets: number[] = [];
+          for (let start = firstCount; start < totalRows; start += PAGE_SIZE) {
+            offsets.push(start);
+          }
+          const restPages = await Promise.all(
+            offsets.map(async (start) => {
+              const res = await fetch(`${baseUrl}&limit=${PAGE_SIZE}&offset=${start}`, {
+                headers: this.getAntiCacheHeaders(),
+                cache: 'no-store',
+              });
+              if (!res.ok) return [];
+              return res.json().catch(() => []);
+            })
+          );
+          for (const page of restPages) {
+            accumulate(page);
+          }
+        } else if (firstCount === PAGE_SIZE) {
+          // Dự phòng khi header Content-Range bị ẩn: lặp từng trang 1.000 dòng cho đến trang cuối
+          let offset = PAGE_SIZE;
+          for (let guard = 0; guard < 30; guard++) {
+            const res = await fetch(`${baseUrl}&limit=${PAGE_SIZE}&offset=${offset}`, {
+              headers: this.getAntiCacheHeaders(),
+              cache: 'no-store',
+            });
+            if (!res.ok) break;
+            const rows = await res.json().catch(() => []);
+            const got = accumulate(rows);
+            if (got < PAGE_SIZE) break;
+            offset += PAGE_SIZE;
+          }
+        }
+
+        problemTestCountsCache = { at: Date.now(), value: counts };
+        return counts;
+      } catch (e) {
+        console.warn('[apiService] fetchProblemTestCounts warn:', e);
+        return problemTestCountsCache?.value || {};
+      }
+    })().finally(() => {
+      problemTestCountsInflight = null;
+    });
+
+    return problemTestCountsInflight;
   },
 
   /**
@@ -2138,6 +2255,7 @@ export const apiService = {
     } catch (delErr) {
       console.warn('[apiService] Dọn test_cases cũ warn:', delErr);
     }
+    this.invalidateProblemTestCounts();
   },
 
   /**
@@ -2174,6 +2292,7 @@ export const apiService = {
       const detail = await res.text().catch(() => '');
       throw new Error(`Lỗi lưu test thủ công (${res.status}): ${detail.slice(0, 150)}`);
     }
+    this.invalidateProblemTestCounts();
   },
 
   /**

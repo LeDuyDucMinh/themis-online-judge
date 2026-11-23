@@ -6,12 +6,13 @@ import { UserProblemList } from './components/user/UserProblemList';
 import { ProblemView } from './components/user/ProblemView';
 import { SubmissionHistory } from './components/user/SubmissionHistory';
 import { StudentClassList } from './components/user/StudentClassList';
-import { TopicManager } from './components/admin/TopicManager';
 import { TeacherClassList } from './components/admin/TeacherClassList';
-import { TeacherClassDetail } from './components/admin/TeacherClassDetail';
+import { TeacherClassDetail, type TeacherClassV2Tab } from './components/admin/TeacherClassDetail';
+import { TeacherOverview } from './components/admin/TeacherOverview';
+import { ProblemBank, type ProblemBankFilterMode } from './components/admin/ProblemBank';
+import { TeacherProblemWorkspace } from './components/admin/TeacherProblemWorkspace';
+import { StudentHomeManager } from './components/admin/StudentHomeManager';
 import { UserManager } from './components/admin/UserManager';
-import { BannerManager } from './components/admin/BannerManager';
-import { ExamCountdownManager } from './components/admin/ExamCountdownManager';
 import { AdminLayout, type AdminTabType } from './components/admin/AdminLayout';
 import { AuthModal } from './components/auth/AuthModal';
 import { ChangeNameModal } from './components/user/ChangeNameModal';
@@ -22,11 +23,26 @@ import { Heart } from 'lucide-react';
 
 import { storageService } from './services/storageService';
 
+const ADMIN_TABS: AdminTabType[] = [
+  'admin_overview',
+  'admin_classes',
+  'admin_topics',
+  'admin_student_home',
+  'admin_users',
+  'admin_banners',
+  'admin_countdowns',
+];
+
+function isAdminOnlyTab(tab: AdminTabType): boolean {
+  return ADMIN_TABS.includes(tab);
+}
+
 function MainApp() {
   const {
     isAdminAuthenticated,
     isAuthLoading,
     setIsAuthModalOpen,
+    classes,
     activeClassId,
     setActiveClassId,
     isServerConfigModalOpen,
@@ -37,38 +53,47 @@ function MainApp() {
   } = useJudge();
 
   const [currentTab, setCurrentTab] = useState<AdminTabType>(() => {
-    // 1. Ưu tiên đọc từ URL Hash khi người dùng tải lại trang
     if (typeof window !== 'undefined' && window.location.hash) {
       const hash = window.location.hash.replace(/^#\/?/, '');
       if (hash.startsWith('submissions')) return 'submissions';
-      if (hash.startsWith('admin/countdowns')) return 'admin_countdowns';
-      if (hash.startsWith('admin/banners')) return 'admin_banners';
+      if (hash.startsWith('admin/countdowns')) return 'admin_student_home';
+      if (hash.startsWith('admin/banners')) return 'admin_student_home';
+      if (hash.startsWith('admin/student-home')) return 'admin_student_home';
       if (hash.startsWith('admin/users')) return 'admin_users';
-      if (hash.startsWith('admin/topics')) return 'admin_topics';
-      if (hash.startsWith('admin/classes') || hash === 'admin') return 'admin_classes';
+      if (hash.startsWith('admin/topics') || hash.startsWith('admin/problems')) return 'admin_topics';
+      if (hash.startsWith('admin/classes')) return 'admin_classes';
+      if (hash.startsWith('admin/overview') || hash === 'admin') return 'admin_overview';
       if (hash.startsWith('classes')) return 'classes';
     }
-    // 2. Dự phòng đọc từ localStorage
     const saved = storageService.getCurrentTab() as AdminTabType | null;
     if (saved === 'submissions') return 'submissions';
     if (isAdminAuthenticated) {
-      if (
-        saved === 'admin_classes' ||
-        saved === 'admin_topics' ||
-        saved === 'admin_users' ||
-        saved === 'admin_banners' ||
-        saved === 'admin_countdowns'
-      ) {
-        return saved;
-      }
-      return 'admin_classes';
-    } else {
-      return 'classes';
+      if (saved === 'admin_banners' || saved === 'admin_countdowns') return 'admin_student_home';
+      if (saved && isAdminOnlyTab(saved)) return saved;
+      return 'admin_overview';
     }
+    return 'classes';
   });
 
+  // Trạng thái điều hướng phụ cho giao diện GV v2
+  const [studentHomeSubTab, setStudentHomeSubTab] = useState<'banners' | 'countdowns'>(() => {
+    if (typeof window !== 'undefined' && window.location.hash.includes('countdowns')) {
+      return 'countdowns';
+    }
+    return 'banners';
+  });
+  const [problemBankFilter, setProblemBankFilter] = useState<ProblemBankFilterMode>('all');
+  const [classInitialTab, setClassInitialTab] = useState<TeacherClassV2Tab>('students');
+  const [classFilterZeroAc, setClassFilterZeroAc] = useState(false);
+
+  // Trang Sửa bài một trang (GV v2)
+  const [editingProblemId, setEditingProblemId] = useState<string | 'NEW' | null>(null);
+  const [editingProblemFocus, setEditingProblemFocus] = useState<'info' | 'de' | 'test' | 'giao' | undefined>(
+    undefined
+  );
+  const [editingOriginTab, setEditingOriginTab] = useState<AdminTabType>('admin_topics');
+
   const [selectedProblem, setSelectedProblem] = useState<Problem | null>(() => {
-    // 1. Ưu tiên đọc bài tập từ URL Hash nếu có dạng #classes/:classId/problems/:id
     if (typeof window !== 'undefined' && window.location.hash) {
       const hash = window.location.hash.replace(/^#\/?/, '');
       const probMatch = hash.match(/problems\/([^/?#]+)/);
@@ -79,7 +104,6 @@ function MainApp() {
         if (found) return found;
       }
     }
-    // 2. Dự phòng đọc từ localStorage
     const savedProblemId = storageService.getSelectedProblemId();
     if (savedProblemId) {
       const list = storageService.getProblems();
@@ -88,7 +112,6 @@ function MainApp() {
     return null;
   });
 
-  // Cập nhật lại bài tập đang mở khi danh sách problems từ Cloud tải về
   useEffect(() => {
     const savedProblemId = storageService.getSelectedProblemId();
     if (savedProblemId && problems.length > 0) {
@@ -99,18 +122,25 @@ function MainApp() {
     }
   }, [problems]);
 
-  // Luôn lấy dữ liệu bài tập mới nhất (kèm test cases đầy đủ từ IndexedDB)
   const activeSelectedProblem = useMemo(() => {
     if (!selectedProblem) return null;
     return problems.find((p) => p.id === selectedProblem.id) || selectedProblem;
   }, [selectedProblem, problems]);
 
-  // =========================================================================
-  // TƯỜNG LỬA BẢO MẬT (ROUTE GUARD / MIDDLEWARE CHO KHU VỰC QUẢN TRỊ ADMIN)
-  // Bất kỳ phiên đăng nhập nào không có role === 'admin' mà cố tình truy cập qua URL
-  // vào khu vực quản trị (#admin, /admin, #admin/classes, #admin/topics)
-  // đều phải bị chặn lập tức và redirect về trang chủ (/)
-  // =========================================================================
+  const activeClassObj = useMemo(
+    () => (activeClassId ? classes.find((c) => c.id === activeClassId) || null : null),
+    [activeClassId, classes]
+  );
+
+  const editingProblemObj = useMemo(
+    () =>
+      editingProblemId && editingProblemId !== 'NEW'
+        ? problems.find((p) => p.id === editingProblemId) || null
+        : null,
+    [editingProblemId, problems]
+  );
+
+  // Route Guard cho khu vực Admin
   useEffect(() => {
     if (isAuthLoading) return;
 
@@ -119,11 +149,7 @@ function MainApp() {
     const isTargetingAdmin =
       currentHash.startsWith('admin') ||
       currentPath.startsWith('admin') ||
-      currentTab === 'admin_users' ||
-      currentTab === 'admin_classes' ||
-      currentTab === 'admin_topics' ||
-      currentTab === 'admin_banners' ||
-      currentTab === 'admin_countdowns';
+      isAdminOnlyTab(currentTab);
 
     if (isTargetingAdmin && !isAdminAuthenticated) {
       console.warn('[Route Guard] Chặn truy cập trái phép vào khu vực Admin. Chuyển hướng về trang chủ.');
@@ -131,6 +157,7 @@ function MainApp() {
       storageService.setCurrentTab('classes');
       setActiveClassId(null);
       setSelectedProblem(null);
+      setEditingProblemId(null);
 
       if (typeof window !== 'undefined') {
         window.history.replaceState(null, '', '/#classes');
@@ -144,44 +171,46 @@ function MainApp() {
     }
   }, [isAdminAuthenticated, isAuthLoading, currentTab]);
 
-  // Điều hướng phân vùng & Đặt màn hình mặc định theo vai trò:
-  // - Khi Giáo viên (ADMIN / TEACHER) đăng nhập: Mặc định mở tab "Quản lý Lớp học" (admin_classes)
-  // - Khi Học sinh (USER): Mặc định mở tab "Lớp học của tôi" (classes)
+  // Đặt màn hình mặc định theo vai trò (Giáo viên -> Tổng quan GV v2; Học sinh -> Lớp học của tôi)
   useEffect(() => {
     if (isAuthLoading) return;
     if (isAdminAuthenticated) {
       if (currentTab === 'classes' || currentTab === 'problems') {
-        setCurrentTab('admin_classes');
-        storageService.setCurrentTab('admin_classes');
+        setCurrentTab('admin_overview');
+        storageService.setCurrentTab('admin_overview');
       }
       setSelectedProblem(null);
       storageService.setSelectedProblemId(null);
     } else {
-      if (
-        currentTab === 'admin_classes' ||
-        currentTab === 'admin_topics' ||
-        currentTab === 'admin_users' ||
-        currentTab === 'admin_banners' ||
-        currentTab === 'admin_countdowns'
-      ) {
+      if (isAdminOnlyTab(currentTab)) {
         setCurrentTab('classes');
         storageService.setCurrentTab('classes');
       }
     }
   }, [isAdminAuthenticated, isAuthLoading, currentTab]);
 
-  // Đồng bộ trạng thái điều hướng vào URL Hash & localStorage để khi F5 / Reload tải lại đúng trang hiện tại
+  // Đồng bộ URL Hash & localStorage
   useEffect(() => {
     if (isAuthLoading) return;
 
     let targetHash = '';
     if (isAdminAuthenticated) {
-      if (currentTab === 'admin_users') {
+      if (editingProblemId) {
+        targetHash =
+          editingProblemId === 'NEW'
+            ? '#admin/problems/new'
+            : `#admin/problems/${editingProblemId}`;
+      } else if (currentTab === 'admin_overview') {
+        targetHash = '#admin/overview';
+      } else if (currentTab === 'admin_users') {
         targetHash = '#admin/users';
-      } else if (currentTab === 'admin_banners') {
-        targetHash = '#admin/banners';
-      } else if (currentTab === 'admin_countdowns') {
-        targetHash = '#admin/countdowns';
+      } else if (
+        currentTab === 'admin_student_home' ||
+        currentTab === 'admin_banners' ||
+        currentTab === 'admin_countdowns'
+      ) {
+        targetHash =
+          studentHomeSubTab === 'countdowns' ? '#admin/countdowns' : '#admin/student-home';
       } else if (currentTab === 'admin_classes') {
         targetHash = activeClassId ? `#admin/classes/${activeClassId}` : '#admin/classes';
       } else if (currentTab === 'admin_topics') {
@@ -189,7 +218,7 @@ function MainApp() {
       } else if (currentTab === 'submissions') {
         targetHash = '#submissions';
       } else {
-        targetHash = '#admin/classes';
+        targetHash = '#admin/overview';
       }
     } else {
       if (currentTab === 'classes') {
@@ -215,19 +244,26 @@ function MainApp() {
       }
     }
     storageService.setCurrentTab(currentTab);
-  }, [currentTab, activeClassId, selectedProblem, isAdminAuthenticated, isAuthLoading]);
+  }, [
+    currentTab,
+    activeClassId,
+    selectedProblem,
+    editingProblemId,
+    studentHomeSubTab,
+    isAdminAuthenticated,
+    isAuthLoading,
+  ]);
 
-  // Lắng nghe sự kiện hashchange khi người dùng dùng nút Back/Forward của trình duyệt
+  // Lắng nghe hashchange
   useEffect(() => {
     const handleHashChange = () => {
       const hash = window.location.hash.replace(/^#\/?/, '');
       if (hash.startsWith('submissions')) {
+        setEditingProblemId(null);
         setCurrentTab('submissions');
         storageService.setCurrentTab('submissions');
       } else if (hash.startsWith('admin')) {
-        // KIỂM TRA BẢO VỆ ROUTE GUARD
         if (!isAdminAuthenticated) {
-          console.warn('[Route Guard] Ngăn chặn hash truy cập admin không hợp lệ:', hash);
           window.history.replaceState(null, '', '/#classes');
           setCurrentTab('classes');
           storageService.setCurrentTab('classes');
@@ -240,27 +276,34 @@ function MainApp() {
         }
 
         if (hash.startsWith('admin/countdowns')) {
-          setCurrentTab('admin_countdowns');
-          storageService.setCurrentTab('admin_countdowns');
-        } else if (hash.startsWith('admin/banners')) {
-          setCurrentTab('admin_banners');
-          storageService.setCurrentTab('admin_banners');
+          setEditingProblemId(null);
+          setStudentHomeSubTab('countdowns');
+          setCurrentTab('admin_student_home');
+        } else if (hash.startsWith('admin/banners') || hash.startsWith('admin/student-home')) {
+          setEditingProblemId(null);
+          setStudentHomeSubTab('banners');
+          setCurrentTab('admin_student_home');
         } else if (hash.startsWith('admin/users')) {
+          setEditingProblemId(null);
           setCurrentTab('admin_users');
-          storageService.setCurrentTab('admin_users');
           setActiveClassId(null);
-        } else if (hash.startsWith('admin/topics')) {
+        } else if (hash.startsWith('admin/topics') || hash.startsWith('admin/problems')) {
           setCurrentTab('admin_topics');
-          storageService.setCurrentTab('admin_topics');
-        } else if (hash.startsWith('admin/classes') || hash === 'admin' || hash.startsWith('admin/dashboard') || hash.startsWith('admin/teachers')) {
-          setCurrentTab('admin_classes');
-          storageService.setCurrentTab('admin_classes');
-          const classMatch = hash.match(/^admin\/classes\/([^/?#]+)/);
-          if (classMatch && classMatch[1]) {
-            setActiveClassId(classMatch[1]);
+          const m = hash.match(/^admin\/problems\/([^/?#]+)/);
+          if (m && m[1]) {
+            setEditingProblemId(m[1] === 'new' ? 'NEW' : m[1]);
           } else {
-            setActiveClassId(null);
+            setEditingProblemId(null);
           }
+        } else if (hash.startsWith('admin/classes')) {
+          setEditingProblemId(null);
+          setCurrentTab('admin_classes');
+          const classMatch = hash.match(/^admin\/classes\/([^/?#]+)/);
+          setActiveClassId(classMatch && classMatch[1] ? classMatch[1] : null);
+        } else {
+          setEditingProblemId(null);
+          setActiveClassId(null);
+          setCurrentTab('admin_overview');
         }
       } else if (hash.startsWith('classes')) {
         if (!isAdminAuthenticated) {
@@ -272,7 +315,9 @@ function MainApp() {
             const probMatch = hash.match(/problems\/([^/?#]+)/);
             if (probMatch && probMatch[1]) {
               const pId = probMatch[1];
-              const found = problems.find((p) => p.id === pId || p.code?.toLowerCase() === pId.toLowerCase());
+              const found = problems.find(
+                (p) => p.id === pId || p.code?.toLowerCase() === pId.toLowerCase()
+              );
               if (found) setSelectedProblem(found);
             } else {
               setSelectedProblem(null);
@@ -289,12 +334,10 @@ function MainApp() {
     return () => window.removeEventListener('hashchange', handleHashChange);
   }, [isAdminAuthenticated, problems, setActiveClassId]);
 
-  // Tự động làm mới dữ liệu từ hệ thống mỗi khi người dùng chuyển trang / tab
   useEffect(() => {
     refreshAllData().catch(() => {});
   }, [currentTab, activeClassId]);
 
-  // Tự động làm mới dữ liệu khi người dùng quay lại tab trình duyệt
   useEffect(() => {
     const handleVisibility = () => {
       if (document.visibilityState === 'visible') {
@@ -319,12 +362,134 @@ function MainApp() {
     storageService.setSelectedProblemId(null);
   };
 
+  // Điều hướng GV v2 dùng chung
+  const handleOpenProblemEditor = (
+    problemId: string | 'NEW',
+    focusSection?: 'info' | 'de' | 'test' | 'giao'
+  ) => {
+    setEditingOriginTab(currentTab);
+    setEditingProblemId(problemId);
+    setEditingProblemFocus(focusSection);
+    setCurrentTab('admin_topics');
+  };
+
+  const handleCloseProblemEditor = () => {
+    setEditingProblemId(null);
+    setEditingProblemFocus(undefined);
+    if (editingOriginTab === 'admin_classes' && activeClassId) {
+      setCurrentTab('admin_classes');
+    } else if (editingOriginTab === 'admin_overview') {
+      setCurrentTab('admin_overview');
+    } else {
+      setCurrentTab('admin_topics');
+    }
+  };
+
+  const handleOpenClassFromV2 = (
+    classId: string,
+    options?: { tab?: TeacherClassV2Tab; filterZeroAc?: boolean }
+  ) => {
+    setEditingProblemId(null);
+    setClassInitialTab(options?.tab || 'students');
+    setClassFilterZeroAc(Boolean(options?.filterZeroAc));
+    setActiveClassId(classId);
+    setCurrentTab('admin_classes');
+  };
+
+  const handleNavigateV2Tab = (
+    tab: AdminTabType,
+    options?: {
+      studentHomeSubTab?: 'banners' | 'countdowns';
+      problemBankFilter?: ProblemBankFilterMode;
+    }
+  ) => {
+    setEditingProblemId(null);
+    if (options?.studentHomeSubTab) {
+      setStudentHomeSubTab(options.studentHomeSubTab);
+    }
+    if (options?.problemBankFilter) {
+      setProblemBankFilter(options.problemBankFilter);
+    } else if (tab === 'admin_topics') {
+      setProblemBankFilter('all');
+    }
+    if (tab !== 'admin_classes') {
+      setActiveClassId(null);
+    }
+    setCurrentTab(tab);
+  };
+
+  // Breadcrumb động chuẩn GV v2 trên top bar
+  const adminBreadcrumb = useMemo(() => {
+    if (editingProblemId) {
+      const label = editingProblemId === 'NEW' ? 'Bài mới' : editingProblemObj?.code || 'Sửa bài';
+      return (
+        <span>
+          <button
+            type="button"
+            onClick={() => {
+              setEditingProblemId(null);
+              setCurrentTab('admin_topics');
+            }}
+            className="underline underline-offset-[3px] hover:text-[#1F1D1A] cursor-pointer"
+          >
+            Kho bài
+          </button>{' '}
+          / <span className="text-[#1F1D1A] font-medium font-mono">{label}</span>
+        </span>
+      );
+    }
+
+    if (currentTab === 'admin_classes' && activeClassObj) {
+      return (
+        <span>
+          <button
+            type="button"
+            onClick={() => setActiveClassId(null)}
+            className="underline underline-offset-[3px] hover:text-[#1F1D1A] cursor-pointer"
+          >
+            Lớp học
+          </button>{' '}
+          / <span className="text-[#1F1D1A] font-medium">{activeClassObj.className}</span>
+        </span>
+      );
+    }
+
+    if (currentTab === 'admin_users') {
+      return (
+        <span>
+          <button
+            type="button"
+            onClick={() => setCurrentTab('admin_overview')}
+            className="underline underline-offset-[3px] hover:text-[#1F1D1A] cursor-pointer"
+          >
+            Tổng quan
+          </button>{' '}
+          / <span className="text-[#1F1D1A] font-medium">Tài khoản học sinh</span>
+        </span>
+      );
+    }
+
+    if (currentTab === 'submissions') {
+      return (
+        <span>
+          <button
+            type="button"
+            onClick={() => setCurrentTab('admin_overview')}
+            className="underline underline-offset-[3px] hover:text-[#1F1D1A] cursor-pointer"
+          >
+            Tổng quan
+          </button>{' '}
+          / <span className="text-[#1F1D1A] font-medium">Lịch sử nộp bài</span>
+        </span>
+      );
+    }
+
+    return undefined;
+  }, [editingProblemId, editingProblemObj, currentTab, activeClassObj, setActiveClassId]);
+
   return (
     <>
-      {/* Toast Notification Container */}
       <ToastContainer />
-
-      {/* Supabase Auth & Admin Modals */}
       <AuthModal />
       <ChangeNameModal />
       <ServerConfigModal
@@ -333,62 +498,92 @@ function MainApp() {
       />
       <ConfirmModal />
 
-      {/* GIAO DIỆN QUẢN TRỊ TỐI CAO (SUPREME ADMIN) & GIÁO VIÊN (TEACHER) */}
+      {/* GIAO DIỆN GIÁO VIÊN GV v2 */}
       {isAdminAuthenticated ? (
         <AdminLayout
           currentTab={currentTab}
-          setCurrentTab={setCurrentTab}
+          setCurrentTab={(tab) => handleNavigateV2Tab(tab)}
+          breadcrumb={adminBreadcrumb}
+          onResetEditing={() => {
+            setEditingProblemId(null);
+            setEditingProblemFocus(undefined);
+          }}
         >
-          {/* 1. Phân vùng LỚP HỌC */}
-          {currentTab === 'admin_classes' && (
-            activeClassId ? (
-              <TeacherClassDetail classId={activeClassId} />
-            ) : (
-              <TeacherClassList />
-            )
-          )}
+          {/* Trang Sửa bài một trang (ưu tiên hiển thị khi đang mở bài) */}
+          {editingProblemId ? (
+            <TeacherProblemWorkspace
+              key={editingProblemId}
+              problemId={editingProblemId}
+              initialClassId={activeClassId || undefined}
+              focusSection={editingProblemFocus}
+              onClose={handleCloseProblemEditor}
+              onSavedProblemId={(newId) => setEditingProblemId(newId)}
+            />
+          ) : (
+            <>
+              {/* 1. Tổng quan */}
+              {currentTab === 'admin_overview' && (
+                <TeacherOverview
+                  onOpenProblemEditor={handleOpenProblemEditor}
+                  onOpenClass={handleOpenClassFromV2}
+                  onNavigateTab={handleNavigateV2Tab}
+                  onOpenServerConfig={() => setIsServerConfigModalOpen(true)}
+                />
+              )}
 
-          {/* 2. Phân vùng CHỦ ĐỀ & ĐỀ BÀI */}
-          {currentTab === 'admin_topics' && (
-            <TopicManager />
-          )}
+              {/* 2. Lớp học */}
+              {currentTab === 'admin_classes' &&
+                (activeClassId ? (
+                  <TeacherClassDetail
+                    classId={activeClassId}
+                    initialTab={classInitialTab}
+                    initialFilterZeroAc={classFilterZeroAc}
+                    onOpenProblemEditor={handleOpenProblemEditor}
+                  />
+                ) : (
+                  <TeacherClassList />
+                ))}
 
-          {/* 3. Phân vùng NGƯỜI DÙNG / HỌC SINH */}
-          {currentTab === 'admin_users' && (
-            <UserManager />
-          )}
+              {/* 3. Kho bài */}
+              {currentTab === 'admin_topics' && (
+                <ProblemBank
+                  initialFilter={problemBankFilter}
+                  onOpenProblemEditor={handleOpenProblemEditor}
+                  onOpenClass={(clsId) => handleOpenClassFromV2(clsId, { tab: 'assignments' })}
+                />
+              )}
 
-          {/* 4. Phân vùng NHẬT KÝ CHẤM BÀI / LỊCH SỬ NỘP BÀI */}
-          {currentTab === 'submissions' && (
-            <SubmissionHistory />
-          )}
+              {/* 4. Trang chủ học sinh (Banner + Đếm ngược kỳ thi) */}
+              {(currentTab === 'admin_student_home' ||
+                currentTab === 'admin_banners' ||
+                currentTab === 'admin_countdowns') && (
+                <StudentHomeManager
+                  initialSubTab={
+                    currentTab === 'admin_countdowns'
+                      ? 'countdowns'
+                      : currentTab === 'admin_banners'
+                      ? 'banners'
+                      : studentHomeSubTab
+                  }
+                />
+              )}
 
-          {/* 5. Phân vùng BANNER TRANG CHỦ */}
-          {currentTab === 'admin_banners' && (
-            <BannerManager />
-          )}
+              {/* Trang phụ mở từ Tổng quan: Toàn bộ tài khoản học sinh */}
+              {currentTab === 'admin_users' && <UserManager />}
 
-          {/* 6. Phân vùng ĐẾM NGƯỢC KỲ THI */}
-          {currentTab === 'admin_countdowns' && (
-            <ExamCountdownManager />
+              {/* Trang phụ mở từ Tổng quan: Toàn bộ lịch sử nộp bài */}
+              {currentTab === 'submissions' && <SubmissionHistory />}
+            </>
           )}
         </AdminLayout>
       ) : (
-        /* GIAO DIỆN HỌC SINH (USER): THIẾT KẾ MỚI CHUẨN FAMINH JUDGE */
+        /* GIAO DIỆN HỌC SINH (USER): GIỮ NGUYÊN 100% */
         <div className="min-h-screen flex flex-col fj-student-root selection:bg-[#B4281F] selection:text-white">
-          {/* Top Navigation cho học sinh */}
           <Navbar
             currentTab={currentTab}
             setCurrentTab={(tab) => {
               if (isAuthLoading) return;
-              if (
-                (tab === 'admin_classes' ||
-                  tab === 'admin_topics' ||
-                  tab === 'admin_users' ||
-                  tab === 'admin_banners' ||
-                  tab === 'admin_countdowns') &&
-                !isAdminAuthenticated
-              ) {
+              if (isAdminOnlyTab(tab) && !isAdminAuthenticated) {
                 setIsAuthModalOpen(true);
                 return;
               }
@@ -404,13 +599,9 @@ function MainApp() {
             }}
           />
 
-          {/* Main Content Area cho học sinh */}
           <main className="flex-1">
-            {/* Phân vùng HỌC SINH (USER):
-                1. Khi chưa chọn lớp: Hiển thị "Các lớp học đang tham gia" (StudentClassList)
-                2. Khi đã chọn lớp: Hiển thị danh sách đề bài hoặc màn hình làm bài của lớp đó */}
-            {currentTab === 'classes' && (
-              activeClassId ? (
+            {currentTab === 'classes' &&
+              (activeClassId ? (
                 activeSelectedProblem ? (
                   <ProblemView
                     problem={activeSelectedProblem}
@@ -429,30 +620,26 @@ function MainApp() {
                 )
               ) : (
                 <StudentClassList onSelectProblem={handleSelectProblem} />
-              )
-            )}
+              ))}
 
-            {/* Tab Lịch sử nộp bài */}
-            {currentTab === 'submissions' && (
-              <SubmissionHistory />
-            )}
+            {currentTab === 'submissions' && <SubmissionHistory />}
           </main>
 
-          {/* Footer FAMINH */}
           <footer className="border-t border-[#D9D2C3] bg-[#F4F0E8] py-6 text-xs text-[#6B655C]">
             <div className="fj-w flex flex-col sm:flex-row items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <span className="font-bold text-[#1F1D1A]">
                   FAMINH <span style={{ color: '#B4281F' }}>Judge</span>
                 </span>
-                <span>— Nền tảng luyện thi & Chấm bài tự động chuẩn Themis</span>
+                <span>— Nền tảng luyện thi &amp; Chấm bài tự động chuẩn Themis</span>
               </div>
 
               <div className="flex items-center gap-2 text-[#6B655C]">
                 <span>Học sinh</span>
                 <span>•</span>
                 <span className="flex items-center gap-1">
-                  Bản quyền thuộc <span className="font-semibold text-[#1F1D1A]">FAMINH</span> <Heart className="w-3 h-3 text-[#B4281F] fill-[#B4281F]" />
+                  Bản quyền thuộc <span className="font-semibold text-[#1F1D1A]">FAMINH</span>{' '}
+                  <Heart className="w-3 h-3 text-[#B4281F] fill-[#B4281F]" />
                 </span>
               </div>
             </div>

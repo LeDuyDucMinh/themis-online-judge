@@ -130,6 +130,8 @@ interface JudgeContextType {
   saveHomeBanners: (nextList: HomeBanner[]) => Promise<HomeBanner[]>;
   examCountdowns: ExamCountdown[];
   saveExamCountdowns: (nextList: ExamCountdown[]) => Promise<ExamCountdown[]>;
+  problemTestCounts: Record<string, number>;
+  refreshProblemTestCounts: (force?: boolean) => Promise<Record<string, number>>;
   activeProblem: Problem | null;
   setActiveProblem: (problem: Problem | null) => void;
   activeTopicId: string | null;
@@ -266,6 +268,19 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const [classStudents, setClassStudents] = useState<ClassStudent[]>(() => storageService.getClassStudents());
   const [homeBanners, setHomeBanners] = useState<HomeBanner[]>(() => storageService.getHomeBanners());
   const [examCountdowns, setExamCountdowns] = useState<ExamCountdown[]>(() => storageService.getExamCountdowns());
+  const [problemTestCounts, setProblemTestCounts] = useState<Record<string, number>>({});
+
+  const refreshProblemTestCounts = async (force: boolean = false): Promise<Record<string, number>> => {
+    const counts = await apiService.fetchProblemTestCounts({ force });
+    setProblemTestCounts(counts);
+    return counts;
+  };
+
+  // Chỉ tải bản đồ đếm số test trên Cloud khi là Giáo viên (học sinh không tốn 1 byte nào)
+  useEffect(() => {
+    if (!isAdminAuthenticated) return;
+    refreshProblemTestCounts(false).catch(() => {});
+  }, [isAdminAuthenticated]);
 
   const saveHomeBanners = async (nextList: HomeBanner[]): Promise<HomeBanner[]> => {
     const normalized = nextList.map((b, idx) => ({ ...b, order: idx + 1 }));
@@ -2627,6 +2642,8 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         saveHomeBanners,
         examCountdowns,
         saveExamCountdowns,
+        problemTestCounts,
+        refreshProblemTestCounts,
         activeProblem,
         setActiveProblem,
         activeTopicId,

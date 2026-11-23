@@ -1044,6 +1044,26 @@ html.light .banner-editorial-page label.banner-btn-outline {
   font-family: 'Be Vietnam Pro', sans-serif;
 }
 
+/* Bảo vệ bảng màu giấy ấm GV v2 (#F4F0E8 / #EFE9DC / #D9D2C3) trong chế độ Giao diện Sáng */
+html.light .gv2-shell,
+html.light .gv2-shell main {
+  background-color: #F4F0E8 !important;
+  color: #1F1D1A !important;
+}
+
+html.light .gv2-shell aside {
+  background-color: #EFE9DC !important;
+  border-color: #D9D2C3 !important;
+  color: #1F1D1A !important;
+}
+
+html.light .gv2-shell header {
+  background-color: #F4F0E8 !important;
+  border-color: #D9D2C3 !important;
+  box-shadow: none !important;
+  color: #6B655C !important;
+}
+
 /* Bảo vệ màu nút chữ trắng & nền đen của thẻ đếm ngược trong Light Mode */
 html.light .exam-countdown-card h3,
 html.light .exam-countdown-card h4 {
