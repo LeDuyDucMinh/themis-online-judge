@@ -1038,3 +1038,9 @@ html.light .banner-editorial-page label.banner-btn-outline {
   color: #1F1D1A !important;
 }
 
+/* Bảo vệ màu nút chữ trắng & nền đen của thẻ đếm ngược trong Light Mode */
+html.light .exam-countdown-card h3,
+html.light .exam-countdown-card h4 {
+  color: inherit !important;
+}
+

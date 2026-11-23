@@ -11,6 +11,7 @@ import { TeacherClassList } from './components/admin/TeacherClassList';
 import { TeacherClassDetail } from './components/admin/TeacherClassDetail';
 import { UserManager } from './components/admin/UserManager';
 import { BannerManager } from './components/admin/BannerManager';
+import { ExamCountdownManager } from './components/admin/ExamCountdownManager';
 import { AdminLayout, type AdminTabType } from './components/admin/AdminLayout';
 import { AuthModal } from './components/auth/AuthModal';
 import { ChangeNameModal } from './components/user/ChangeNameModal';
@@ -40,6 +41,7 @@ function MainApp() {
     if (typeof window !== 'undefined' && window.location.hash) {
       const hash = window.location.hash.replace(/^#\/?/, '');
       if (hash.startsWith('submissions')) return 'submissions';
+      if (hash.startsWith('admin/countdowns')) return 'admin_countdowns';
       if (hash.startsWith('admin/banners')) return 'admin_banners';
       if (hash.startsWith('admin/users')) return 'admin_users';
       if (hash.startsWith('admin/topics')) return 'admin_topics';
@@ -54,7 +56,8 @@ function MainApp() {
         saved === 'admin_classes' ||
         saved === 'admin_topics' ||
         saved === 'admin_users' ||
-        saved === 'admin_banners'
+        saved === 'admin_banners' ||
+        saved === 'admin_countdowns'
       ) {
         return saved;
       }
@@ -119,7 +122,8 @@ function MainApp() {
       currentTab === 'admin_users' ||
       currentTab === 'admin_classes' ||
       currentTab === 'admin_topics' ||
-      currentTab === 'admin_banners';
+      currentTab === 'admin_banners' ||
+      currentTab === 'admin_countdowns';
 
     if (isTargetingAdmin && !isAdminAuthenticated) {
       console.warn('[Route Guard] Chặn truy cập trái phép vào khu vực Admin. Chuyển hướng về trang chủ.');
@@ -157,7 +161,8 @@ function MainApp() {
         currentTab === 'admin_classes' ||
         currentTab === 'admin_topics' ||
         currentTab === 'admin_users' ||
-        currentTab === 'admin_banners'
+        currentTab === 'admin_banners' ||
+        currentTab === 'admin_countdowns'
       ) {
         setCurrentTab('classes');
         storageService.setCurrentTab('classes');
@@ -175,6 +180,8 @@ function MainApp() {
         targetHash = '#admin/users';
       } else if (currentTab === 'admin_banners') {
         targetHash = '#admin/banners';
+      } else if (currentTab === 'admin_countdowns') {
+        targetHash = '#admin/countdowns';
       } else if (currentTab === 'admin_classes') {
         targetHash = activeClassId ? `#admin/classes/${activeClassId}` : '#admin/classes';
       } else if (currentTab === 'admin_topics') {
@@ -232,7 +239,10 @@ function MainApp() {
           return;
         }
 
-        if (hash.startsWith('admin/banners')) {
+        if (hash.startsWith('admin/countdowns')) {
+          setCurrentTab('admin_countdowns');
+          storageService.setCurrentTab('admin_countdowns');
+        } else if (hash.startsWith('admin/banners')) {
           setCurrentTab('admin_banners');
           storageService.setCurrentTab('admin_banners');
         } else if (hash.startsWith('admin/users')) {
@@ -357,6 +367,11 @@ function MainApp() {
           {currentTab === 'admin_banners' && (
             <BannerManager />
           )}
+
+          {/* 6. Phân vùng ĐẾM NGƯỢC KỲ THI */}
+          {currentTab === 'admin_countdowns' && (
+            <ExamCountdownManager />
+          )}
         </AdminLayout>
       ) : (
         /* GIAO DIỆN HỌC SINH (USER): THIẾT KẾ MỚI CHUẨN FAMINH JUDGE */
@@ -370,7 +385,8 @@ function MainApp() {
                 (tab === 'admin_classes' ||
                   tab === 'admin_topics' ||
                   tab === 'admin_users' ||
-                  tab === 'admin_banners') &&
+                  tab === 'admin_banners' ||
+                  tab === 'admin_countdowns') &&
                 !isAdminAuthenticated
               ) {
                 setIsAuthModalOpen(true);

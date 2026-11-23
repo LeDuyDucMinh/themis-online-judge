@@ -9,6 +9,11 @@ import {
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react';
+import {
+  ExamCountdownCard,
+  computeExamState,
+  sortExamCountdowns,
+} from '../common/ExamCountdownCard';
 
 interface StudentClassListProps {
   onSelectProblem?: (problem: Problem) => void;
@@ -41,6 +46,7 @@ export const StudentClassList: React.FC<StudentClassListProps> = ({ onSelectProb
     problems,
     topics,
     homeBanners,
+    examCountdowns,
     getProblemStatus,
     refreshAllData,
     showToast,
@@ -61,6 +67,24 @@ export const StudentClassList: React.FC<StudentClassListProps> = ({ onSelectProb
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeBannerIdx, setActiveBannerIdx] = useState(0);
   const [isBannerHovered, setIsBannerHovered] = useState(false);
+  const [nowMs, setNowMs] = useState<number>(() => Date.now());
+
+  useEffect(() => {
+    if (examCountdowns.length === 0) return;
+    const timer = setInterval(() => setNowMs(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [examCountdowns.length]);
+
+  // Lọc và sắp xếp các kỳ thi đếm ngược hiển thị cho học sinh hiện tại (sắp diễn ra nhất lên đầu)
+  const visibleExams = useMemo(() => {
+    const enrolledIds = new Set(studentClasses.map((c) => c.id));
+    return sortExamCountdowns(examCountdowns, nowMs).filter((exam) => {
+      if (exam.audienceClassId && exam.audienceClassId !== 'ALL') {
+        if (!enrolledIds.has(exam.audienceClassId)) return false;
+      }
+      return computeExamState(exam, nowMs).isVisibleToStudent;
+    });
+  }, [examCountdowns, studentClasses, Math.floor(nowMs / 10000)]);
 
   // Lọc các banner hợp lệ để hiển thị cho học sinh hiện tại
   const visibleBanners = useMemo(() => {
@@ -605,6 +629,20 @@ export const StudentClassList: React.FC<StudentClassListProps> = ({ onSelectProb
           </div>
         )}
       </div>
+
+      {/* Bộ đếm ngược kỳ thi (Đếm theo giờ Việt Nam UTC+7, sắp diễn ra nhất lên đầu) */}
+      {visibleExams.length > 0 && (
+        <div style={{ marginTop: 36, maxWidth: 680 }}>
+          <h2 style={{ fontSize: 20, marginBottom: 16 }}>
+            Đếm ngược kỳ thi
+          </h2>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {visibleExams.map((exam) => (
+              <ExamCountdownCard key={exam.id} exam={exam} nowMs={nowMs} />
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Modal Nhập Mã Tham Gia Lớp */}
       {isJoinModalOpen && (

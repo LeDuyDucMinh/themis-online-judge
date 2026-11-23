@@ -1,4 +1,4 @@
-import type { Problem, TestCase, Submission, Classroom, ClassStudent, StudentUser, Topic, TestResult, AccountRole, HomeBanner } from '../types/judge';
+import type { Problem, TestCase, Submission, Classroom, ClassStudent, StudentUser, Topic, TestResult, AccountRole, HomeBanner, ExamCountdown } from '../types/judge';
 import { normalizeOwnerEmail } from '../types/judge';
 import { idbService } from './db';
 import { storageService, DEFAULT_ADMIN_PASSWORD, type ResourceOwnersMap } from './storageService';
@@ -1217,6 +1217,93 @@ export const apiService = {
       }
     } catch (e) {
       console.error('[apiService] saveHomeBanners error:', e);
+      throw e;
+    }
+  },
+
+  /**
+   * Lấy danh sách Đếm ngược kỳ thi từ Supabase Cloud (__system_exam_countdowns__)
+   */
+  async fetchExamCountdowns(): Promise<ExamCountdown[]> {
+    if (isSupabaseConfigured()) {
+      try {
+        const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/classrooms?id=eq.__system_exam_countdowns__&select=description`;
+        const res = await fetch(targetUrl, {
+          headers: this.getAntiCacheHeaders(),
+          cache: 'no-store',
+        });
+        if (res.ok) {
+          const rows = await res.json();
+          if (Array.isArray(rows) && rows.length > 0 && rows[0].description) {
+            const parsed = JSON.parse(rows[0].description);
+            if (Array.isArray(parsed)) {
+              const normalized: ExamCountdown[] = parsed.map((item: any, idx: number) => ({
+                id: String(item.id || `exam_${idx + 1}`),
+                title: String(item.title || 'Kỳ thi'),
+                note: item.note ? String(item.note) : undefined,
+                examDate: String(item.examDate || '2026-12-20'),
+                examTime: String(item.examTime || '07:30'),
+                bgType: item.bgType === 'image' ? 'image' : 'color',
+                bgColor: String(item.bgColor || '#1F1D1A'),
+                bgImageUrl: typeof item.bgImageUrl === 'string' && item.bgImageUrl ? item.bgImageUrl : undefined,
+                audienceClassId: item.audienceClassId ? String(item.audienceClassId) : 'ALL',
+                expireBehavior:
+                  item.expireBehavior === 'hide_immediately' || item.expireBehavior === 'keep_ended'
+                    ? item.expireBehavior
+                    : 'ongoing_1d',
+                isActive: item.isActive !== false,
+                createdAt: item.createdAt || new Date().toISOString(),
+                updatedAt: item.updatedAt || new Date().toISOString(),
+              }));
+              storageService.saveExamCountdowns(normalized);
+              return normalized;
+            }
+          }
+          if (Array.isArray(rows) && rows.length > 0) {
+            storageService.saveExamCountdowns([]);
+            return [];
+          }
+        }
+      } catch (e) {
+        console.warn('[apiService] fetchExamCountdowns warn:', e);
+      }
+    }
+    return storageService.getExamCountdowns();
+  },
+
+  /**
+   * Lưu danh sách Đếm ngược kỳ thi lên Supabase Cloud (__system_exam_countdowns__)
+   */
+  async saveExamCountdowns(list: ExamCountdown[]): Promise<void> {
+    const normalized = list.map((item) => ({
+      ...item,
+      updatedAt: item.updatedAt || new Date().toISOString(),
+    }));
+    storageService.saveExamCountdowns(normalized);
+    if (!isSupabaseConfigured()) return;
+    try {
+      const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/classrooms?on_conflict=id`;
+      const res = await fetch(targetUrl, {
+        method: 'POST',
+        headers: {
+          ...this.getAntiCacheHeaders(),
+          'Content-Type': 'application/json',
+          Prefer: 'resolution=merge-duplicates',
+        },
+        body: JSON.stringify({
+          id: '__system_exam_countdowns__',
+          class_name: 'EXAM_COUNTDOWNS',
+          description: JSON.stringify(normalized),
+          join_code: 'EXAM',
+          updated_at: new Date().toISOString(),
+        }),
+      });
+      if (!res.ok) {
+        const detail = await res.text();
+        throw new Error(`Lỗi lưu danh sách kỳ thi (${res.status}): ${detail.slice(0, 150)}`);
+      }
+    } catch (e) {
+      console.error('[apiService] saveExamCountdowns error:', e);
       throw e;
     }
   },

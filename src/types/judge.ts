@@ -170,6 +170,25 @@ export interface HomeBanner {
   updatedAt: string;
 }
 
+export type ExamBackgroundType = 'color' | 'image';
+export type ExamExpireBehavior = 'ongoing_1d' | 'hide_immediately' | 'keep_ended';
+
+export interface ExamCountdown {
+  id: string;
+  title: string; // Ví dụ: "Thi HSG cấp huyện"
+  note?: string; // Địa điểm, phòng thi... (không bắt buộc)
+  examDate: string; // YYYY-MM-DD (giờ Việt Nam UTC+7)
+  examTime: string; // HH:mm (ví dụ "07:30")
+  bgType: ExamBackgroundType;
+  bgColor: string; // Mã màu HEX (ví dụ "#1F1D1A", "#B4281F")
+  bgImageUrl?: string; // Data URL ảnh nền tùy chọn (tự làm tối nhẹ)
+  audienceClassId: string; // 'ALL' = Tất cả học sinh, hoặc ID lớp cụ thể
+  expireBehavior: ExamExpireBehavior;
+  isActive: boolean; // Đang hiện trên trang chủ học sinh
+  createdAt: string;
+  updatedAt: string;
+}
+
 /**
  * Chuẩn hóa định danh chủ sở hữu (Giáo viên / Admin).
  * Dữ liệu gốc chưa gắn chủ sở hữu hoặc gắn 'admin' mặc định thuộc về giáo viên gốc leduyducminh@gmail.com

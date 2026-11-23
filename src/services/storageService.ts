@@ -1,4 +1,4 @@
-import type { Topic, Problem, Submission, UserStats, StudentUser, Classroom, ClassStudent, UserRole, AccountRole, HomeBanner } from '../types/judge.ts';
+import type { Topic, Problem, Submission, UserStats, StudentUser, Classroom, ClassStudent, UserRole, AccountRole, HomeBanner, ExamCountdown } from '../types/judge.ts';
 import { isProblemInClass, normalizeOwnerEmail } from '../types/judge.ts';
 import { idbService } from './db.ts';
 
@@ -33,6 +33,7 @@ const STORAGE_KEYS = {
   STUDENT_CUSTOM_NAMES: 'faminh_student_custom_names_v1',
   ADMIN_EMAIL: 'faminh_admin_email_v1',
   HOME_BANNERS: 'faminh_judge_home_banners_v1',
+  EXAM_COUNTDOWNS: 'faminh_judge_exam_countdowns_v1',
 };
 
 // Dọn dẹp bộ nhớ đệm mẫu cũ (v1) nếu có trong trình duyệt người dùng
@@ -1488,6 +1489,35 @@ export const storageService = {
         localStorage.setItem(STORAGE_KEYS.HOME_BANNERS, JSON.stringify(slim));
       } catch {
         // Bỏ qua nếu trình duyệt chặn localStorage
+      }
+    }
+  },
+
+  getExamCountdowns(): ExamCountdown[] {
+    if (typeof localStorage === 'undefined') return [];
+    const raw = localStorage.getItem(STORAGE_KEYS.EXAM_COUNTDOWNS);
+    if (!raw) return [];
+    try {
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  },
+
+  saveExamCountdowns(list: ExamCountdown[]): void {
+    if (typeof localStorage === 'undefined') return;
+    try {
+      localStorage.setItem(STORAGE_KEYS.EXAM_COUNTDOWNS, JSON.stringify(list));
+    } catch {
+      try {
+        const slim = list.map((e) => ({
+          ...e,
+          bgImageUrl: e.bgImageUrl && e.bgImageUrl.length > 50000 ? undefined : e.bgImageUrl,
+        }));
+        localStorage.setItem(STORAGE_KEYS.EXAM_COUNTDOWNS, JSON.stringify(slim));
+      } catch {
+        // Bỏ qua
       }
     }
   },

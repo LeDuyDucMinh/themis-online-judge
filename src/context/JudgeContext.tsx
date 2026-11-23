@@ -10,6 +10,7 @@ import {
   type ClassStudent,
   type TestCase,
   type HomeBanner,
+  type ExamCountdown,
   normalizeOwnerEmail,
 } from '../types/judge';
 import { storageService, resolveStudentFullName } from '../services/storageService';
@@ -127,6 +128,8 @@ interface JudgeContextType {
   submissions: Submission[];
   homeBanners: HomeBanner[];
   saveHomeBanners: (nextList: HomeBanner[]) => Promise<void>;
+  examCountdowns: ExamCountdown[];
+  saveExamCountdowns: (nextList: ExamCountdown[]) => Promise<void>;
   activeProblem: Problem | null;
   setActiveProblem: (problem: Problem | null) => void;
   activeTopicId: string | null;
@@ -262,11 +265,17 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const [allClasses, setAllClasses] = useState<Classroom[]>(() => storageService.getClasses());
   const [classStudents, setClassStudents] = useState<ClassStudent[]>(() => storageService.getClassStudents());
   const [homeBanners, setHomeBanners] = useState<HomeBanner[]>(() => storageService.getHomeBanners());
+  const [examCountdowns, setExamCountdowns] = useState<ExamCountdown[]>(() => storageService.getExamCountdowns());
 
   const saveHomeBanners = async (nextList: HomeBanner[]): Promise<void> => {
     const normalized = nextList.map((b, idx) => ({ ...b, order: idx + 1 }));
     await apiService.saveHomeBanners(normalized);
     setHomeBanners(normalized);
+  };
+
+  const saveExamCountdowns = async (nextList: ExamCountdown[]): Promise<void> => {
+    await apiService.saveExamCountdowns(nextList);
+    setExamCountdowns(nextList);
   };
   const [activeClassId, setActiveClassIdState] = useState<string | null>(() => {
     if (typeof window !== 'undefined' && window.location.hash) {
@@ -720,7 +729,7 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       // Làm mới ngầm (định kỳ/khi quay lại tab) không bật cờ "đang đồng bộ" để tránh render lại toàn bộ ứng dụng
       if (!silent) setIsRefreshing(true);
       try {
-        const [cloudClasses, cloudRelations, cloudStudents, cloudTopics, cloudProblems, cloudSubs, cloudBanners] = await Promise.all([
+        const [cloudClasses, cloudRelations, cloudStudents, cloudTopics, cloudProblems, cloudSubs, cloudBanners, cloudCountdowns] = await Promise.all([
           apiService.fetchClassrooms(),
           apiService.fetchClassStudents(),
           apiService.fetchStudents(),
@@ -728,6 +737,7 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
           apiService.fetchProblems(),
           apiService.fetchSubmissions({ full: force }),
           apiService.fetchHomeBanners(),
+          apiService.fetchExamCountdowns(),
         ]);
 
       // Chỉ cập nhật state khi dữ liệu thực sự thay đổi: tránh render lại toàn bộ ứng dụng mỗi 90 giây
@@ -742,6 +752,10 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       if (cloudBanners) {
         setHomeBanners((prev) => (sameJson(prev, cloudBanners) ? prev : cloudBanners));
         storageService.saveHomeBanners(cloudBanners);
+      }
+      if (cloudCountdowns) {
+        setExamCountdowns((prev) => (sameJson(prev, cloudCountdowns) ? prev : cloudCountdowns));
+        storageService.saveExamCountdowns(cloudCountdowns);
       }
 
       if (cloudClasses) {
@@ -2612,6 +2626,8 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         submissions,
         homeBanners,
         saveHomeBanners,
+        examCountdowns,
+        saveExamCountdowns,
         activeProblem,
         setActiveProblem,
         activeTopicId,

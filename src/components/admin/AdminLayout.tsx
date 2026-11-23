@@ -11,6 +11,7 @@ export type AdminTabType =
   | 'admin_topics'
   | 'admin_users'
   | 'admin_banners'
+  | 'admin_countdowns'
   | 'submissions';
 
 interface AdminLayoutProps {
@@ -129,6 +130,15 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
       isActive: currentTab === 'admin_banners',
       onClick: () => {
         setCurrentTab('admin_banners');
+        setIsMobileMenuOpen(false);
+      },
+    },
+    {
+      id: 'admin_countdowns',
+      label: 'Đếm ngược kỳ thi',
+      isActive: currentTab === 'admin_countdowns',
+      onClick: () => {
+        setCurrentTab('admin_countdowns');
         setIsMobileMenuOpen(false);
       },
     },
