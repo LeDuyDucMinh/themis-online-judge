@@ -386,9 +386,9 @@ export const BannerManager: React.FC = () => {
 
     setIsSaving(true);
     try {
-      await saveHomeBanners(nextList);
+      const savedList = await saveHomeBanners(nextList);
       setSelectedBannerId(savedId);
-      const savedBanner = nextList.find((b) => b.id === savedId);
+      const savedBanner = savedList.find((b) => b.id === savedId);
       if (savedBanner) setDraft(buildDraftFromBanner(savedBanner));
       showToast(
         isCreating ? 'Đã thêm banner mới' : 'Đã lưu thay đổi',

@@ -305,7 +305,7 @@ export const ExamCountdownManager: React.FC = () => {
               examTime: draft.examTime || '07:30',
               bgType: draft.bgType,
               bgColor: safeColor,
-              bgImageUrl: draft.bgType === 'image' ? draft.bgImageUrl : item.bgImageUrl,
+              bgImageUrl: draft.bgType === 'image' ? draft.bgImageUrl : undefined,
               audienceClassId: draft.audienceClassId || 'ALL',
               expireBehavior: draft.expireBehavior,
               isActive: draft.isActive,
@@ -317,9 +317,9 @@ export const ExamCountdownManager: React.FC = () => {
 
     setIsSaving(true);
     try {
-      await saveExamCountdowns(nextList);
+      const savedList = await saveExamCountdowns(nextList);
       setSelectedId(savedId);
-      const savedObj = nextList.find((x) => x.id === savedId);
+      const savedObj = savedList.find((x) => x.id === savedId);
       if (savedObj) {
         const d = buildDraftFromExam(savedObj);
         setDraft(d);

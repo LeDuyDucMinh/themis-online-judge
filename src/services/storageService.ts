@@ -33,7 +33,9 @@ const STORAGE_KEYS = {
   STUDENT_CUSTOM_NAMES: 'faminh_student_custom_names_v1',
   ADMIN_EMAIL: 'faminh_admin_email_v1',
   HOME_BANNERS: 'faminh_judge_home_banners_v1',
+  HOME_BANNERS_VER: 'faminh_judge_home_banners_ver_v1',
   EXAM_COUNTDOWNS: 'faminh_judge_exam_countdowns_v1',
+  EXAM_COUNTDOWNS_VER: 'faminh_judge_exam_countdowns_ver_v1',
 };
 
 // Dọn dẹp bộ nhớ đệm mẫu cũ (v1) nếu có trong trình duyệt người dùng
@@ -1472,16 +1474,49 @@ export const storageService = {
     }
   },
 
-  saveHomeBanners(list: HomeBanner[]): void {
+  hasHomeBannersCache(): boolean {
+    if (typeof localStorage === 'undefined') return false;
+    try {
+      return localStorage.getItem(STORAGE_KEYS.HOME_BANNERS) !== null;
+    } catch {
+      return false;
+    }
+  },
+
+  getHomeBannersVersion(): string | null {
+    if (typeof localStorage === 'undefined') return null;
+    try {
+      return localStorage.getItem(STORAGE_KEYS.HOME_BANNERS_VER);
+    } catch {
+      return null;
+    }
+  },
+
+  setHomeBannersVersion(ver: string | null): void {
     if (typeof localStorage === 'undefined') return;
+    try {
+      if (ver) {
+        localStorage.setItem(STORAGE_KEYS.HOME_BANNERS_VER, ver);
+      } else {
+        localStorage.removeItem(STORAGE_KEYS.HOME_BANNERS_VER);
+      }
+    } catch {
+      // Bỏ qua
+    }
+  },
+
+  saveHomeBanners(list: HomeBanner[]): boolean {
+    if (typeof localStorage === 'undefined') return false;
     const sorted = [...list]
       .map((b, idx) => ({ ...b, order: Number.isFinite(Number(b.order)) ? Number(b.order) : idx + 1 }))
       .sort((a, b) => a.order - b.order);
     try {
       localStorage.setItem(STORAGE_KEYS.HOME_BANNERS, JSON.stringify(sorted));
+      return true;
     } catch {
-      // Nếu ảnh base64 lớn làm đầy localStorage, lưu bản metadata rút gọn (bản đầy đủ vẫn lưu trên Cloud)
+      // Nếu ảnh base64 lớn làm đầy localStorage, lưu bản metadata rút gọn và xóa dấu phiên bản để không nhầm cache đầy đủ
       try {
+        localStorage.removeItem(STORAGE_KEYS.HOME_BANNERS_VER);
         const slim = sorted.map((b) => ({
           ...b,
           imageUrl: b.imageUrl && b.imageUrl.length > 50000 ? undefined : b.imageUrl,
@@ -1490,6 +1525,7 @@ export const storageService = {
       } catch {
         // Bỏ qua nếu trình duyệt chặn localStorage
       }
+      return false;
     }
   },
 
@@ -1505,12 +1541,45 @@ export const storageService = {
     }
   },
 
-  saveExamCountdowns(list: ExamCountdown[]): void {
+  hasExamCountdownsCache(): boolean {
+    if (typeof localStorage === 'undefined') return false;
+    try {
+      return localStorage.getItem(STORAGE_KEYS.EXAM_COUNTDOWNS) !== null;
+    } catch {
+      return false;
+    }
+  },
+
+  getExamCountdownsVersion(): string | null {
+    if (typeof localStorage === 'undefined') return null;
+    try {
+      return localStorage.getItem(STORAGE_KEYS.EXAM_COUNTDOWNS_VER);
+    } catch {
+      return null;
+    }
+  },
+
+  setExamCountdownsVersion(ver: string | null): void {
     if (typeof localStorage === 'undefined') return;
     try {
+      if (ver) {
+        localStorage.setItem(STORAGE_KEYS.EXAM_COUNTDOWNS_VER, ver);
+      } else {
+        localStorage.removeItem(STORAGE_KEYS.EXAM_COUNTDOWNS_VER);
+      }
+    } catch {
+      // Bỏ qua
+    }
+  },
+
+  saveExamCountdowns(list: ExamCountdown[]): boolean {
+    if (typeof localStorage === 'undefined') return false;
+    try {
       localStorage.setItem(STORAGE_KEYS.EXAM_COUNTDOWNS, JSON.stringify(list));
+      return true;
     } catch {
       try {
+        localStorage.removeItem(STORAGE_KEYS.EXAM_COUNTDOWNS_VER);
         const slim = list.map((e) => ({
           ...e,
           bgImageUrl: e.bgImageUrl && e.bgImageUrl.length > 50000 ? undefined : e.bgImageUrl,
@@ -1519,6 +1588,7 @@ export const storageService = {
       } catch {
         // Bỏ qua
       }
+      return false;
     }
   },
 };

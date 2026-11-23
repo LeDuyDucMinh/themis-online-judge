@@ -57,8 +57,10 @@ export const StudentClassList: React.FC<StudentClassListProps> = ({ onSelectProb
   useEffect(() => {
     refreshAllData();
     const interval = setInterval(() => {
+      // Không tải ngầm khi học sinh đang chuyển sang tab khác để tiết kiệm băng thông Supabase
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
       refreshAllData().catch(() => {});
-    }, 30000);
+    }, 60000);
     return () => clearInterval(interval);
   }, []);
 

@@ -127,9 +127,9 @@ interface JudgeContextType {
   allProblems: Problem[];
   submissions: Submission[];
   homeBanners: HomeBanner[];
-  saveHomeBanners: (nextList: HomeBanner[]) => Promise<void>;
+  saveHomeBanners: (nextList: HomeBanner[]) => Promise<HomeBanner[]>;
   examCountdowns: ExamCountdown[];
-  saveExamCountdowns: (nextList: ExamCountdown[]) => Promise<void>;
+  saveExamCountdowns: (nextList: ExamCountdown[]) => Promise<ExamCountdown[]>;
   activeProblem: Problem | null;
   setActiveProblem: (problem: Problem | null) => void;
   activeTopicId: string | null;
@@ -267,15 +267,17 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const [homeBanners, setHomeBanners] = useState<HomeBanner[]>(() => storageService.getHomeBanners());
   const [examCountdowns, setExamCountdowns] = useState<ExamCountdown[]>(() => storageService.getExamCountdowns());
 
-  const saveHomeBanners = async (nextList: HomeBanner[]): Promise<void> => {
+  const saveHomeBanners = async (nextList: HomeBanner[]): Promise<HomeBanner[]> => {
     const normalized = nextList.map((b, idx) => ({ ...b, order: idx + 1 }));
-    await apiService.saveHomeBanners(normalized);
-    setHomeBanners(normalized);
+    const saved = await apiService.saveHomeBanners(normalized);
+    setHomeBanners(saved);
+    return saved;
   };
 
-  const saveExamCountdowns = async (nextList: ExamCountdown[]): Promise<void> => {
-    await apiService.saveExamCountdowns(nextList);
-    setExamCountdowns(nextList);
+  const saveExamCountdowns = async (nextList: ExamCountdown[]): Promise<ExamCountdown[]> => {
+    const saved = await apiService.saveExamCountdowns(nextList);
+    setExamCountdowns(saved);
+    return saved;
   };
   const [activeClassId, setActiveClassIdState] = useState<string | null>(() => {
     if (typeof window !== 'undefined' && window.location.hash) {
@@ -729,15 +731,14 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       // Làm mới ngầm (định kỳ/khi quay lại tab) không bật cờ "đang đồng bộ" để tránh render lại toàn bộ ứng dụng
       if (!silent) setIsRefreshing(true);
       try {
-        const [cloudClasses, cloudRelations, cloudStudents, cloudTopics, cloudProblems, cloudSubs, cloudBanners, cloudCountdowns] = await Promise.all([
+        const [cloudClasses, cloudRelations, cloudStudents, cloudTopics, cloudProblems, cloudSubs, homeMedia] = await Promise.all([
           apiService.fetchClassrooms(),
           apiService.fetchClassStudents(),
           apiService.fetchStudents(),
           apiService.fetchTopics(),
           apiService.fetchProblems(),
           apiService.fetchSubmissions({ full: force }),
-          apiService.fetchHomeBanners(),
-          apiService.fetchExamCountdowns(),
+          apiService.fetchHomeMediaBundle({ force }),
         ]);
 
       // Chỉ cập nhật state khi dữ liệu thực sự thay đổi: tránh render lại toàn bộ ứng dụng mỗi 90 giây
@@ -749,13 +750,11 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         }
       };
 
-      if (cloudBanners) {
-        setHomeBanners((prev) => (sameJson(prev, cloudBanners) ? prev : cloudBanners));
-        storageService.saveHomeBanners(cloudBanners);
+      if (homeMedia?.banners) {
+        setHomeBanners((prev) => (sameJson(prev, homeMedia.banners) ? prev : homeMedia.banners));
       }
-      if (cloudCountdowns) {
-        setExamCountdowns((prev) => (sameJson(prev, cloudCountdowns) ? prev : cloudCountdowns));
-        storageService.saveExamCountdowns(cloudCountdowns);
+      if (homeMedia?.countdowns) {
+        setExamCountdowns((prev) => (sameJson(prev, homeMedia.countdowns) ? prev : homeMedia.countdowns));
       }
 
       if (cloudClasses) {

@@ -150,6 +150,97 @@ let submissionsCache: Map<string, Submission> | null = null;
 let submissionsFullFetchAt = 0;
 const SUBMISSIONS_FULL_REFRESH_MS = 5 * 60 * 1000;
 
+// Tối ưu băng thông cho Banner trang chủ & Đếm ngược kỳ thi:
+// - Cách 1: Kiểm tra dấu thời gian `updated_at` (~120 byte) tối đa mỗi 3 phút; không đổi thì dùng cache máy (0 KB tải lại).
+// - Cách 2: Lưu ảnh lên Supabase Storage bucket công khai 'media' (CDN & trình duyệt tự cache 1 năm), tự fallback nếu chưa chạy SQL.
+const PUBLIC_MEDIA_BUCKET = 'media';
+const HOME_MEDIA_CHECK_TTL_MS = 3 * 60 * 1000;
+let homeMediaLastCheckedAt = 0;
+let homeMediaInflight: Promise<{ banners: HomeBanner[]; countdowns: ExamCountdown[] }> | null = null;
+
+function sameVersionTimestamp(a?: string | null, b?: string | null): boolean {
+  if (!a || !b) return false;
+  if (a === b) return true;
+  const ta = Date.parse(a);
+  const tb = Date.parse(b);
+  return Number.isFinite(ta) && Number.isFinite(tb) && ta === tb;
+}
+
+function dataUrlToBlob(dataUrl: string): { blob: Blob; mime: string; ext: 'webp' | 'jpg' | 'png' } | null {
+  const match = dataUrl.match(/^data:(image\/(?:webp|jpeg|jpg|png));base64,(.+)$/i);
+  if (!match) return null;
+  const rawMime = match[1].toLowerCase();
+  const mime = rawMime === 'image/jpg' ? 'image/jpeg' : rawMime;
+  const ext: 'webp' | 'jpg' | 'png' =
+    mime === 'image/webp' ? 'webp' : mime === 'image/png' ? 'png' : 'jpg';
+  try {
+    const binary = atob(match[2]);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    return { blob: new Blob([bytes], { type: mime }), mime, ext };
+  } catch {
+    return null;
+  }
+}
+
+function extractPublicMediaPath(url?: string): string | null {
+  if (!url || !url.startsWith('http')) return null;
+  const marker = `/storage/v1/object/public/${PUBLIC_MEDIA_BUCKET}/`;
+  const idx = url.indexOf(marker);
+  if (idx < 0) return null;
+  const rawPath = url.slice(idx + marker.length).split('?')[0].trim();
+  if (!rawPath) return null;
+  try {
+    return decodeURIComponent(rawPath);
+  } catch {
+    return rawPath;
+  }
+}
+
+function normalizeBannerList(parsed: any[]): HomeBanner[] {
+  return [...parsed]
+    .map((b: any, idx: number): HomeBanner => ({
+      id: String(b.id || `banner_${idx + 1}`),
+      title: String(b.title || 'Banner'),
+      imageUrl: typeof b.imageUrl === 'string' && b.imageUrl ? b.imageUrl : undefined,
+      linkType: b.linkType === 'internal' || b.linkType === 'external' ? b.linkType : 'none',
+      targetClassId: b.targetClassId ? String(b.targetClassId) : undefined,
+      targetProblemId: b.targetProblemId ? String(b.targetProblemId) : undefined,
+      externalUrl: b.externalUrl ? String(b.externalUrl) : undefined,
+      audienceClassId: b.audienceClassId ? String(b.audienceClassId) : 'ALL',
+      startDate: b.startDate ? String(b.startDate) : undefined,
+      endDate: b.endDate ? String(b.endDate) : undefined,
+      isActive: b.isActive !== false,
+      order: Number.isFinite(Number(b.order)) ? Number(b.order) : idx + 1,
+      createdAt: b.createdAt || new Date().toISOString(),
+      updatedAt: b.updatedAt || new Date().toISOString(),
+    }))
+    .sort((a, b) => a.order - b.order);
+}
+
+function normalizeCountdownList(parsed: any[]): ExamCountdown[] {
+  return parsed.map((item: any, idx: number) => ({
+    id: String(item.id || `exam_${idx + 1}`),
+    title: String(item.title || 'Kỳ thi'),
+    note: item.note ? String(item.note) : undefined,
+    examDate: String(item.examDate || '2026-12-20'),
+    examTime: String(item.examTime || '07:30'),
+    bgType: item.bgType === 'image' ? 'image' : 'color',
+    bgColor: String(item.bgColor || '#1F1D1A'),
+    bgImageUrl: typeof item.bgImageUrl === 'string' && item.bgImageUrl ? item.bgImageUrl : undefined,
+    audienceClassId: item.audienceClassId ? String(item.audienceClassId) : 'ALL',
+    expireBehavior:
+      item.expireBehavior === 'hide_immediately' || item.expireBehavior === 'keep_ended'
+        ? item.expireBehavior
+        : 'ongoing_1d',
+    isActive: item.isActive !== false,
+    createdAt: item.createdAt || new Date().toISOString(),
+    updatedAt: item.updatedAt || new Date().toISOString(),
+  }));
+}
+
 /**
  * Service API Database tập trung: Hỗ trợ cả Supabase Cloud REST API và IndexedDB dự phòng bền vững
  */
@@ -1132,89 +1223,322 @@ export const apiService = {
   },
 
   /**
-   * Lấy danh sách Banner trang chủ từ Supabase Cloud (__system_home_banners__)
+   * Tải ảnh nén (WebP/JPG/PNG) lên Supabase Storage bucket công khai 'media' (CDN + trình duyệt tự cache 1 năm).
+   * Trả về null nếu bucket 'media' chưa được tạo (caller tự động fallback lưu gọn theo Cách 1, không báo lỗi).
    */
-  async fetchHomeBanners(): Promise<HomeBanner[]> {
-    if (isSupabaseConfigured()) {
-      try {
-        const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/classrooms?id=eq.__system_home_banners__&select=description`;
-        const res = await fetch(targetUrl, {
-          headers: this.getAntiCacheHeaders(),
-          cache: 'no-store',
-        });
-        if (res.ok) {
-          const rows = await res.json();
-          if (Array.isArray(rows) && rows.length > 0 && rows[0].description) {
-            const parsed = JSON.parse(rows[0].description);
-            if (Array.isArray(parsed)) {
-              const sorted = [...parsed]
-                .map((b: any, idx: number): HomeBanner => ({
-                  id: String(b.id || `banner_${idx + 1}`),
-                  title: String(b.title || 'Banner'),
-                  imageUrl: typeof b.imageUrl === 'string' && b.imageUrl ? b.imageUrl : undefined,
-                  linkType: b.linkType === 'internal' || b.linkType === 'external' ? b.linkType : 'none',
-                  targetClassId: b.targetClassId ? String(b.targetClassId) : undefined,
-                  targetProblemId: b.targetProblemId ? String(b.targetProblemId) : undefined,
-                  externalUrl: b.externalUrl ? String(b.externalUrl) : undefined,
-                  audienceClassId: b.audienceClassId ? String(b.audienceClassId) : 'ALL',
-                  startDate: b.startDate ? String(b.startDate) : undefined,
-                  endDate: b.endDate ? String(b.endDate) : undefined,
-                  isActive: b.isActive !== false,
-                  order: Number.isFinite(Number(b.order)) ? Number(b.order) : idx + 1,
-                  createdAt: b.createdAt || new Date().toISOString(),
-                  updatedAt: b.updatedAt || new Date().toISOString(),
-                }))
-                .sort((a, b) => a.order - b.order);
-              storageService.saveHomeBanners(sorted);
-              return sorted;
-            }
-          }
-          // Bản ghi tồn tại nhưng rỗng -> trả mảng rỗng đồng bộ
-          if (Array.isArray(rows) && rows.length > 0) {
-            storageService.saveHomeBanners([]);
-            return [];
-          }
-        }
-      } catch (e) {
-        console.warn('[apiService] fetchHomeBanners warn:', e);
+  async uploadPublicMediaImage(
+    dataUrl: string,
+    folder: 'banners' | 'countdowns'
+  ): Promise<{ publicUrl: string; objectPath: string } | null> {
+    if (!isSupabaseConfigured()) return null;
+    const decoded = dataUrlToBlob(dataUrl);
+    if (!decoded) return null;
+
+    try {
+      const base = ENV.SUPABASE_URL.replace(/\/+$/, '');
+      const bearerToken = getActiveAuthToken();
+      const rand = Math.random().toString(36).slice(2, 8);
+      const objectPath = `${folder}/${folder}_${Date.now()}_${rand}.${decoded.ext}`;
+      const uploadUrl = `${base}/storage/v1/object/${PUBLIC_MEDIA_BUCKET}/${objectPath}`;
+
+      const res = await fetch(uploadUrl, {
+        method: 'POST',
+        headers: {
+          apikey: ENV.SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${bearerToken}`,
+          'Content-Type': decoded.mime,
+          'cache-control': '31536000',
+          'x-upsert': 'true',
+        },
+        body: decoded.blob,
+      });
+
+      if (!res.ok) {
+        const detail = await res.text().catch(() => '');
+        console.warn(
+          `[apiService] Bucket "${PUBLIC_MEDIA_BUCKET}" chưa sẵn sàng (HTTP ${res.status}), tạm lưu ảnh gọn theo Cách 1:`,
+          detail.slice(0, 140)
+        );
+        return null;
       }
+
+      return {
+        publicUrl: `${base}/storage/v1/object/public/${PUBLIC_MEDIA_BUCKET}/${objectPath}`,
+        objectPath,
+      };
+    } catch (e) {
+      console.warn('[apiService] uploadPublicMediaImage fallback:', e);
+      return null;
     }
-    return storageService.getHomeBanners();
   },
 
   /**
-   * Lưu danh sách Banner trang chủ lên Supabase Cloud (__system_home_banners__)
+   * Dọn dẹp các file ảnh cũ không còn sử dụng trong bucket 'media' (chạy nền, không chặn luồng chính).
    */
-  async saveHomeBanners(list: HomeBanner[]): Promise<void> {
-    const normalized = [...list]
-      .map((b, idx) => ({
-        ...b,
-        order: idx + 1,
-        updatedAt: b.updatedAt || new Date().toISOString(),
-      }));
-    storageService.saveHomeBanners(normalized);
-    if (!isSupabaseConfigured()) return;
+  async deletePublicMediaPaths(paths: string[]): Promise<void> {
+    const uniquePaths = Array.from(new Set(paths.filter(Boolean)));
+    if (!isSupabaseConfigured() || uniquePaths.length === 0) return;
     try {
-      const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/classrooms?on_conflict=id`;
+      const base = ENV.SUPABASE_URL.replace(/\/+$/, '');
+      const bearerToken = getActiveAuthToken();
+      await fetch(`${base}/storage/v1/object/${PUBLIC_MEDIA_BUCKET}`, {
+        method: 'DELETE',
+        headers: {
+          apikey: ENV.SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${bearerToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ prefixes: uniquePaths }),
+      });
+    } catch {
+      // Không ảnh hưởng luồng chính
+    }
+  },
+
+  /**
+   * Đồng bộ SIÊU TIẾT KIỆM Banner trang chủ & Đếm ngược kỳ thi (Cách 1):
+   * 1. Trong vòng 3 phút kể từ lần kiểm tra gần nhất: trả thẳng cache máy (0 request).
+   * 2. Sau 3 phút hoặc khi mở trang mới: gửi 1 request ~120 byte hỏi `updated_at` của cả 2 bản ghi.
+   * 3. Chỉ tải `description` khi `updated_at` trên Cloud thực sự thay đổi (giảm >99% băng thông Supabase).
+   */
+  async fetchHomeMediaBundle(options?: {
+    force?: boolean;
+  }): Promise<{ banners: HomeBanner[]; countdowns: ExamCountdown[] }> {
+    const force = Boolean(options?.force);
+    const localBanners = storageService.getHomeBanners();
+    const localCountdowns = storageService.getExamCountdowns();
+
+    if (!isSupabaseConfigured()) {
+      return { banners: localBanners, countdowns: localCountdowns };
+    }
+
+    const now = Date.now();
+    if (
+      !force &&
+      homeMediaLastCheckedAt > 0 &&
+      now - homeMediaLastCheckedAt < HOME_MEDIA_CHECK_TTL_MS &&
+      storageService.hasHomeBannersCache() &&
+      storageService.hasExamCountdownsCache()
+    ) {
+      return { banners: localBanners, countdowns: localCountdowns };
+    }
+
+    if (homeMediaInflight) return homeMediaInflight;
+
+    homeMediaInflight = (async () => {
+      let nextBanners = localBanners;
+      let nextCountdowns = localCountdowns;
+
+      try {
+        const base = ENV.SUPABASE_URL.replace(/\/+$/, '');
+        const metaUrl = `${base}/rest/v1/classrooms?id=in.(__system_home_banners__,__system_exam_countdowns__)&select=id,updated_at`;
+        const metaRes = await fetch(metaUrl, {
+          headers: this.getAntiCacheHeaders(),
+          cache: 'no-store',
+        });
+
+        if (!metaRes.ok) {
+          return { banners: nextBanners, countdowns: nextCountdowns };
+        }
+
+        const metaRows = await metaRes.json();
+        const serverVerMap = new Map<string, string | null>();
+        if (Array.isArray(metaRows)) {
+          for (const row of metaRows) {
+            if (row && typeof row.id === 'string') {
+              serverVerMap.set(row.id, row.updated_at ? String(row.updated_at) : null);
+            }
+          }
+        }
+
+        const idsToFetch: string[] = [];
+
+        // Kiểm tra phiên bản Banner trang chủ
+        if (serverVerMap.has('__system_home_banners__')) {
+          const cloudVer = serverVerMap.get('__system_home_banners__');
+          const localVer = storageService.getHomeBannersVersion();
+          const upToDate =
+            storageService.hasHomeBannersCache() && sameVersionTimestamp(localVer, cloudVer);
+          if (!upToDate) {
+            idsToFetch.push('__system_home_banners__');
+          }
+        } else {
+          // Chưa có bản ghi banner trên Cloud -> đồng bộ rỗng gọn nhẹ
+          nextBanners = [];
+          if (storageService.saveHomeBanners([])) {
+            storageService.setHomeBannersVersion('__empty__');
+          }
+        }
+
+        // Kiểm tra phiên bản Đếm ngược kỳ thi
+        if (serverVerMap.has('__system_exam_countdowns__')) {
+          const cloudVer = serverVerMap.get('__system_exam_countdowns__');
+          const localVer = storageService.getExamCountdownsVersion();
+          const upToDate =
+            storageService.hasExamCountdownsCache() && sameVersionTimestamp(localVer, cloudVer);
+          if (!upToDate) {
+            idsToFetch.push('__system_exam_countdowns__');
+          }
+        } else {
+          nextCountdowns = [];
+          if (storageService.saveExamCountdowns([])) {
+            storageService.setExamCountdownsVersion('__empty__');
+          }
+        }
+
+        // Chỉ tải dữ liệu chi tiết cho bản ghi thực sự có thay đổi
+        if (idsToFetch.length > 0) {
+          const dataUrl = `${base}/rest/v1/classrooms?id=in.(${idsToFetch.join(',')})&select=id,description,updated_at`;
+          const dataRes = await fetch(dataUrl, {
+            headers: this.getAntiCacheHeaders(),
+            cache: 'no-store',
+          });
+          if (dataRes.ok) {
+            const rows = await dataRes.json();
+            if (Array.isArray(rows)) {
+              for (const row of rows) {
+                if (row?.id === '__system_home_banners__') {
+                  let parsedList: HomeBanner[] = [];
+                  if (row.description) {
+                    try {
+                      const parsed = JSON.parse(row.description);
+                      if (Array.isArray(parsed)) parsedList = normalizeBannerList(parsed);
+                    } catch {
+                      parsedList = [];
+                    }
+                  }
+                  nextBanners = parsedList;
+                  const savedFull = storageService.saveHomeBanners(parsedList);
+                  if (savedFull && row.updated_at) {
+                    storageService.setHomeBannersVersion(String(row.updated_at));
+                  }
+                } else if (row?.id === '__system_exam_countdowns__') {
+                  let parsedList: ExamCountdown[] = [];
+                  if (row.description) {
+                    try {
+                      const parsed = JSON.parse(row.description);
+                      if (Array.isArray(parsed)) parsedList = normalizeCountdownList(parsed);
+                    } catch {
+                      parsedList = [];
+                    }
+                  }
+                  nextCountdowns = parsedList;
+                  const savedFull = storageService.saveExamCountdowns(parsedList);
+                  if (savedFull && row.updated_at) {
+                    storageService.setExamCountdownsVersion(String(row.updated_at));
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        homeMediaLastCheckedAt = Date.now();
+      } catch (e) {
+        console.warn('[apiService] fetchHomeMediaBundle warn:', e);
+      }
+
+      return { banners: nextBanners, countdowns: nextCountdowns };
+    })().finally(() => {
+      homeMediaInflight = null;
+    });
+
+    return homeMediaInflight;
+  },
+
+  /**
+   * Lấy danh sách Banner trang chủ từ Supabase Cloud (__system_home_banners__)
+   */
+  async fetchHomeBanners(options?: { force?: boolean }): Promise<HomeBanner[]> {
+    const bundle = await this.fetchHomeMediaBundle(options);
+    return bundle.banners;
+  },
+
+  /**
+   * Lưu danh sách Banner trang chủ lên Supabase Cloud (__system_home_banners__).
+   * Tự động đẩy ảnh mới (Data URL) lên Supabase Storage bucket 'media' (fallback an toàn nếu chưa chạy SQL)
+   * và dọn các file ảnh cũ không còn dùng.
+   */
+  async saveHomeBanners(list: HomeBanner[]): Promise<HomeBanner[]> {
+    const prevPaths = storageService
+      .getHomeBanners()
+      .map((b) => extractPublicMediaPath(b.imageUrl))
+      .filter((p): p is string => Boolean(p));
+
+    const nowIso = new Date().toISOString();
+    const normalized: HomeBanner[] = list.map((b, idx) => ({
+      ...b,
+      order: idx + 1,
+      updatedAt: b.updatedAt || nowIso,
+    }));
+
+    // Cách 2: Tự động nâng cấp ảnh Data URL lên Supabase Storage công khai 'media'
+    let storageAvailable = isSupabaseConfigured();
+    const upgraded: HomeBanner[] = [];
+    for (const item of normalized) {
+      if (storageAvailable && item.imageUrl && item.imageUrl.startsWith('data:image/')) {
+        const uploaded = await this.uploadPublicMediaImage(item.imageUrl, 'banners');
+        if (uploaded) {
+          upgraded.push({ ...item, imageUrl: uploaded.publicUrl });
+          continue;
+        }
+        // Bucket chưa tồn tại -> dừng thử các ảnh còn lại trong lượt lưu này để không tốn request thừa
+        storageAvailable = false;
+      }
+      upgraded.push(item);
+    }
+
+    if (!isSupabaseConfigured()) {
+      storageService.saveHomeBanners(upgraded);
+      return upgraded;
+    }
+
+    try {
+      const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/classrooms?on_conflict=id&select=updated_at`;
       const res = await fetch(targetUrl, {
         method: 'POST',
         headers: {
           ...this.getAntiCacheHeaders(),
           'Content-Type': 'application/json',
-          Prefer: 'resolution=merge-duplicates',
+          Prefer: 'resolution=merge-duplicates,return=representation',
         },
         body: JSON.stringify({
           id: '__system_home_banners__',
           class_name: 'HOME_BANNERS',
-          description: JSON.stringify(normalized),
+          description: JSON.stringify(upgraded),
           join_code: 'BNNR',
-          updated_at: new Date().toISOString(),
+          updated_at: nowIso,
         }),
       });
       if (!res.ok) {
         const detail = await res.text();
         throw new Error(`Lỗi lưu danh sách banner (${res.status}): ${detail.slice(0, 150)}`);
       }
+
+      let serverUpdatedAt = nowIso;
+      try {
+        const rows = await res.json();
+        if (Array.isArray(rows) && rows[0]?.updated_at) {
+          serverUpdatedAt = String(rows[0].updated_at);
+        }
+      } catch {
+        // Dùng nowIso
+      }
+
+      const savedFull = storageService.saveHomeBanners(upgraded);
+      storageService.setHomeBannersVersion(savedFull ? serverUpdatedAt : null);
+      homeMediaLastCheckedAt = Date.now();
+
+      // Dọn ảnh cũ trên Storage không còn banner nào dùng
+      const nextPathSet = new Set(
+        upgraded.map((b) => extractPublicMediaPath(b.imageUrl)).filter((p): p is string => Boolean(p))
+      );
+      const stalePaths = prevPaths.filter((p) => !nextPathSet.has(p));
+      if (stalePaths.length > 0) {
+        void this.deletePublicMediaPaths(stalePaths);
+      }
+
+      return upgraded;
     } catch (e) {
       console.error('[apiService] saveHomeBanners error:', e);
       throw e;
@@ -1224,84 +1548,98 @@ export const apiService = {
   /**
    * Lấy danh sách Đếm ngược kỳ thi từ Supabase Cloud (__system_exam_countdowns__)
    */
-  async fetchExamCountdowns(): Promise<ExamCountdown[]> {
-    if (isSupabaseConfigured()) {
-      try {
-        const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/classrooms?id=eq.__system_exam_countdowns__&select=description`;
-        const res = await fetch(targetUrl, {
-          headers: this.getAntiCacheHeaders(),
-          cache: 'no-store',
-        });
-        if (res.ok) {
-          const rows = await res.json();
-          if (Array.isArray(rows) && rows.length > 0 && rows[0].description) {
-            const parsed = JSON.parse(rows[0].description);
-            if (Array.isArray(parsed)) {
-              const normalized: ExamCountdown[] = parsed.map((item: any, idx: number) => ({
-                id: String(item.id || `exam_${idx + 1}`),
-                title: String(item.title || 'Kỳ thi'),
-                note: item.note ? String(item.note) : undefined,
-                examDate: String(item.examDate || '2026-12-20'),
-                examTime: String(item.examTime || '07:30'),
-                bgType: item.bgType === 'image' ? 'image' : 'color',
-                bgColor: String(item.bgColor || '#1F1D1A'),
-                bgImageUrl: typeof item.bgImageUrl === 'string' && item.bgImageUrl ? item.bgImageUrl : undefined,
-                audienceClassId: item.audienceClassId ? String(item.audienceClassId) : 'ALL',
-                expireBehavior:
-                  item.expireBehavior === 'hide_immediately' || item.expireBehavior === 'keep_ended'
-                    ? item.expireBehavior
-                    : 'ongoing_1d',
-                isActive: item.isActive !== false,
-                createdAt: item.createdAt || new Date().toISOString(),
-                updatedAt: item.updatedAt || new Date().toISOString(),
-              }));
-              storageService.saveExamCountdowns(normalized);
-              return normalized;
-            }
-          }
-          if (Array.isArray(rows) && rows.length > 0) {
-            storageService.saveExamCountdowns([]);
-            return [];
-          }
-        }
-      } catch (e) {
-        console.warn('[apiService] fetchExamCountdowns warn:', e);
-      }
-    }
-    return storageService.getExamCountdowns();
+  async fetchExamCountdowns(options?: { force?: boolean }): Promise<ExamCountdown[]> {
+    const bundle = await this.fetchHomeMediaBundle(options);
+    return bundle.countdowns;
   },
 
   /**
-   * Lưu danh sách Đếm ngược kỳ thi lên Supabase Cloud (__system_exam_countdowns__)
+   * Lưu danh sách Đếm ngược kỳ thi lên Supabase Cloud (__system_exam_countdowns__).
+   * Tự động đẩy ảnh nền riêng (Data URL) lên Supabase Storage bucket 'media' và dọn ảnh cũ.
    */
-  async saveExamCountdowns(list: ExamCountdown[]): Promise<void> {
-    const normalized = list.map((item) => ({
+  async saveExamCountdowns(list: ExamCountdown[]): Promise<ExamCountdown[]> {
+    const prevPaths = storageService
+      .getExamCountdowns()
+      .map((e) => extractPublicMediaPath(e.bgImageUrl))
+      .filter((p): p is string => Boolean(p));
+
+    const nowIso = new Date().toISOString();
+    const normalized: ExamCountdown[] = list.map((item) => ({
       ...item,
-      updatedAt: item.updatedAt || new Date().toISOString(),
+      updatedAt: item.updatedAt || nowIso,
     }));
-    storageService.saveExamCountdowns(normalized);
-    if (!isSupabaseConfigured()) return;
+
+    let storageAvailable = isSupabaseConfigured();
+    const upgraded: ExamCountdown[] = [];
+    for (const item of normalized) {
+      if (
+        storageAvailable &&
+        item.bgType === 'image' &&
+        item.bgImageUrl &&
+        item.bgImageUrl.startsWith('data:image/')
+      ) {
+        const uploaded = await this.uploadPublicMediaImage(item.bgImageUrl, 'countdowns');
+        if (uploaded) {
+          upgraded.push({ ...item, bgImageUrl: uploaded.publicUrl });
+          continue;
+        }
+        storageAvailable = false;
+      }
+      upgraded.push(item);
+    }
+
+    if (!isSupabaseConfigured()) {
+      storageService.saveExamCountdowns(upgraded);
+      return upgraded;
+    }
+
     try {
-      const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/classrooms?on_conflict=id`;
+      const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/classrooms?on_conflict=id&select=updated_at`;
       const res = await fetch(targetUrl, {
         method: 'POST',
         headers: {
           ...this.getAntiCacheHeaders(),
           'Content-Type': 'application/json',
-          Prefer: 'resolution=merge-duplicates',
+          Prefer: 'resolution=merge-duplicates,return=representation',
         },
         body: JSON.stringify({
           id: '__system_exam_countdowns__',
           class_name: 'EXAM_COUNTDOWNS',
-          description: JSON.stringify(normalized),
+          description: JSON.stringify(upgraded),
           join_code: 'EXAM',
-          updated_at: new Date().toISOString(),
+          updated_at: nowIso,
         }),
       });
       if (!res.ok) {
         const detail = await res.text();
         throw new Error(`Lỗi lưu danh sách kỳ thi (${res.status}): ${detail.slice(0, 150)}`);
       }
+
+      let serverUpdatedAt = nowIso;
+      try {
+        const rows = await res.json();
+        if (Array.isArray(rows) && rows[0]?.updated_at) {
+          serverUpdatedAt = String(rows[0].updated_at);
+        }
+      } catch {
+        // Dùng nowIso
+      }
+
+      const savedFull = storageService.saveExamCountdowns(upgraded);
+      storageService.setExamCountdownsVersion(savedFull ? serverUpdatedAt : null);
+      homeMediaLastCheckedAt = Date.now();
+
+      const nextPathSet = new Set(
+        upgraded
+          .map((e) => extractPublicMediaPath(e.bgImageUrl))
+          .filter((p): p is string => Boolean(p))
+      );
+      const stalePaths = prevPaths.filter((p) => !nextPathSet.has(p));
+      if (stalePaths.length > 0) {
+        void this.deletePublicMediaPaths(stalePaths);
+      }
+
+      return upgraded;
     } catch (e) {
       console.error('[apiService] saveExamCountdowns error:', e);
       throw e;
