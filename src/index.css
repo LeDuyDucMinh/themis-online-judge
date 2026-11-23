@@ -1038,6 +1038,12 @@ html.light .banner-editorial-page label.banner-btn-outline {
   color: #1F1D1A !important;
 }
 
+.banner-editorial-page h1,
+.banner-editorial-page h2,
+.banner-editorial-page h3 {
+  font-family: 'Be Vietnam Pro', sans-serif;
+}
+
 /* Bảo vệ màu nút chữ trắng & nền đen của thẻ đếm ngược trong Light Mode */
 html.light .exam-countdown-card h3,
 html.light .exam-countdown-card h4 {

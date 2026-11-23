@@ -8,7 +8,9 @@ interface ClassLeaderboardProps {
   classId: string;
   hideSubtitle?: boolean;
   hideCountBadge?: boolean;
-  variant?: 'default' | 'editorial';
+  variant?: 'default' | 'editorial' | 'teacher-compact' | 'teacher-full';
+  maxItems?: number;
+  onViewFullLeaderboard?: () => void;
 }
 
 interface LeaderboardEntry {
@@ -26,7 +28,11 @@ export const ClassLeaderboard: React.FC<ClassLeaderboardProps> = ({
   hideSubtitle,
   hideCountBadge,
   variant,
+  maxItems,
+  onViewFullLeaderboard,
 }) => {
+  const [expandedStudentIds, setExpandedStudentIds] = useState<Record<string, boolean>>({});
+  const [teacherSearch, setTeacherSearch] = useState('');
   const {
     classes,
     topics,
@@ -381,6 +387,180 @@ export const ClassLeaderboard: React.FC<ClassLeaderboardProps> = ({
       </div>
     );
   };
+
+  // Giao diện Editorial ấm áp cho màn Giáo viên (Đứng đầu lớp / Bảng xếp hạng đầy đủ)
+  if (variant === 'teacher-compact' || variant === 'teacher-full') {
+    const isCompact = variant === 'teacher-compact';
+    const totalProbs = classProblems.length;
+    const q = teacherSearch.trim().toLowerCase();
+    const filteredEntries =
+      !isCompact && q
+        ? leaderboardEntries.filter(
+            (e) =>
+              e.fullName.toLowerCase().includes(q) ||
+              (e.email ? e.email.toLowerCase().includes(q) : false)
+          )
+        : leaderboardEntries;
+    const visibleEntries = isCompact
+      ? filteredEntries.slice(0, maxItems ?? 2)
+      : filteredEntries;
+
+    return (
+      <section style={{ fontFamily: "'Be Vietnam Pro', sans-serif" }}>
+        {/* Header section */}
+        <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2 mb-2.5">
+          <h2
+            className="text-[20px] font-bold tracking-tight text-[#1F1D1A]"
+            style={{ fontFamily: "'Be Vietnam Pro', sans-serif" }}
+          >
+            {isCompact ? 'Đứng đầu lớp' : 'Bảng xếp hạng'}
+          </h2>
+          <p className="text-[13px] text-[#6B655C]">
+            Xếp theo số bài đúng 100%, không tính trùng bài nộp lại · {leaderboardEntries.length} học sinh đã có bài Full AC
+          </p>
+        </div>
+
+        {/* Ô tìm kiếm trong chế độ Bảng xếp hạng đầy đủ khi lớp đông */}
+        {!isCompact && leaderboardEntries.length >= 6 && (
+          <div className="mb-3 flex justify-end">
+            <input
+              type="text"
+              value={teacherSearch}
+              onChange={(e) => setTeacherSearch(e.target.value)}
+              placeholder="Tìm học sinh theo họ tên hoặc email"
+              className="w-full sm:w-[300px] px-3.5 py-2 bg-white border border-[#D9D2C3] rounded-lg text-[13px] text-[#1F1D1A] placeholder-[#8C857B] focus:outline-none focus:border-[#1F1D1A]"
+            />
+          </div>
+        )}
+
+        {/* Nội dung danh sách xếp hạng */}
+        {isLoading && leaderboardEntries.length === 0 ? (
+          <div className="border-t-[1.5px] border-[#1F1D1A] border-b border-[#D9D2C3] py-6 text-[13.5px] text-[#6B655C]">
+            Đang tải bảng xếp hạng lớp học...
+          </div>
+        ) : visibleEntries.length === 0 ? (
+          <div className="border-t-[1.5px] border-[#1F1D1A] border-b border-[#D9D2C3] py-6 text-[13.5px] text-[#6B655C]">
+            {!isCompact && q
+              ? 'Không tìm thấy học sinh phù hợp với từ khóa tìm kiếm.'
+              : 'Chưa có học sinh nào đạt Full AC trong lớp học này.'}
+          </div>
+        ) : (
+          <div className="border-t-[1.5px] border-[#1F1D1A] border-b border-[#D9D2C3] divide-y divide-[#D9D2C3]">
+            {visibleEntries.map((entry) => {
+              const rank = leaderboardEntries.findIndex((x) => x.studentId === entry.studentId) + 1;
+              const pct =
+                totalProbs > 0 ? Math.min(100, Math.round((entry.acCount / totalProbs) * 1000) / 10) : 0;
+              const isExpanded = !isCompact && Boolean(expandedStudentIds[entry.studentId]);
+              const shownCodes = isExpanded ? entry.solvedCodes : entry.solvedCodes.slice(0, 6);
+              const remainingCount = Math.max(0, entry.solvedCodes.length - shownCodes.length);
+
+              return (
+                <div
+                  key={entry.studentId}
+                  className="py-4 grid grid-cols-1 sm:grid-cols-[36px_minmax(0,1fr)_210px] items-center gap-x-4 gap-y-2.5"
+                >
+                  {/* Hạng */}
+                  <div className="hidden sm:block font-mono text-[13.5px] text-[#6B655C] tabular-nums">
+                    {rank}
+                  </div>
+
+                  {/* Tên học sinh & danh sách mã bài Full AC */}
+                  <div className="min-w-0">
+                    <div className="flex items-baseline gap-2.5">
+                      <span className="sm:hidden font-mono text-[13px] text-[#6B655C] tabular-nums">
+                        {rank}.
+                      </span>
+                      <span className="text-[15px] font-bold text-[#1F1D1A] leading-snug truncate">
+                        {entry.fullName}
+                      </span>
+                      {!isCompact && entry.email && (
+                        <span className="hidden md:inline font-mono text-[12px] text-[#8C857B] truncate">
+                          {entry.email}
+                        </span>
+                      )}
+                    </div>
+
+                    {entry.solvedCodes.length > 0 && (
+                      <div className="mt-1 text-[11.5px] text-[#6B655C] leading-relaxed break-words">
+                        <span className="font-mono tracking-[0.01em]">
+                          {shownCodes.join(' · ')}
+                        </span>
+                        {remainingCount > 0 && (
+                          isCompact ? (
+                            <span> và {remainingCount} bài khác</span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setExpandedStudentIds((prev) => ({
+                                  ...prev,
+                                  [entry.studentId]: true,
+                                }))
+                              }
+                              className="ml-1 text-[#B4281F] hover:underline cursor-pointer"
+                            >
+                              và {remainingCount} bài khác
+                            </button>
+                          )
+                        )}
+                        {isExpanded && entry.solvedCodes.length > 6 && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setExpandedStudentIds((prev) => ({
+                                ...prev,
+                                [entry.studentId]: false,
+                              }))
+                            }
+                            className="ml-2 text-[#6B655C] hover:text-[#1F1D1A] underline cursor-pointer"
+                          >
+                            Thu gọn
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Cột phải: Full AC + thanh tiến độ */}
+                  <div className="w-full sm:w-[210px] shrink-0">
+                    <div className="flex items-baseline justify-between gap-2 mb-2">
+                      <span className="text-[12px] text-[#6B655C]">Full AC</span>
+                      <span className="font-mono text-[13.5px] font-bold text-[#1F1D1A] tabular-nums">
+                        {entry.acCount}
+                        {totalProbs > 0 ? ` / ${totalProbs}` : ''} bài
+                      </span>
+                    </div>
+                    <div className="h-[5px] w-full rounded-full bg-[#E5DEC9] overflow-hidden">
+                      <div
+                        className="h-full rounded-full transition-all duration-300"
+                        style={{
+                          width: `${pct}%`,
+                          backgroundColor: totalProbs > 0 && entry.acCount >= totalProbs ? '#2D6A4F' : '#B4281F',
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Liên kết chuyển sang tab Bảng xếp hạng đầy đủ */}
+        {isCompact && onViewFullLeaderboard && leaderboardEntries.length > 0 && (
+          <div className="mt-3.5">
+            <button
+              type="button"
+              onClick={onViewFullLeaderboard}
+              className="text-[13px] font-semibold text-[#B4281F] hover:text-[#8F1F18] hover:underline transition-colors cursor-pointer"
+            >
+              Xem bảng xếp hạng đầy đủ →
+            </button>
+          </div>
+        )}
+      </section>
+    );
+  }
 
   // Giao diện Editorial cho màn học sinh khớp 100% bản mẫu
   if (variant === 'editorial' || (!isAdminAuthenticated && variant !== 'default')) {
