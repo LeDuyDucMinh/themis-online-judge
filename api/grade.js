@@ -571,21 +571,16 @@ export default async function handler(req, res) {
         const memoryMb = +(memoryKb / 1024).toFixed(2);
 
         if (statusId === 6) {
-          const compMsg = data.compile_output || data.stderr || 'Lỗi biên dịch chương trình (Compilation Error)';
+          const compMsg = (data.compile_output || data.stderr || 'Lỗi biên dịch chương trình (Compilation Error)').slice(0, 2000);
           return {
             statusId,
             testId: tc.id,
             testName: tc.name,
             verdict: 'CE',
             time: execTime,
-            executionTime: execTime,
             memory: memoryMb,
             pointsEarned: 0,
             maxPoints: tc.points,
-            input: tc.isHidden ? '(Ẩn theo yêu cầu đề thi)' : tc.input,
-            expectedOutput: tc.isHidden ? '(Ẩn theo yêu cầu đề thi)' : tc.expectedOutput,
-            actualOutput: '',
-            errorMessage: compMsg,
             compilationMessage: compMsg,
           };
         }
@@ -608,28 +603,35 @@ export default async function handler(req, res) {
           errorMessage = 'Chạy quá thời gian quy định (Time Limit Exceeded)';
         } else if ([7, 8, 9, 10, 11, 12].includes(statusId)) {
           verdict = 'RTE';
-          errorMessage = data.stderr || 'Lỗi thực thi (Runtime Error)';
+          errorMessage = truncateDisplay(data.stderr || 'Lỗi thực thi (Runtime Error)', 180);
         } else {
           verdict = 'WA';
-          errorMessage = data.status?.description || 'Kết quả sai';
+          errorMessage = truncateDisplay(data.status?.description || 'Kết quả sai', 180);
         }
 
-        // BẢO VỆ TEST CASE ẨN:
-        return {
+        const compact = {
           statusId,
           testId: tc.id,
           testName: tc.name,
           verdict,
           time: execTime,
-          executionTime: execTime,
           memory: memoryMb,
           pointsEarned,
           maxPoints: tc.points,
-          input: tc.isHidden ? '(Ẩn theo yêu cầu đề thi)' : tc.input,
-          expectedOutput: tc.isHidden ? '(Ẩn theo yêu cầu đề thi)' : tc.expectedOutput,
-          actualOutput: tc.isHidden ? (verdict === 'AC' ? '(Chính xác)' : '(Sai khác output)') : (data.stdout || ''),
-          errorMessage,
         };
+        if (errorMessage && verdict !== 'AC') compact.errorMessage = errorMessage;
+        if (!tc.isHidden && verdict !== 'AC') {
+          if (tc.input && !String(tc.input).startsWith('__STORAGE_ZIP__:')) {
+            compact.input = truncateDisplay(tc.input, 220);
+          }
+          if (tc.expectedOutput && !String(tc.expectedOutput).startsWith('__STORAGE_ZIP__:')) {
+            compact.expectedOutput = truncateDisplay(tc.expectedOutput, 220);
+          }
+          if (data.stdout) {
+            compact.actualOutput = truncateDisplay(data.stdout, 220);
+          }
+        }
+        return compact;
       } catch (runErr) {
         return {
           statusId: 0,
@@ -637,13 +639,9 @@ export default async function handler(req, res) {
           testName: tc.name,
           verdict: 'RTE',
           time: 0,
-          executionTime: 0,
           memory: 0,
           pointsEarned: 0,
           maxPoints: tc.points,
-          input: tc.isHidden ? '(Ẩn theo yêu cầu đề thi)' : tc.input,
-          expectedOutput: tc.isHidden ? '(Ẩn theo yêu cầu đề thi)' : tc.expectedOutput,
-          actualOutput: '',
           errorMessage: 'Lỗi kết nối đến máy chủ chấm điểm VPS',
         };
       }
@@ -873,21 +871,31 @@ export default async function handler(req, res) {
           }
         }
 
-        resultsMap.set(idx, {
+        const compactItem = {
           statusId: verdict === 'AC' ? 3 : verdict === 'TLE' ? 5 : verdict === 'RTE' ? 11 : 4,
           testId: tc.id,
           testName: tc.name,
           verdict,
           time: execTime,
-          executionTime: execTime,
           memory: memoryMb,
           pointsEarned,
           maxPoints: tc.points,
-          input: tc.isHidden ? '(Ẩn theo yêu cầu đề thi)' : truncateDisplay(tc.input),
-          expectedOutput: tc.isHidden ? '(Ẩn theo yêu cầu đề thi)' : truncateDisplay(tc.expectedOutput),
-          actualOutput: tc.isHidden ? (verdict === 'AC' ? '(Chính xác)' : '(Sai khác output)') : truncateDisplay(actualStdout),
-          errorMessage,
-        });
+        };
+        if (errorMessage && verdict !== 'AC') {
+          compactItem.errorMessage = truncateDisplay(errorMessage, 180);
+        }
+        if (!tc.isHidden && verdict !== 'AC') {
+          if (tc.input && !String(tc.input).startsWith('__STORAGE_ZIP__:')) {
+            compactItem.input = truncateDisplay(tc.input, 220);
+          }
+          if (tc.expectedOutput && !String(tc.expectedOutput).startsWith('__STORAGE_ZIP__:')) {
+            compactItem.expectedOutput = truncateDisplay(tc.expectedOutput, 220);
+          }
+          if (actualStdout) {
+            compactItem.actualOutput = truncateDisplay(actualStdout, 220);
+          }
+        }
+        resultsMap.set(idx, compactItem);
       }
     }
 
@@ -918,32 +926,23 @@ export default async function handler(req, res) {
 
     if (compileFailedResult) {
       isCompilationFailed = true;
-      compilationMessage = compileFailedResult.errorMessage || 'Lỗi biên dịch chương trình (Compilation Error)';
-      testCases.forEach((tc, i) => {
-        const existing = resultsMap.get(i);
-        if (existing && existing.verdict === 'CE') {
-          testResults.push(existing);
-        } else {
-          testResults.push({
-            testId: tc.id,
-            testName: tc.name,
-            verdict: 'CE',
-            time: 0,
-            executionTime: 0,
-            memory: 0,
-            pointsEarned: 0,
-            maxPoints: tc.points,
-            input: tc.isHidden ? '(Ẩn theo yêu cầu đề thi)' : tc.input,
-            expectedOutput: tc.isHidden ? '(Ẩn theo yêu cầu đề thi)' : tc.expectedOutput,
-            actualOutput: '',
-            errorMessage: compilationMessage,
-          });
-        }
+      compilationMessage = truncateDisplay(
+        compileFailedResult.compilationMessage ||
+          compileFailedResult.errorMessage ||
+          'Lỗi biên dịch chương trình (Compilation Error)',
+        2000
+      );
+      testCases.forEach((tc) => {
+        testResults.push({
+          testId: tc.id,
+          testName: tc.name,
+          verdict: 'CE',
+          time: 0,
+          memory: 0,
+          pointsEarned: 0,
+          maxPoints: tc.points,
+        });
       });
-      for (const r of testResults) {
-        maxExecutionTime = Math.max(maxExecutionTime, r.time || 0);
-        peakMemory = Math.max(peakMemory, r.memory || 0);
-      }
     } else {
       for (let i = 0; i < testCases.length; i++) {
         const r = resultsMap.get(i);
@@ -996,7 +995,7 @@ export default async function handler(req, res) {
       test_results: testResults,
     };
 
-    // 6. Tự động lưu submission trực tiếp vào Supabase từ phía Server
+    // 6. Tự động lưu submission trực tiếp vào Supabase từ phía Server + giữ tối đa 3 bản / học sinh / bài
     const writeBearer = process.env.SUPABASE_SERVICE_ROLE_KEY || (verifiedUser ? callerJwt : SUPABASE_KEY);
     try {
       await fetch(`${SUPABASE_URL}/rest/v1/submissions?on_conflict=id`, {
@@ -1009,6 +1008,42 @@ export default async function handler(req, res) {
         },
         body: JSON.stringify(submissionRecord),
       });
+
+      // Dọn bớt các bản nháp cũ dư thừa (> 3 bản hoàn tất cho cùng user + problem, luôn bảo toàn bản AC/điểm cao nhất)
+      const listRes = await fetch(
+        `${SUPABASE_URL}/rest/v1/submissions?user_id=eq.${encodeURIComponent(effectiveUserId)}&problem_id=eq.${encodeURIComponent(problem.id)}&select=id,verdict,status,total_points_earned,submitted_at&order=submitted_at.desc&limit=100`,
+        { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${writeBearer}` } }
+      );
+      if (listRes.ok) {
+        const rows = await listRes.json();
+        const finished = Array.isArray(rows)
+          ? rows.filter((r) => r && r.id && r.status !== 'PENDING' && r.status !== 'RUNNING')
+          : [];
+        if (finished.length > 3) {
+          const sortedBest = [...finished].sort((a, b) => {
+            const acDiff = (b.verdict === 'AC' ? 1 : 0) - (a.verdict === 'AC' ? 1 : 0);
+            if (acDiff !== 0) return acDiff;
+            const ptsDiff = (Number(b.total_points_earned) || 0) - (Number(a.total_points_earned) || 0);
+            if (ptsDiff !== 0) return ptsDiff;
+            return (Date.parse(a.submitted_at || '') || 0) - (Date.parse(b.submitted_at || '') || 0);
+          });
+          const keepIds = new Set([sortedBest[0].id]);
+          const sortedNewest = [...finished].sort(
+            (a, b) => (Date.parse(b.submitted_at || '') || 0) - (Date.parse(a.submitted_at || '') || 0)
+          );
+          for (const r of sortedNewest) {
+            if (keepIds.size >= 3) break;
+            keepIds.add(r.id);
+          }
+          const staleIds = finished.filter((r) => !keepIds.has(r.id)).map((r) => encodeURIComponent(r.id));
+          if (staleIds.length > 0) {
+            await fetch(`${SUPABASE_URL}/rest/v1/submissions?id=in.(${staleIds.join(',')})`, {
+              method: 'DELETE',
+              headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${writeBearer}` },
+            });
+          }
+        }
+      }
     } catch (saveErr) {
       console.warn('[Server-side Grading] Lỗi lưu submission vào Supabase:', saveErr);
     }

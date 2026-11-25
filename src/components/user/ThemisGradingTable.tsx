@@ -403,6 +403,19 @@ export const ThemisGradingTable: React.FC<ThemisGradingTableProps> = ({
                     }}
                   >
                     {canViewDetails ? (
+                      test.verdict === 'CE' ? (
+                        <div style={{ color: '#B4281F', fontSize: 12.5, whiteSpace: 'pre-wrap' }} className="fj-mono">
+                          {submission.compilationMessage || test.errorMessage || 'Chương trình gặp lỗi biên dịch (Compilation Error).'}
+                        </div>
+                      ) : !(test as any).input && !test.actualOutput && !test.expectedOutput ? (
+                        <div className="fj-m" style={{ fontSize: 13 }}>
+                          {isPassed
+                            ? 'Test đạt 100% đáp án chuẩn (dữ liệu I/O đã được lược gọn để tối ưu bộ nhớ).'
+                            : test.errorMessage
+                            ? `Kết quả: ${test.errorMessage} (Test ẩn theo quy định đề thi)`
+                            : 'Test ẩn theo quy định đề thi.'}
+                        </div>
+                      ) : (
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }} className="grid-cols-1 md:grid-cols-2">
                         {/* Input */}
                         <div>
@@ -499,6 +512,7 @@ export const ThemisGradingTable: React.FC<ThemisGradingTableProps> = ({
                           </div>
                         )}
                       </div>
+                      )
                     ) : (
                       <div className="fj-m" style={{ textAlign: 'center', padding: '12px 0' }}>
                         Giáo viên đã ẩn dữ liệu Input/Output chi tiết của bài tập này.

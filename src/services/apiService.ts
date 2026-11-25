@@ -148,7 +148,48 @@ const OWNERS_CACHE_TTL_MS = 4000;
 // Bộ nhớ đệm bài nộp để các lượt làm mới định kỳ chỉ tải phần mới.
 let submissionsCache: Map<string, Submission> | null = null;
 let submissionsFullFetchAt = 0;
-const SUBMISSIONS_FULL_REFRESH_MS = 5 * 60 * 1000;
+const SUBMISSIONS_FULL_REFRESH_MS = 10 * 60 * 1000;
+
+function slimTestResultsForCloud(list?: TestResult[]): TestResult[] {
+  if (!Array.isArray(list)) return [];
+  const clip = (v?: string, max = 220) => {
+    if (!v) return undefined;
+    const s = String(v);
+    if (
+      s === '(Ẩn theo yêu cầu đề thi)' ||
+      s === '(Chính xác)' ||
+      s === '(Sai khác output)' ||
+      s.startsWith('__STORAGE_ZIP__:')
+    ) {
+      return undefined;
+    }
+    return s.length > max ? `${s.slice(0, max)}\n... [đã rút gọn]` : s;
+  };
+
+  return list.map((tr) => {
+    const isPassOrCe = tr.verdict === 'AC' || tr.verdict === 'CE';
+    const slim: any = {
+      testId: tr.testId,
+      testName: tr.testName,
+      verdict: tr.verdict,
+      time: Number(tr.time) || 0,
+      memory: Number(tr.memory) || 0,
+      pointsEarned: Number(tr.pointsEarned) || 0,
+      maxPoints: Number(tr.maxPoints) || 0,
+    };
+    if (!isPassOrCe) {
+      const inp = clip((tr as any).input, 220);
+      const exp = clip(tr.expectedOutput, 220);
+      const act = clip(tr.actualOutput, 220);
+      const err = clip(tr.errorMessage, 180);
+      if (inp) slim.input = inp;
+      if (exp) slim.expectedOutput = exp;
+      if (act) slim.actualOutput = act;
+      if (err) slim.errorMessage = err;
+    }
+    return slim as TestResult;
+  });
+}
 
 // Tối ưu băng thông cho Banner trang chủ & Đếm ngược kỳ thi:
 // - Cách 1: Kiểm tra dấu thời gian `updated_at` (~120 byte) tối đa mỗi 3 phút; không đổi thì dùng cache máy (0 KB tải lại).
@@ -2377,9 +2418,11 @@ export const apiService = {
           total_tests: submission.totalTests,
           execution_time: submission.executionTime,
           memory: submission.memory,
-          compilation_message: submission.compilationMessage,
+          compilation_message: submission.compilationMessage
+            ? String(submission.compilationMessage).slice(0, 2000)
+            : submission.compilationMessage,
           submitted_at: submission.submittedAt || new Date().toISOString(),
-          test_results: submission.testResults,
+          test_results: slimTestResultsForCloud(submission.testResults),
         };
 
         const res = await fetch(targetUrl, {
@@ -2395,6 +2438,10 @@ export const apiService = {
         if (!res.ok) {
           const errDetail = await res.text();
           throw new Error(`Lỗi Supabase (${res.status}): ${errDetail.slice(0, 150)}`);
+        }
+
+        if ((submission.status || 'COMPLETED') === 'COMPLETED') {
+          void this.pruneUserProblemSubmissions(submission.userId, submission.problemId, 3);
         }
       } catch (err: unknown) {
         console.error('[apiService] Lỗi lưu kết quả bài nộp lên Supabase Cloud:', err);
@@ -2457,19 +2504,19 @@ export const apiService = {
     if (isSupabaseConfigured()) {
       try {
         const base = ENV.SUPABASE_URL.replace(/\/+$/, '');
+        // Không tải cột compilation_message dài trong danh sách tổng (chỉ tải khi mở xem chi tiết bài CE)
         const select =
-          'id,problem_id,problem_code,problem_title,user_id,user_name,class_id,language,status,verdict,total_points_earned,max_total_points,passed_count,total_tests,execution_time,memory,compilation_message,submitted_at';
+          'id,problem_id,problem_code,problem_title,user_id,user_name,class_id,language,status,verdict,total_points_earned,max_total_points,passed_count,total_tests,execution_time,memory,submitted_at';
         const now = Date.now();
 
-        // Làm mới ĐỊNH KỲ chỉ tải phần bài nộp mới (vài KB) thay vì 5000 dòng mỗi 90 giây.
-        // Cứ 5 phút (hoặc khi bị ép làm mới) mới tải lại toàn bộ để bắt các thay đổi/xóa.
+        // Làm mới ĐỊNH KỲ chỉ tải phần bài nộp mới (vài KB). Cứ 10 phút mới đối chiếu lại danh sách đầy đủ.
         const canIncremental =
           !options?.full &&
           submissionsCache !== null &&
           submissionsCache.size > 0 &&
           now - submissionsFullFetchAt < SUBMISSIONS_FULL_REFRESH_MS;
 
-        let url = `${base}/rest/v1/submissions?select=${select}&order=submitted_at.desc&limit=5000`;
+        let url = `${base}/rest/v1/submissions?select=${select}&order=submitted_at.desc&limit=2500`;
         if (canIncremental && submissionsCache) {
           let latest = 0;
           submissionsCache.forEach((s) => {
@@ -2477,7 +2524,7 @@ export const apiService = {
             if (t > latest) latest = t;
           });
           const since = new Date(Math.max(0, latest - 2 * 60 * 1000)).toISOString();
-          url = `${base}/rest/v1/submissions?select=${select}&submitted_at=gte.${encodeURIComponent(since)}&order=submitted_at.desc&limit=5000`;
+          url = `${base}/rest/v1/submissions?select=${select}&submitted_at=gte.${encodeURIComponent(since)}&order=submitted_at.desc&limit=500`;
         }
 
         const res = await fetch(url, {
@@ -2602,6 +2649,100 @@ export const apiService = {
     } catch (err) {
       console.warn('[apiService] Lỗi truy vấn SELECT bảng xếp hạng lớp học:', err);
       return null;
+    }
+  },
+
+  /**
+   * Siêu nhẹ (~45 byte): Chỉ hỏi trạng thái `status` của 1 bài nộp đang chờ chấm trên VPS
+   * (thay vì tải nguyên bản ghi 10 KB mỗi 0.8s gây tốn Egress).
+   */
+  async fetchSubmissionStatus(id: string): Promise<'PENDING' | 'RUNNING' | 'COMPLETED' | 'ERROR' | null> {
+    if (!id || !isSupabaseConfigured()) return null;
+    try {
+      const targetUrl = `${ENV.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/submissions?id=eq.${encodeURIComponent(id)}&select=status&limit=1`;
+      const res = await fetch(targetUrl, {
+        headers: this.getAntiCacheHeaders(),
+        cache: 'no-store',
+      });
+      if (!res.ok) return null;
+      const list = await res.json();
+      if (Array.isArray(list) && list[0]?.status) {
+        return list[0].status;
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  },
+
+  /**
+   * Giữ tối đa `maxKeep` (mặc định 3) bản nộp đã hoàn tất trên mỗi cặp (học sinh + bài tập):
+   * - Luôn giữ 1 bản Điểm cao nhất / Full AC sớm nhất (bảo toàn 100% bảng xếp hạng & tiến độ).
+   * - Giữ thêm (maxKeep - 1) bản nộp mới nhất để xem lại code gần đây.
+   * - Xóa các bản nháp cũ dư thừa trên Cloud + bộ nhớ đệm.
+   */
+  async pruneUserProblemSubmissions(
+    userId: string,
+    problemId: string,
+    maxKeep: number = 3
+  ): Promise<string[]> {
+    if (!userId || !problemId || !isSupabaseConfigured()) return [];
+    try {
+      const base = ENV.SUPABASE_URL.replace(/\/+$/, '');
+      const listUrl =
+        `${base}/rest/v1/submissions?user_id=eq.${encodeURIComponent(userId)}` +
+        `&problem_id=eq.${encodeURIComponent(problemId)}` +
+        `&select=id,verdict,status,total_points_earned,submitted_at&order=submitted_at.desc&limit=100`;
+      const res = await fetch(listUrl, {
+        headers: this.getAntiCacheHeaders(),
+        cache: 'no-store',
+      });
+      if (!res.ok) return [];
+      const rows = await res.json();
+      if (!Array.isArray(rows)) return [];
+
+      const finished = rows.filter(
+        (r: any) => r && r.id && r.status !== 'PENDING' && r.status !== 'RUNNING'
+      );
+      if (finished.length <= maxKeep) return [];
+
+      const sortedBest = [...finished].sort((a: any, b: any) => {
+        const acDiff = (b.verdict === 'AC' ? 1 : 0) - (a.verdict === 'AC' ? 1 : 0);
+        if (acDiff !== 0) return acDiff;
+        const ptsDiff =
+          (Number(b.total_points_earned) || 0) - (Number(a.total_points_earned) || 0);
+        if (ptsDiff !== 0) return ptsDiff;
+        return (Date.parse(a.submitted_at || '') || 0) - (Date.parse(b.submitted_at || '') || 0);
+      });
+
+      const keepIds = new Set<string>([String(sortedBest[0].id)]);
+      const sortedNewest = [...finished].sort(
+        (a: any, b: any) =>
+          (Date.parse(b.submitted_at || '') || 0) - (Date.parse(a.submitted_at || '') || 0)
+      );
+      for (const r of sortedNewest) {
+        if (keepIds.size >= maxKeep) break;
+        keepIds.add(String(r.id));
+      }
+
+      const staleIds = finished
+        .map((r: any) => String(r.id))
+        .filter((id: string) => !keepIds.has(id));
+      if (staleIds.length === 0) return [];
+
+      const encoded = staleIds.map((id) => encodeURIComponent(id)).join(',');
+      const delRes = await fetch(`${base}/rest/v1/submissions?id=in.(${encoded})`, {
+        method: 'DELETE',
+        headers: this.getAntiCacheHeaders(),
+      });
+      if (delRes.ok) {
+        if (submissionsCache) {
+          for (const id of staleIds) submissionsCache.delete(id);
+        }
+      }
+      return staleIds;
+    } catch {
+      return [];
     }
   },
 

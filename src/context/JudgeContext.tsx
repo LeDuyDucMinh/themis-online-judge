@@ -2307,28 +2307,33 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
                 console.warn('[Realtime Subscription Warning]:', rtErr);
               }
 
-              // B. Polling dự phòng mỗi 800ms
+              // B. Polling dự phòng siêu nhẹ (~45 byte hỏi cột `status` mỗi 1.5s; chỉ tải đầy đủ 1 lần khi COMPLETED)
               pollTimer = setInterval(async () => {
                 if (isFinished) return;
                 try {
-                  const check = await apiService.fetchSubmissionById(targetSubId);
-                  if (check && (check.status === 'COMPLETED' || check.status === 'ERROR')) {
-                    handleCompleted(check);
+                  const st = await apiService.fetchSubmissionStatus(targetSubId);
+                  if (st === 'COMPLETED' || st === 'ERROR') {
+                    const full = await apiService.fetchSubmissionById(targetSubId);
+                    if (full) {
+                      handleCompleted(full);
+                      void apiService.pruneUserProblemSubmissions(targetUserId, activeProblem.id, 3);
+                    }
                   }
                 } catch {}
-              }, 800);
+              }, 1500);
 
               // C. Tự phục hồi: Nếu sau 4.5s bài nộp vẫn ở trạng thái PENDING (chưa có Worker VPS nhận),
               // mới kích hoạt Serverless fallback tự chấm. Nếu Worker đã nhận (RUNNING) thì chờ Worker hoàn tất.
               fallbackTriggerTimer = setTimeout(async () => {
                 if (isFinished) return;
                 try {
-                  const check = await apiService.fetchSubmissionById(targetSubId);
-                  if (check && (check.status === 'COMPLETED' || check.status === 'ERROR')) {
-                    handleCompleted(check);
+                  const st = await apiService.fetchSubmissionStatus(targetSubId);
+                  if (st === 'COMPLETED' || st === 'ERROR') {
+                    const full = await apiService.fetchSubmissionById(targetSubId);
+                    if (full) handleCompleted(full);
                     return;
                   }
-                  if (check && check.status === 'RUNNING') {
+                  if (st === 'RUNNING') {
                     return;
                   }
                   const fallbackGradeRes = await fetch('/api/grade', {

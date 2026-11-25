@@ -103,8 +103,9 @@ export const SubmissionHistory: React.FC = () => {
   useEffect(() => {
     refreshRef.current().catch(() => {});
     const interval = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
       refreshRef.current().catch(() => {});
-    }, 15000);
+    }, 30000);
     return () => clearInterval(interval);
   }, []);
 

@@ -289,10 +289,88 @@ function buildBatchBashScript(batchItems, srcCode, lang, tlSec) {
   return { script: lines.join('\n'), stdin: extraStdin };
 }
 
-function truncateDisplay(str, maxLen = 1000) {
+function truncateDisplay(str, maxLen = 220) {
   if (!str) return '';
   const s = String(str);
-  return s.length > maxLen ? s.slice(0, maxLen) + '\n... (Dữ liệu lớn đã được rút gọn)' : s;
+  return s.length > maxLen ? s.slice(0, maxLen) + '\n... [đã rút gọn]' : s;
+}
+
+// Tạo bản ghi kết quả 1 test SIÊU GỌN (~95 byte/test thay vì hàng chục KB):
+// - Test ẩn, test AC hoặc lỗi CE: KHÔNG lưu lặp lại input/expectedOutput/actualOutput vào DB.
+// - Chỉ giữ preview ngắn (<= 220 ký tự) cho test mở (không ẩn) khi bị WA / RTE / TLE để học sinh đối chiếu.
+function buildCompactTestResult({ tc, verdict, execTime, memoryMb, pointsEarned, actualStdout, errorMessage }) {
+  const item = {
+    testId: tc.id,
+    testName: tc.name,
+    verdict,
+    time: execTime,
+    memory: memoryMb,
+    pointsEarned,
+    maxPoints: tc.points,
+  };
+  if (errorMessage && verdict !== 'CE' && verdict !== 'AC') {
+    item.errorMessage = truncateDisplay(errorMessage, 180);
+  }
+  if (!tc.isHidden && verdict !== 'AC' && verdict !== 'CE') {
+    if (tc.input && !String(tc.input).startsWith('__STORAGE_ZIP__:')) {
+      item.input = truncateDisplay(tc.input, 220);
+    }
+    if (tc.expectedOutput && !String(tc.expectedOutput).startsWith('__STORAGE_ZIP__:')) {
+      item.expectedOutput = truncateDisplay(tc.expectedOutput, 220);
+    }
+    if (actualStdout) {
+      item.actualOutput = truncateDisplay(actualStdout, 220);
+    }
+  }
+  return item;
+}
+
+// Tự động giới hạn tối đa MAX_KEEP bản nộp hoàn tất trên mỗi cặp (học sinh, bài tập):
+// Luôn bảo toàn 1 bản Điểm cao nhất / Full AC sớm nhất (giữ nguyên thứ hạng) + (MAX_KEEP - 1) bản mới nhất.
+async function pruneUserProblemSubmissions(userId, problemId, maxKeep = 3) {
+  if (!userId || !problemId) return;
+  try {
+    const sbHeaders = {
+      apikey: SUPABASE_KEY,
+      Authorization: `Bearer ${SUPABASE_KEY}`,
+    };
+    const listUrl =
+      `${SUPABASE_URL}/rest/v1/submissions?user_id=eq.${encodeURIComponent(userId)}` +
+      `&problem_id=eq.${encodeURIComponent(problemId)}` +
+      `&select=id,verdict,status,total_points_earned,submitted_at&order=submitted_at.desc&limit=100`;
+    const res = await fetch(listUrl, { headers: sbHeaders });
+    if (!res.ok) return;
+    const rows = await res.json();
+    if (!Array.isArray(rows)) return;
+
+    const finished = rows.filter((r) => r && r.id && r.status !== 'PENDING' && r.status !== 'RUNNING');
+    if (finished.length <= maxKeep) return;
+
+    const sortedBest = [...finished].sort((a, b) => {
+      const acDiff = (b.verdict === 'AC' ? 1 : 0) - (a.verdict === 'AC' ? 1 : 0);
+      if (acDiff !== 0) return acDiff;
+      const ptsDiff = (Number(b.total_points_earned) || 0) - (Number(a.total_points_earned) || 0);
+      if (ptsDiff !== 0) return ptsDiff;
+      return (Date.parse(a.submitted_at || '') || 0) - (Date.parse(b.submitted_at || '') || 0);
+    });
+
+    const keepIds = new Set([sortedBest[0].id]);
+    const sortedNewest = [...finished].sort(
+      (a, b) => (Date.parse(b.submitted_at || '') || 0) - (Date.parse(a.submitted_at || '') || 0)
+    );
+    for (const r of sortedNewest) {
+      if (keepIds.size >= maxKeep) break;
+      keepIds.add(r.id);
+    }
+
+    const staleIds = finished.filter((r) => !keepIds.has(r.id)).map((r) => encodeURIComponent(r.id));
+    if (staleIds.length > 0) {
+      await fetch(`${SUPABASE_URL}/rest/v1/submissions?id=in.(${staleIds.join(',')})`, {
+        method: 'DELETE',
+        headers: sbHeaders,
+      });
+    }
+  } catch {}
 }
 
 const memoryProblemCache = new Map();
@@ -722,20 +800,18 @@ async function processSubmission(sub) {
         const pointsEarned = verdict === 'AC' ? tc.points : 0;
         const memoryMb = +(1.2 + ((i * 7) % 15) * 0.1).toFixed(1);
 
-        resultsMap.set(i, {
-          testId: tc.id,
-          testName: tc.name,
-          verdict,
-          time: execTime,
-          executionTime: execTime,
-          memory: memoryMb,
-          pointsEarned,
-          maxPoints: tc.points,
-          input: tc.isHidden ? '(Ẩn theo yêu cầu đề thi)' : truncateDisplay(tc.input),
-          expectedOutput: tc.isHidden ? '(Ẩn theo yêu cầu đề thi)' : truncateDisplay(tc.expectedOutput),
-          actualOutput: tc.isHidden ? (verdict === 'AC' ? '(Chính xác)' : '(Sai khác output)') : truncateDisplay(actualStdout),
-          errorMessage,
-        });
+        resultsMap.set(
+          i,
+          buildCompactTestResult({
+            tc,
+            verdict,
+            execTime,
+            memoryMb,
+            pointsEarned,
+            actualStdout,
+            errorMessage,
+          })
+        );
       }
     }
 
@@ -759,39 +835,33 @@ async function processSubmission(sub) {
 
     if (compileFailedResult) {
       isCompilationFailed = true;
-      compilationMessage = compileFailedResult.errorMessage;
+      compilationMessage = truncateDisplay(compileFailedResult.errorMessage, 2000);
       testCases.forEach((tc) => {
-        testResults.push({
-          testId: tc.id,
-          testName: tc.name,
-          verdict: 'CE',
-          time: 0,
-          executionTime: 0,
-          memory: 0,
-          pointsEarned: 0,
-          maxPoints: tc.points,
-          input: tc.isHidden ? '(Ẩn theo yêu cầu đề thi)' : truncateDisplay(tc.input),
-          expectedOutput: tc.isHidden ? '(Ẩn theo yêu cầu đề thi)' : truncateDisplay(tc.expectedOutput),
-          actualOutput: '',
-          errorMessage: compilationMessage,
-        });
+        testResults.push(
+          buildCompactTestResult({
+            tc,
+            verdict: 'CE',
+            execTime: 0,
+            memoryMb: 0,
+            pointsEarned: 0,
+            actualStdout: '',
+            errorMessage: null,
+          })
+        );
       });
     } else {
       for (let i = 0; i < testCases.length; i++) {
-        const r = resultsMap.get(i) || {
-          testId: testCases[i].id,
-          testName: testCases[i].name,
-          verdict: 'WA',
-          time: 0.005,
-          executionTime: 0.005,
-          memory: 1.5,
-          pointsEarned: 0,
-          maxPoints: testCases[i].points,
-          input: testCases[i].isHidden ? '(Ẩn theo yêu cầu đề thi)' : truncateDisplay(testCases[i].input),
-          expectedOutput: testCases[i].isHidden ? '(Ẩn theo yêu cầu đề thi)' : truncateDisplay(testCases[i].expectedOutput),
-          actualOutput: '',
-          errorMessage: 'Chưa có kết quả kiểm thử',
-        };
+        const r =
+          resultsMap.get(i) ||
+          buildCompactTestResult({
+            tc: testCases[i],
+            verdict: 'WA',
+            execTime: 0.005,
+            memoryMb: 1.5,
+            pointsEarned: 0,
+            actualStdout: '',
+            errorMessage: 'Chưa có kết quả kiểm thử',
+          });
         testResults.push(r);
         totalPointsEarned += r.pointsEarned || 0;
         maxExecutionTime = Math.max(maxExecutionTime, r.time || 0);
@@ -840,6 +910,7 @@ async function processSubmission(sub) {
     const elapsedTotal = ((Date.now() - tStart) / 1000).toFixed(2);
     if (updateRes.ok) {
       console.log(`[${new Date().toLocaleTimeString()}] ✅ Hoàn tất [${sub.id}] trong ${elapsedTotal}s | Kết quả: ${overallVerdict} (${passedCount}/${totalTests}) | Điểm: ${totalPointsEarned.toFixed(1)}/${targetTotal}`);
+      void pruneUserProblemSubmissions(sub.user_id, sub.problem_id, 3);
     } else {
       console.error(`[${new Date().toLocaleTimeString()}] ⚠️ Lỗi cập nhật kết quả lên Supabase: HTTP ${updateRes.status}`);
     }
