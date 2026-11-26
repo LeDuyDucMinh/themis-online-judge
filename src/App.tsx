@@ -15,6 +15,7 @@ import { StudentHomeManager } from './components/admin/StudentHomeManager';
 import { UserManager } from './components/admin/UserManager';
 import { AdminLayout, type AdminTabType } from './components/admin/AdminLayout';
 import { AuthModal } from './components/auth/AuthModal';
+import { SessionRevokedModal } from './components/common/SessionRevokedModal';
 import { ChangeNameModal } from './components/user/ChangeNameModal';
 import { ServerConfigModal } from './components/admin/ServerConfigModal';
 import { ConfirmModal } from './components/common/ConfirmModal';
@@ -490,6 +491,7 @@ function MainApp() {
   return (
     <>
       <ToastContainer />
+      <SessionRevokedModal />
       <AuthModal />
       <ChangeNameModal />
       <ServerConfigModal

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useJudge } from '../../context/JudgeContext';
 import { supabase, translateAuthError, fetchUserRoleFromSupabase } from '../../services/supabaseClient';
 import { apiService } from '../../services/apiService';
+import { claimStudentDeviceSession } from '../../services/deviceSessionService';
 import { storageService, resolveStudentFullName } from '../../services/storageService';
 import type { StudentUser } from '../../types/judge';
 import {
@@ -253,6 +254,7 @@ export const AuthModal: React.FC = () => {
               role: 'student' as const,
             };
             apiService.saveStudents([student]).catch(() => {});
+            await claimStudentDeviceSession(student);
             setCurrentStudent(student);
             storageService.setStudentSession(student);
             setIsAdminAuthenticated(false);
@@ -427,6 +429,8 @@ export const AuthModal: React.FC = () => {
           };
 
           apiService.saveStudents([student]).catch(() => {});
+          // Đăng ký thiết bị hiện tại làm phiên duy nhất & đá thiết bị cũ của học sinh (miễn trừ admin/teacher)
+          await claimStudentDeviceSession(student);
           setCurrentStudent(student);
           storageService.setStudentSession(student);
           setIsAdminAuthenticated(false);

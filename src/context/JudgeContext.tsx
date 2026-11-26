@@ -19,6 +19,13 @@ import { idbService } from '../services/db';
 import { gradeSubmission, type GradingProgressCallback, type SupportedLanguage } from '../services/judgeEngine';
 import { supabase, fetchUserRoleFromSupabase } from '../services/supabaseClient';
 import {
+  claimStudentDeviceSession,
+  verifyStudentDeviceSession,
+  subscribeStudentSessionKick,
+  isExemptFromSingleDevice,
+  resetDeviceSessionMemoryCache,
+} from '../services/deviceSessionService';
+import {
   syncServerClock,
   getServerNowMs,
   isClassMembershipExpired,
@@ -288,6 +295,7 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const [serverNowMs, setServerNowMs] = useState<number>(() => getServerNowMs());
   const isPruningExpiredRef = useRef<boolean>(false);
   const notifiedExpiredKeysRef = useRef<Set<string>>(new Set());
+  const isForcingDeviceKickRef = useRef<boolean>(false);
   const [homeBanners, setHomeBanners] = useState<HomeBanner[]>(() => storageService.getHomeBanners());
   const [examCountdowns, setExamCountdowns] = useState<ExamCountdown[]>(() => storageService.getExamCountdowns());
   const [problemTestCounts, setProblemTestCounts] = useState<Record<string, number>>({});
@@ -395,32 +403,63 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   };
 
   /**
-   * Xử lý khi học sinh bấm nút "Về trang Đăng nhập" trên Modal cảnh báo Lưới điện
-   * Chỉ khi học sinh tự tay bấm vào nút này, hệ thống mới xóa bộ nhớ đệm (localStorage)
-   * và điều hướng về cửa cổng đăng nhập.
+   * Tự động đăng xuất thiết bị cũ khi phát hiện tài khoản học sinh đã đăng nhập trên thiết bị khác.
+   * QUAN TRỌNG: dùng signOut({ scope: 'local' }) để CHỈ đăng xuất máy cũ, không ảnh hưởng máy mới.
    */
-  /**
-   * Cơ chế Lưới điện / Văng nick đã được dỡ bỏ hoàn toàn.
-   * Hàm này giữ lại để tương thích interface nhưng tuyệt đối không logout học sinh.
-   */
+  const forceLogoutDueToOtherDevice = () => {
+    if (isForcingDeviceKickRef.current) return;
+    isForcingDeviceKickRef.current = true;
+
+    supabase.auth
+      .signOut({ scope: 'local' })
+      .catch((e) => console.warn('[JudgeContext] Lỗi local signOut khi chuyển thiết bị:', e));
+    resetDeviceSessionMemoryCache();
+    storageService.setStudentSession(null);
+    setCurrentStudent(null);
+    setActiveClassId(null);
+    setActiveProblem(null);
+    setIsSessionRevokedModalOpen(true);
+    setIsAuthModalOpen(true);
+    setAuthModalTab('student');
+  };
+
   const handleAcknowledgeRevokedSession = () => {
+    isForcingDeviceKickRef.current = false;
     setIsSessionRevokedModalOpen(false);
+    setIsAuthModalOpen(true);
+    setAuthModalTab('student');
   };
 
   /**
-   * CƠ CHẾ VĂNG NICK ĐÃ ĐƯỢC XÓA BỎ HOÀN TOÀN:
-   * Dù cho học sinh có bị xóa tài khoản hay không, hệ thống vẫn để nguyên nick đang đăng nhập.
-   * Luôn trả về true an toàn, không bao giờ mở modal văng nick hay ngắt phiên làm việc.
+   * Kiểm tra phiên 1 thiết bị trước các thao tác quan trọng (Nộp bài, Tham gia lớp).
+   * - Quản trị viên & Giáo viên: miễn trừ 100% (luôn trả về true).
+   * - Lỗi mạng: trả về true an toàn (tuyệt đối không đá nhầm khi mất mạng).
    */
-  const checkActionTriggeredSession = async (_studentToCheck?: StudentUser | null): Promise<boolean> => {
+  const checkActionTriggeredSession = async (studentToCheck?: StudentUser | null): Promise<boolean> => {
+    if (isAdminAuthenticated || role === 'ADMIN' || role === 'TEACHER') {
+      return true;
+    }
+    const target = studentToCheck || currentStudent || storageService.getStudentSession();
+    if (!target || isExemptFromSingleDevice(target.role, isAdminAuthenticated)) {
+      return true;
+    }
+    const status = await verifyStudentDeviceSession(target);
+    if (status === 'kicked') {
+      forceLogoutDueToOtherDevice();
+      return false;
+    }
     return true;
   };
 
-  /**
-   * Tính năng tự động văng học sinh đã được tắt hoàn toàn theo yêu cầu người dùng.
-   * Luôn trả về true để học sinh duy trì phiên làm việc ổn định, không bao giờ bị văng ngẫu nhiên.
-   */
-  const verifyStudentAccountStatus = async (_options?: { force?: boolean }): Promise<boolean> => {
+  const verifyStudentAccountStatus = async (options?: { force?: boolean }): Promise<boolean> => {
+    if (isAdminAuthenticated || role === 'ADMIN' || role === 'TEACHER') return true;
+    const target = currentStudent || storageService.getStudentSession();
+    if (!target || isExemptFromSingleDevice(target.role, isAdminAuthenticated)) return true;
+    const status = await verifyStudentDeviceSession(target, { force: options?.force });
+    if (status === 'kicked') {
+      forceLogoutDueToOtherDevice();
+      return false;
+    }
     return true;
   };
 
@@ -1023,6 +1062,17 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         setClassStudents((prev) => (sameJson(prev, cleanedRelations) ? prev : cleanedRelations));
         storageService.saveClassStudents(cleanedRelations);
       }
+
+      // Kiểm tra dự phòng phiên 1 thiết bị cho học sinh (~70 bytes khi không đổi, miễn trừ Admin/Teacher)
+      if (!isAdminAuthenticated && currentStudent && !isExemptFromSingleDevice(currentStudent.role, false)) {
+        verifyStudentDeviceSession(currentStudent)
+          .then((sessionStatus) => {
+            if (sessionStatus === 'kicked') {
+              forceLogoutDueToOtherDevice();
+            }
+          })
+          .catch(() => {});
+      }
       if (cloudStudents || storageService.getStudents().length > 0) {
         const local = storageService.getStudents();
         const studentMap = new Map<string, StudentUser>();
@@ -1246,8 +1296,31 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     }
   };
 
-  // 1b. Phiên làm việc của học sinh được duy trì ổn định và bền vững
-  // Tuyệt đối không sử dụng setInterval ngầm để đuổi học sinh khi đang ngồi làm bài
+  // 1b. LẮNG NGHE REALTIME BROADCAST ĐÁ THIẾT BỊ CŨ (~1 GIÂY) — CHỈ ÁP DỤNG CHO HỌC SINH (MIỄN TRỪ ADMIN & GIÁO VIÊN)
+  useEffect(() => {
+    if (isAdminAuthenticated || role === 'ADMIN' || role === 'TEACHER') return;
+    if (!currentStudent || isExemptFromSingleDevice(currentStudent.role, isAdminAuthenticated)) return;
+
+    const unsubscribe = subscribeStudentSessionKick(currentStudent, () => {
+      forceLogoutDueToOtherDevice();
+    });
+
+    // Đồng bộ giữa các tab trên cùng 1 trình duyệt: nếu 1 tab bị xóa session thì các tab khác cũng thoát theo
+    const handleStorageSync = (e: StorageEvent) => {
+      if (e.key === 'faminh_judge_student_session_v1' && !e.newValue) {
+        setCurrentStudent(null);
+        setActiveClassId(null);
+        setActiveProblem(null);
+        setIsAuthModalOpen(true);
+      }
+    };
+    window.addEventListener('storage', handleStorageSync);
+
+    return () => {
+      unsubscribe();
+      window.removeEventListener('storage', handleStorageSync);
+    };
+  }, [currentStudent?.id, currentStudent?.email, currentStudent?.role, isAdminAuthenticated, role]);
 
   // 1a. LẮNG NGHE THAY ĐỔI TRẠNG THÁI XÁC THỰC SUPABASE AUTH (OAuth Google & Email/Password)
   useEffect(() => {
@@ -1328,6 +1401,17 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
             createdAt: u.created_at || new Date().toISOString(),
             role: 'student',
           };
+
+          // Nếu là đăng nhập mới qua Google OAuth -> đăng ký máy này làm thiết bị duy nhất & đá máy cũ
+          if (isGoogleLogin) {
+            isForcingDeviceKickRef.current = false;
+            setIsSessionRevokedModalOpen(false);
+            await claimStudentDeviceSession(studentUser);
+          } else if (event === 'SIGNED_IN') {
+            // Email/Password đã claim trong AuthModal; kiểm tra an toàn để tránh tab cũ chiếm lại phiên
+            isForcingDeviceKickRef.current = false;
+          }
+
           setCurrentStudent(studentUser);
           storageService.setStudentSession(studentUser);
           setIsAdminAuthenticated(false);
@@ -1438,6 +1522,23 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
                 createdAt: u.created_at || new Date().toISOString(),
                 role: 'student',
               };
+
+              // Nếu KHÔNG phải vừa redirect Google OAuth về -> kiểm tra xem tài khoản đã bị đăng nhập ở thiết bị khác lúc máy này đóng hay chưa
+              const isPendingGoogleRedirect =
+                typeof window !== 'undefined' &&
+                (sessionStorage.getItem('faminh_pending_google_oauth_login') === 'true' ||
+                  localStorage.getItem('faminh_pending_google_oauth_login') === 'true');
+
+              if (!isPendingGoogleRedirect) {
+                const verifyStatus = await verifyStudentDeviceSession(student, { force: true });
+                if (verifyStatus === 'kicked') {
+                  if (isMounted) {
+                    forceLogoutDueToOtherDevice();
+                  }
+                  return;
+                }
+              }
+
               if (isMounted) {
                 storageService.setStudentSession(student);
                 setCurrentStudent(student);
@@ -1628,7 +1729,10 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       sessionStorage.removeItem('faminh_admin_verified_pass');
       setIsAdminAuthenticated(false);
       setRole('USER');
+      isForcingDeviceKickRef.current = false;
+      setIsSessionRevokedModalOpen(false);
 
+      await claimStudentDeviceSession(found);
       setCurrentStudent(found);
       storageService.setStudentSession(found);
       setIsAuthModalOpen(false);
@@ -1653,9 +1757,10 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     }
   };
 
-  // Học sinh Đăng xuất - Chỉ xóa session của học sinh này, tuyệt đối không xóa database hay danh sách lớp/bài tập
+  // Học sinh Đăng xuất - Chỉ xóa session cục bộ của thiết bị này, tuyệt đối không xóa database hay ảnh hưởng máy khác
   const logoutStudent = (options?: { reason?: string } | any) => {
-    supabase.auth.signOut().catch((e) => console.warn('[JudgeContext] Lỗi Supabase signOut:', e));
+    supabase.auth.signOut({ scope: 'local' }).catch((e) => console.warn('[JudgeContext] Lỗi Supabase signOut:', e));
+    resetDeviceSessionMemoryCache();
     storageService.setStudentSession(null);
     setCurrentStudent(null);
     setActiveClassId(null);
@@ -2037,7 +2142,7 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
   // Quản trị viên / Giáo viên Đăng xuất - Chỉ giải phóng phiên, tuyệt đối không xóa dữ liệu lớp, bài tập hay học sinh
   const logoutAdmin = () => {
-    supabase.auth.signOut().catch(() => {});
+    supabase.auth.signOut({ scope: 'local' }).catch(() => {});
     storageService.setAdminSessionActive(false);
     storageService.setAdminEmail(null);
     setAdminEmail(null);
