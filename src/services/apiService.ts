@@ -2,6 +2,7 @@ import type { Problem, TestCase, Submission, Classroom, ClassStudent, StudentUse
 import { normalizeOwnerEmail } from '../types/judge';
 import { idbService } from './db';
 import { storageService, DEFAULT_ADMIN_PASSWORD, type ResourceOwnersMap } from './storageService';
+import { observeCloudTimestamp, observeResponseDateHeader } from '../utils/serverTime';
 
 /**
  * Hàm làm sạch chuỗi cấu hình (loại bỏ khoảng trắng, dấu xuống dòng \r, \n vô tình dính vào khi copy-paste trên Vercel)
@@ -704,12 +705,16 @@ export const apiService = {
           cache: 'no-store',
         });
         if (res.ok) {
+          observeResponseDateHeader(res);
           const rows = await res.json();
-          if (Array.isArray(rows) && rows.length > 0 && rows[0].description) {
-            const parsed = JSON.parse(rows[0].description);
-            if (Array.isArray(parsed)) {
-              storageService.saveClassStudents(parsed);
-              return parsed;
+          if (Array.isArray(rows) && rows.length > 0) {
+            if (rows[0].updated_at) observeCloudTimestamp(rows[0].updated_at);
+            if (rows[0].description) {
+              const parsed = JSON.parse(rows[0].description);
+              if (Array.isArray(parsed)) {
+                storageService.saveClassStudents(parsed);
+                return parsed;
+              }
             }
           }
         }
@@ -782,6 +787,8 @@ export const apiService = {
                 item.status === 'approved' || existing.status === 'approved'
                   ? 'approved'
                   : item.status || existing.status || 'approved',
+              expiresAt:
+                'expiresAt' in item ? (item.expiresAt ?? null) : (existing.expiresAt ?? null),
             };
           } else {
             merged.push(item);

@@ -55,6 +55,7 @@ export interface ClassStudent {
   studentEmail?: string;
   joinedAt: string;
   status?: 'pending' | 'approved' | 'rejected';
+  expiresAt?: string | null; // ISO hạn tham gia lớp (null/undefined = không giới hạn)
 }
 
 export interface Problem {

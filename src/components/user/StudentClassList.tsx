@@ -14,6 +14,11 @@ import {
   computeExamState,
   sortExamCountdowns,
 } from '../common/ExamCountdownCard';
+import {
+  formatExpiryDateVN,
+  getRemainingDays,
+  EXPIRY_WARNING_DAYS,
+} from '../../utils/serverTime';
 
 interface StudentClassListProps {
   onSelectProblem?: (problem: Problem) => void;
@@ -52,6 +57,8 @@ export const StudentClassList: React.FC<StudentClassListProps> = ({ onSelectProb
     showToast,
     leaveClass,
     openConfirmModal,
+    getStudentClassExpiry,
+    serverNowMs,
   } = useJudge();
 
   useEffect(() => {
@@ -567,6 +574,9 @@ export const StudentClassList: React.FC<StudentClassListProps> = ({ onSelectProb
               const totalProblems = classProblems.length;
               const solvedInClass = classProblems.filter((p) => getProblemStatus(p.id) === 'SOLVED').length;
               const percent = totalProblems > 0 ? Math.round((solvedInClass / totalProblems) * 100) : 0;
+              const classExpiresAt = getStudentClassExpiry(cls.id);
+              const remainingDays = getRemainingDays(classExpiresAt, serverNowMs);
+              const isExpiringSoon = remainingDays !== null && remainingDays <= EXPIRY_WARNING_DAYS;
 
               return (
                 <div
@@ -601,9 +611,30 @@ export const StudentClassList: React.FC<StudentClassListProps> = ({ onSelectProb
                       </button>
                     </div>
 
-                    <p className="fj-m" style={{ fontSize: 13, marginBottom: 16, minHeight: 38 }}>
+                    <p className="fj-m" style={{ fontSize: 13, marginBottom: classExpiresAt ? 10 : 16, minHeight: classExpiresAt ? 24 : 38 }}>
                       {cls.description || 'Chưa có mô tả cho lớp học này.'}
                     </p>
+
+                    {classExpiresAt && (
+                      <div
+                        style={{
+                          marginBottom: 14,
+                          padding: isExpiringSoon ? '6px 10px' : '0',
+                          borderRadius: isExpiringSoon ? 6 : 0,
+                          background: isExpiringSoon ? '#FEF3C7' : 'transparent',
+                          border: isExpiringSoon ? '1px solid rgba(245, 158, 11, 0.45)' : 'none',
+                          fontSize: 12,
+                          fontWeight: isExpiringSoon ? 600 : 500,
+                          color: isExpiringSoon ? '#92400E' : '#6B655C',
+                        }}
+                      >
+                        {isExpiringSoon
+                          ? remainingDays === 0
+                            ? `⚠ Hết hạn hôm nay (${formatExpiryDateVN(classExpiresAt)}) — hãy nhắn thầy/cô gia hạn`
+                            : `⚠ Sắp hết hạn · còn ${remainingDays} ngày (${formatExpiryDateVN(classExpiresAt)})`
+                          : `Hạn tham gia đến ${formatExpiryDateVN(classExpiresAt)} · còn ${remainingDays} ngày`}
+                      </div>
+                    )}
 
                     <div style={{ marginBottom: 16 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 6 }}>

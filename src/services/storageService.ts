@@ -1,6 +1,7 @@
 import type { Topic, Problem, Submission, UserStats, StudentUser, Classroom, ClassStudent, UserRole, AccountRole, HomeBanner, ExamCountdown } from '../types/judge.ts';
 import { isProblemInClass, normalizeOwnerEmail } from '../types/judge.ts';
 import { idbService } from './db.ts';
+import { isClassMembershipExpired } from '../utils/serverTime.ts';
 
 export interface ResourceOwnersMap {
   classes: Record<string, string>;
@@ -693,7 +694,10 @@ export const storageService = {
 
   getStudentsInClass(classId: string): StudentUser[] {
     const relations = this.getClassStudents().filter(
-      (cs) => cs.classId === classId && (!cs.status || cs.status === 'approved')
+      (cs) =>
+        cs.classId === classId &&
+        (!cs.status || cs.status === 'approved') &&
+        !isClassMembershipExpired(cs.expiresAt)
     );
     const studentMap = new Map<string, StudentUser>();
     this.getStudents().forEach((s) => {
@@ -772,6 +776,7 @@ export const storageService = {
 
     const relations = this.getClassStudents().filter((cs) => {
       if (cs.status && cs.status !== 'approved') return false;
+      if (isClassMembershipExpired(cs.expiresAt)) return false;
       const cId = (cs.studentId || '').trim().toLowerCase();
       const cUser = (cs.studentUsername || '').trim().toLowerCase();
       const cEmail = (cs.studentEmail || '').trim().toLowerCase();
@@ -818,7 +823,7 @@ export const storageService = {
     const relations = this.getClassStudents();
     const existing = relations.find((cs) => cs.classId === targetClass.id && cs.studentId === studentId);
     if (existing) {
-      if (!existing.status || existing.status === 'approved') {
+      if ((!existing.status || existing.status === 'approved') && !isClassMembershipExpired(existing.expiresAt)) {
         return {
           success: true,
           pending: false,
@@ -834,6 +839,7 @@ export const storageService = {
         };
       } else {
         existing.status = 'pending';
+        existing.expiresAt = null;
         existing.joinedAt = new Date().toISOString();
         this.saveClassStudents(relations);
         return {

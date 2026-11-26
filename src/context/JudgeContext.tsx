@@ -18,6 +18,12 @@ import { apiService } from '../services/apiService';
 import { idbService } from '../services/db';
 import { gradeSubmission, type GradingProgressCallback, type SupportedLanguage } from '../services/judgeEngine';
 import { supabase, fetchUserRoleFromSupabase } from '../services/supabaseClient';
+import {
+  syncServerClock,
+  getServerNowMs,
+  isClassMembershipExpired,
+  formatExpiryDateVN,
+} from '../utils/serverTime';
 import confetti from 'canvas-confetti';
 
 interface ToastMessage {
@@ -103,6 +109,8 @@ interface JudgeContextType {
   // Multi-Classroom (Nhiều lớp học độc lập)
   classes: Classroom[];
   allClasses: Classroom[];
+  classStudents: ClassStudent[];
+  serverNowMs: number;
   activeClassId: string | null;
   setActiveClassId: (id: string | null) => void;
   activeClass: Classroom | null;
@@ -118,6 +126,17 @@ interface JudgeContextType {
   rejectStudentJoin: (classId: string, studentId: string) => Promise<void>;
   enrollStudentToClass: (classId: string, studentId: string) => Promise<void>;
   removeStudentFromClass: (classId: string, studentId: string, studentUsername?: string, studentEmail?: string) => Promise<void>;
+  updateStudentClassExpiry: (
+    classId: string,
+    studentId: string,
+    expiresAt: string | null,
+    studentUsername?: string,
+    studentEmail?: string
+  ) => Promise<void>;
+  getStudentClassExpiry: (
+    classId: string,
+    student?: Pick<StudentUser, 'id' | 'username' | 'email'> | null
+  ) => string | null;
   leaveClass: (classId: string) => Promise<void>;
 
   // Data
@@ -266,6 +285,9 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   // Multi-Classroom State (allClasses lưu toàn bộ lớp trên hệ thống; classes đã lọc theo giáo viên nếu role === 'TEACHER')
   const [allClasses, setAllClasses] = useState<Classroom[]>(() => storageService.getClasses());
   const [classStudents, setClassStudents] = useState<ClassStudent[]>(() => storageService.getClassStudents());
+  const [serverNowMs, setServerNowMs] = useState<number>(() => getServerNowMs());
+  const isPruningExpiredRef = useRef<boolean>(false);
+  const notifiedExpiredKeysRef = useRef<Set<string>>(new Set());
   const [homeBanners, setHomeBanners] = useState<HomeBanner[]>(() => storageService.getHomeBanners());
   const [examCountdowns, setExamCountdowns] = useState<ExamCountdown[]>(() => storageService.getExamCountdowns());
   const [problemTestCounts, setProblemTestCounts] = useState<Record<string, number>>({});
@@ -321,7 +343,7 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const studentClasses = useMemo(() => {
     if (!currentStudent) return [];
     return storageService.getClassesForStudent(currentStudent.id, currentStudent.username, currentStudent.email);
-  }, [currentStudent, classStudents, allClasses]);
+  }, [currentStudent, classStudents, allClasses, serverNowMs]);
 
   const pendingClasses = useMemo(() => {
     if (!currentStudent) return [];
@@ -442,14 +464,28 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       allRelations = storageService.getClassStudents();
     }
 
-    const stuId = (student.id || '').trim();
+    const stuId = (student.id || '').trim().toLowerCase();
     const stuUser = (student.username || '').trim().toLowerCase();
+    const stuEmail = (student.email || '').trim().toLowerCase();
+    const nowServer = await syncServerClock();
+    setServerNowMs(nowServer);
 
-    const existing = allRelations.find(
-      (cs) => cs.classId === targetClass.id && (cs.studentId === stuId || (stuUser && cs.studentId.toLowerCase() === stuUser))
-    );
+    const isSameStuRel = (cs: ClassStudent) => {
+      if (cs.classId !== targetClass.id) return false;
+      const cId = (cs.studentId || '').trim().toLowerCase();
+      const cUser = (cs.studentUsername || '').trim().toLowerCase();
+      const cEmail = (cs.studentEmail || '').trim().toLowerCase();
+      return Boolean(
+        (stuId && (cId === stuId || cUser === stuId || cEmail === stuId)) ||
+        (stuUser && (cId === stuUser || cUser === stuUser || cEmail === stuUser)) ||
+        (stuEmail && (cId === stuEmail || cUser === stuEmail || cEmail === stuEmail))
+      );
+    };
 
-    if (existing) {
+    const existing = allRelations.find(isSameStuRel);
+    const wasExpired = Boolean(existing && isClassMembershipExpired(existing.expiresAt, nowServer));
+
+    if (existing && !wasExpired) {
       if (!existing.status || existing.status === 'approved') {
         showToast('Đã tham gia', `Em đã là thành viên chính thức của lớp "${targetClass.className}"!`, 'success');
         setActiveClassId(targetClass.id);
@@ -480,10 +516,11 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       studentEmail: student.email,
       joinedAt: new Date().toISOString(),
       status: 'pending',
+      expiresAt: null,
     };
 
     const updatedRelations = [
-      ...allRelations.filter((r) => !(r.classId === targetClass.id && (r.studentId === stuId || (stuUser && r.studentId.toLowerCase() === stuUser)))),
+      ...allRelations.filter((r) => !isSameStuRel(r)),
       newRelation,
     ];
 
@@ -491,7 +528,7 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     setClassStudents(updatedRelations);
 
     try {
-      await apiService.saveClassStudents(updatedRelations);
+      await apiService.saveClassStudents(updatedRelations, wasExpired ? { replace: true } : undefined);
     } catch (e) {
       console.warn('Lỗi ghi liên kết lớp lên Cloud:', e);
     }
@@ -605,7 +642,10 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const getStudentsInClass = (classId: string): StudentUser[] => {
     const rawRelations = classStudents.length > 0 ? classStudents : storageService.getClassStudents();
     const relations = rawRelations.filter(
-      (cs) => cs.classId === classId && (!cs.status || cs.status === 'approved')
+      (cs) =>
+        cs.classId === classId &&
+        (!cs.status || cs.status === 'approved') &&
+        !isClassMembershipExpired(cs.expiresAt, serverNowMs)
     );
     const rawStudents = students.length > 0 ? students : storageService.getStudents();
     const studentMap = new Map<string, StudentUser>();
@@ -673,6 +713,204 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     }
     showToast('Đã đưa ra khỏi lớp', 'Đã xóa học sinh khỏi danh sách lớp này', 'info');
   };
+
+  const matchesRelationForStudent = (
+    cs: ClassStudent,
+    studentId?: string,
+    studentUsername?: string,
+    studentEmail?: string
+  ): boolean => {
+    const sId = (studentId || '').trim().toLowerCase();
+    const sUser = (studentUsername || '').trim().toLowerCase();
+    const sEmail = (studentEmail || '').trim().toLowerCase();
+    const cId = (cs.studentId || '').trim().toLowerCase();
+    const cUser = (cs.studentUsername || '').trim().toLowerCase();
+    const cEmail = (cs.studentEmail || '').trim().toLowerCase();
+    return Boolean(
+      (sId && (cId === sId || cUser === sId || cEmail === sId)) ||
+      (sUser && (cId === sUser || cUser === sUser || cEmail === sUser)) ||
+      (sEmail && (cId === sEmail || cUser === sEmail || cEmail === sEmail))
+    );
+  };
+
+  const getStudentClassExpiry = (
+    classId: string,
+    student?: Pick<StudentUser, 'id' | 'username' | 'email'> | null
+  ): string | null => {
+    const target = student || currentStudent;
+    if (!target || !classId) return null;
+    const rawRelations = classStudents.length > 0 ? classStudents : storageService.getClassStudents();
+    const matched = rawRelations.find(
+      (cs) =>
+        cs.classId === classId &&
+        (!cs.status || cs.status === 'approved') &&
+        matchesRelationForStudent(cs, target.id, target.username, target.email)
+    );
+    return matched?.expiresAt || null;
+  };
+
+  const updateStudentClassExpiry = async (
+    classId: string,
+    studentId: string,
+    expiresAt: string | null,
+    studentUsername?: string,
+    studentEmail?: string
+  ): Promise<void> => {
+    let relations = await apiService.fetchClassStudents().catch(() => null);
+    if (!relations || relations.length === 0) {
+      relations = classStudents.length > 0 ? classStudents : storageService.getClassStudents();
+    }
+
+    const targetStu =
+      students.find((s) => s.id === studentId) ||
+      storageService.getStudents().find((s) => s.id === studentId);
+    const resolvedUser = studentUsername || targetStu?.username;
+    const resolvedEmail = studentEmail || targetStu?.email;
+
+    let updatedAny = false;
+    const updatedRelations = relations.map((cs) => {
+      if (cs.classId !== classId) return cs;
+      if (matchesRelationForStudent(cs, studentId, resolvedUser, resolvedEmail)) {
+        updatedAny = true;
+        return {
+          ...cs,
+          expiresAt: expiresAt ?? null,
+        };
+      }
+      return cs;
+    });
+
+    if (!updatedAny) {
+      showToast('Không tìm thấy học sinh trong lớp', 'Học sinh này có thể đã rời khỏi lớp.', 'warning');
+      return;
+    }
+
+    storageService.saveClassStudents(updatedRelations);
+    setClassStudents(updatedRelations);
+    try {
+      await apiService.saveClassStudents(updatedRelations, { replace: true });
+    } catch (e) {
+      console.warn('Lỗi ghi thời hạn học sinh trong lớp lên Cloud:', e);
+      showToast('Lỗi đồng bộ Cloud', 'Chưa lưu được thời hạn lên máy chủ, vui lòng thử lại.', 'error');
+      throw e;
+    }
+
+    const stuName = targetStu?.fullName || resolvedEmail || 'Học sinh';
+    const clsName = allClasses.find((c) => c.id === classId)?.className || '';
+    if (expiresAt) {
+      showToast(
+        'Đã cập nhật thời hạn',
+        `${stuName}${clsName ? ` (${clsName})` : ''} có hạn đến ${formatExpiryDateVN(expiresAt)}.`,
+        'success'
+      );
+    } else {
+      showToast(
+        'Đã đặt không giới hạn',
+        `${stuName}${clsName ? ` (${clsName})` : ''} hiện không còn giới hạn thời gian.`,
+        'success'
+      );
+    }
+  };
+
+  /**
+   * Tự động phát hiện và xóa hẳn các liên kết học sinh đã quá hạn theo giờ chuẩn Server (0 request thừa).
+   */
+  const pruneExpiredClassMemberships = (
+    relations: ClassStudent[],
+    classesSnapshot: Classroom[],
+    nowMs: number
+  ): ClassStudent[] => {
+    const expiredList: ClassStudent[] = [];
+    const activeList: ClassStudent[] = [];
+
+    for (const cs of relations) {
+      if ((!cs.status || cs.status === 'approved') && isClassMembershipExpired(cs.expiresAt, nowMs)) {
+        expiredList.push(cs);
+      } else {
+        activeList.push(cs);
+      }
+    }
+
+    if (expiredList.length === 0) return relations;
+
+    // 1. Cập nhật ngay ở Local & đẩy lên Cloud 1 lần để xóa hẳn giống "Rút khỏi lớp"
+    storageService.saveClassStudents(activeList);
+    if (!isPruningExpiredRef.current) {
+      isPruningExpiredRef.current = true;
+      apiService
+        .saveClassStudents(activeList, { replace: true })
+        .catch((e) => console.warn('[Expiry] Lỗi dọn học sinh hết hạn lên Cloud:', e))
+        .finally(() => {
+          isPruningExpiredRef.current = false;
+        });
+    }
+
+    // 2. Nếu chính học sinh đang đăng nhập vừa hết hạn ở 1 hoặc nhiều lớp -> đá khỏi lớp và báo rõ
+    const activeStu = currentStudent || storageService.getStudentSession();
+    if (activeStu && !isAdminAuthenticated) {
+      const myExpired = expiredList.filter((cs) =>
+        matchesRelationForStudent(cs, activeStu.id, activeStu.username, activeStu.email)
+      );
+      if (myExpired.length > 0) {
+        const expiredClassIds = new Set(myExpired.map((cs) => cs.classId));
+        const expiredNames = myExpired
+          .map((cs) => classesSnapshot.find((c) => c.id === cs.classId)?.className)
+          .filter(Boolean) as string[];
+        const notifyKey = myExpired.map((cs) => `${cs.classId}:${cs.expiresAt || ''}`).sort().join('|');
+
+        if (!notifiedExpiredKeysRef.current.has(notifyKey)) {
+          notifiedExpiredKeysRef.current.add(notifyKey);
+          showToast(
+            'Hết hạn tham gia lớp học',
+            expiredNames.length > 0
+              ? `Thời hạn tham gia lớp ${expiredNames.join(', ')} đã kết thúc, em đã tự động rời khỏi lớp. Hãy liên hệ giáo viên để gia hạn nhé!`
+              : 'Thời hạn tham gia lớp học đã kết thúc, em đã tự động rời khỏi lớp. Hãy liên hệ giáo viên để gia hạn nhé!',
+            'warning'
+          );
+        }
+
+        if (activeClassId && expiredClassIds.has(activeClassId)) {
+          setActiveClassId(null);
+          setActiveProblem(null);
+        }
+      }
+    }
+
+    return activeList;
+  };
+
+  // Đồng bộ giờ chuẩn Server lúc khởi chạy & tự động kiểm tra quá hạn mỗi phút (0 request Supabase)
+  useEffect(() => {
+    let active = true;
+    syncServerClock()
+      .then((nowMs) => {
+        if (active) setServerNowMs(nowMs);
+      })
+      .catch(() => {});
+
+    const timer = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+      setServerNowMs(getServerNowMs());
+    }, 60000);
+
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
+  }, []);
+
+  // Tự động xóa học sinh quá hạn ngay khi mốc serverNowMs vượt qua expiresAt (kể cả khi tab để mở qua nửa đêm)
+  useEffect(() => {
+    if (!classStudents || classStudents.length === 0) return;
+    const hasExpired = classStudents.some(
+      (cs) => (!cs.status || cs.status === 'approved') && isClassMembershipExpired(cs.expiresAt, serverNowMs)
+    );
+    if (!hasExpired) return;
+    const cleaned = pruneExpiredClassMemberships(classStudents, allClasses, serverNowMs);
+    if (cleaned.length !== classStudents.length) {
+      setClassStudents(cleaned);
+    }
+  }, [classStudents, serverNowMs, allClasses, currentStudent, isAdminAuthenticated, activeClassId]);
 
   const leaveClass = async (classId: string): Promise<void> => {
     if (!currentStudent) return;
@@ -746,7 +984,7 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       // Làm mới ngầm (định kỳ/khi quay lại tab) không bật cờ "đang đồng bộ" để tránh render lại toàn bộ ứng dụng
       if (!silent) setIsRefreshing(true);
       try {
-        const [cloudClasses, cloudRelations, cloudStudents, cloudTopics, cloudProblems, cloudSubs, homeMedia] = await Promise.all([
+        const [cloudClasses, cloudRelations, cloudStudents, cloudTopics, cloudProblems, cloudSubs, homeMedia, syncedNowMs] = await Promise.all([
           apiService.fetchClassrooms(),
           apiService.fetchClassStudents(),
           apiService.fetchStudents(),
@@ -754,7 +992,10 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
           apiService.fetchProblems(),
           apiService.fetchSubmissions({ full: force }),
           apiService.fetchHomeMediaBundle({ force }),
+          syncServerClock(),
         ]);
+
+        setServerNowMs(syncedNowMs);
 
       // Chỉ cập nhật state khi dữ liệu thực sự thay đổi: tránh render lại toàn bộ ứng dụng mỗi 90 giây
       const sameJson = (a: unknown, b: unknown) => {
@@ -777,8 +1018,10 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         storageService.saveClasses(cloudClasses);
       }
       if (cloudRelations) {
-        setClassStudents((prev) => (sameJson(prev, cloudRelations) ? prev : cloudRelations));
-        storageService.saveClassStudents(cloudRelations);
+        const classesForPrune = cloudClasses && cloudClasses.length > 0 ? cloudClasses : allClasses;
+        const cleanedRelations = pruneExpiredClassMemberships(cloudRelations, classesForPrune, syncedNowMs);
+        setClassStudents((prev) => (sameJson(prev, cleanedRelations) ? prev : cleanedRelations));
+        storageService.saveClassStudents(cleanedRelations);
       }
       if (cloudStudents || storageService.getStudents().length > 0) {
         const local = storageService.getStudents();
@@ -2622,6 +2865,8 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         isRefreshing,
         classes,
         allClasses,
+        classStudents,
+        serverNowMs,
         activeClassId,
         setActiveClassId,
         activeClass,
@@ -2637,6 +2882,8 @@ export const JudgeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         rejectStudentJoin,
         enrollStudentToClass,
         removeStudentFromClass,
+        updateStudentClassExpiry,
+        getStudentClassExpiry,
         leaveClass,
         topics,
         allTopics,

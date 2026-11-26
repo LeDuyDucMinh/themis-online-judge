@@ -4,6 +4,12 @@ import { isProblemInClass, type Submission } from '../../types/judge';
 import { apiService } from '../../services/apiService';
 import { ClassLeaderboard } from '../common/ClassLeaderboard';
 import { ThemisGradingTable } from '../user/ThemisGradingTable';
+import { ClassExpiryModal } from './ClassExpiryModal';
+import {
+  formatExpiryDateVN,
+  getRemainingDays,
+  EXPIRY_WARNING_DAYS,
+} from '../../utils/serverTime';
 import {
   computeClassStudentProgress,
   formatDateVN,
@@ -37,6 +43,9 @@ export const TeacherClassDetail: React.FC<TeacherClassDetailProps> = ({
     approveStudentJoin,
     rejectStudentJoin,
     removeStudentFromClass,
+    updateStudentClassExpiry,
+    getStudentClassExpiry,
+    serverNowMs,
     deleteStudent,
     updateClass,
     deleteClass,
@@ -66,11 +75,12 @@ export const TeacherClassDetail: React.FC<TeacherClassDetailProps> = ({
 
   // Bộ lọc tab Học sinh
   const [studentSearch, setStudentSearch] = useState('');
-  const [studentFilter, setStudentFilter] = useState<'all' | 'zero_ac'>(
+  const [studentFilter, setStudentFilter] = useState<'all' | 'zero_ac' | 'expiring_soon'>(
     initialFilterZeroAc ? 'zero_ac' : 'all'
   );
-  const [studentSort, setStudentSort] = useState<'ac_desc' | 'name_asc' | 'joined_desc'>('ac_desc');
+  const [studentSort, setStudentSort] = useState<'ac_desc' | 'name_asc' | 'joined_desc' | 'expiry_asc'>('ac_desc');
   const [detailStudentId, setDetailStudentId] = useState<string | null>(null);
+  const [expiryModalStudent, setExpiryModalStudent] = useState<StudentClassProgress['student'] | null>(null);
 
   // Bộ lọc tab Bài được giao
   const [assignSearch, setAssignSearch] = useState('');
@@ -140,10 +150,25 @@ export const TeacherClassDetail: React.FC<TeacherClassDetailProps> = ({
     [studentProgressList]
   );
 
+  const expiringSoonCount = useMemo(
+    () =>
+      studentProgressList.filter((r) => {
+        const exp = getStudentClassExpiry(classId, r.student);
+        const days = getRemainingDays(exp, serverNowMs);
+        return days !== null && days <= EXPIRY_WARNING_DAYS;
+      }).length,
+    [studentProgressList, classId, serverNowMs, getStudentClassExpiry]
+  );
+
   const filteredStudentRows = useMemo(() => {
     const q = studentSearch.trim().toLowerCase();
     const list = studentProgressList.filter((row) => {
       if (studentFilter === 'zero_ac' && row.acCount > 0) return false;
+      if (studentFilter === 'expiring_soon') {
+        const exp = getStudentClassExpiry(classId, row.student);
+        const days = getRemainingDays(exp, serverNowMs);
+        if (days === null || days > EXPIRY_WARNING_DAYS) return false;
+      }
       if (!q) return true;
       const email = getDisplayEmail(row.student).toLowerCase();
       return (
@@ -162,8 +187,17 @@ export const TeacherClassDetail: React.FC<TeacherClassDetailProps> = ({
           new Date(b.student.createdAt || 0).getTime() - new Date(a.student.createdAt || 0).getTime()
       );
     }
+    if (studentSort === 'expiry_asc') {
+      return [...list].sort((a, b) => {
+        const da = getRemainingDays(getStudentClassExpiry(classId, a.student), serverNowMs);
+        const db = getRemainingDays(getStudentClassExpiry(classId, b.student), serverNowMs);
+        const va = da === null ? Number.MAX_SAFE_INTEGER : da;
+        const vb = db === null ? Number.MAX_SAFE_INTEGER : db;
+        return va - vb;
+      });
+    }
     return list;
-  }, [studentProgressList, studentFilter, studentSearch, studentSort]);
+  }, [studentProgressList, studentFilter, studentSearch, studentSort, classId, serverNowMs, getStudentClassExpiry]);
 
   const activeDetailRow = useMemo(
     () =>
@@ -526,7 +560,14 @@ export const TeacherClassDetail: React.FC<TeacherClassDetailProps> = ({
                   ← Quay lại danh sách học sinh
                 </button>
 
-                <div className="flex items-center gap-4">
+                <div className="flex flex-wrap items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setExpiryModalStudent(activeDetailRow.student)}
+                    className="px-4 py-2 rounded-[8px] border-[1.5px] border-[#2F6B3F] text-[14px] font-semibold text-[#2F6B3F] hover:bg-[#2F6B3F] hover:text-white transition-colors cursor-pointer"
+                  >
+                    Gia hạn lớp
+                  </button>
                   <button
                     type="button"
                     onClick={() => handleRemoveStudent(activeDetailRow.student)}
@@ -554,6 +595,12 @@ export const TeacherClassDetail: React.FC<TeacherClassDetailProps> = ({
                   <div className="font-mono text-[13.5px] text-[#6B655C] mt-1">
                     {getDisplayEmail(activeDetailRow.student)} · Tham gia{' '}
                     {formatDateVN(activeDetailRow.student.createdAt)}
+                    {(() => {
+                      const exp = getStudentClassExpiry(classId, activeDetailRow.student);
+                      const days = getRemainingDays(exp, serverNowMs);
+                      if (!exp) return ' · Thời hạn: Không giới hạn';
+                      return ` · Hạn lớp: ${formatExpiryDateVN(exp)} (${days === 0 ? 'hết hôm nay' : `còn ${days} ngày`})`;
+                    })()}
                   </div>
                 </div>
 
@@ -683,6 +730,19 @@ export const TeacherClassDetail: React.FC<TeacherClassDetailProps> = ({
                   >
                     Chưa có Full AC ({zeroAcCount})
                   </button>
+                  {expiringSoonCount > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setStudentFilter('expiring_soon')}
+                      className={`px-3.5 py-[7px] rounded-[6px] text-[14px] border transition-colors cursor-pointer ${
+                        studentFilter === 'expiring_soon'
+                          ? 'banner-pill-active bg-[#92400E] text-[#FFFDF8] border-[#92400E] font-medium'
+                          : 'bg-[#FEF3C7] text-[#92400E] border-[#F59E0B]/50 hover:border-[#92400E]'
+                      }`}
+                    >
+                      Sắp hết hạn ({expiringSoonCount})
+                    </button>
+                  )}
                 </div>
 
                 <span className="flex-1" />
@@ -700,17 +760,19 @@ export const TeacherClassDetail: React.FC<TeacherClassDetailProps> = ({
                     <option value="ac_desc">Số bài Full AC</option>
                     <option value="name_asc">Tên A → Z</option>
                     <option value="joined_desc">Mới tham gia</option>
+                    <option value="expiry_asc">Sắp hết hạn trước</option>
                   </select>
                 </div>
               </div>
 
-              {/* Bảng học sinh 5 cột: Hạng | Học sinh | Số bài Full AC | Tham gia | Chi tiết → */}
+              {/* Bảng học sinh 6 cột: Hạng | Học sinh | Số bài Full AC | Thời hạn | Tham gia | Chi tiết → */}
               <div className="overflow-x-auto">
-                <div className="min-w-[700px]">
-                  <div className="border-t-2 border-[#1F1D1A] py-2.5 grid grid-cols-[44px_1fr_260px_110px_100px] gap-4 items-center text-[13px] text-[#6B655C]">
+                <div className="min-w-[780px]">
+                  <div className="border-t-2 border-[#1F1D1A] py-2.5 grid grid-cols-[44px_1fr_220px_165px_96px_86px] gap-4 items-center text-[13px] text-[#6B655C]">
                     <span>Hạng</span>
                     <span>Học sinh</span>
                     <span>Số bài Full AC</span>
+                    <span>Thời hạn</span>
                     <span>Tham gia</span>
                     <span />
                   </div>
@@ -728,60 +790,104 @@ export const TeacherClassDetail: React.FC<TeacherClassDetailProps> = ({
                     </div>
                   ) : (
                     <div>
-                      {filteredStudentRows.map((row) => (
-                        <div
-                          key={row.student.id}
-                          className="border-t border-[#D9D2C3] py-3.5 grid grid-cols-[44px_1fr_260px_110px_100px] gap-4 items-center hover:bg-black/[0.015] transition-colors"
-                        >
-                          <span className="font-mono text-[14px] text-[#6B655C] tabular-nums">
-                            {row.rank}
-                          </span>
+                      {filteredStudentRows.map((row) => {
+                        const rowExpiry = getStudentClassExpiry(classId, row.student);
+                        const rowDaysLeft = getRemainingDays(rowExpiry, serverNowMs);
+                        const isExpiringSoon =
+                          rowDaysLeft !== null && rowDaysLeft <= EXPIRY_WARNING_DAYS;
 
-                          <div className="min-w-0">
-                            <div className="font-bold text-[15px] text-[#1F1D1A] truncate">
-                              {row.student.fullName}
-                            </div>
-                            <div className="font-mono text-[12px] text-[#6B655C] truncate">
-                              {getDisplayEmail(row.student)}
-                            </div>
-                          </div>
-
-                          <div className="flex items-center gap-3">
-                            <div className="flex-1 h-[6px] rounded-[3px] bg-[#E4DDCE] overflow-hidden">
-                              <div
-                                className="h-full rounded-[3px] transition-all duration-300"
-                                style={{
-                                  width: `${row.pct}%`,
-                                  backgroundColor:
-                                    row.totalProblems > 0 && row.acCount >= row.totalProblems
-                                      ? '#2F6B3F'
-                                      : '#B4281F',
-                                }}
-                              />
-                            </div>
-                            <b className="font-mono text-[14px] text-[#1F1D1A] w-[62px] text-right tabular-nums shrink-0">
-                              {row.acCount}/{row.totalProblems}
-                            </b>
-                          </div>
-
-                          <span className="text-[14px] text-[#6B655C] tabular-nums">
-                            {formatDateVN(row.student.createdAt)}
-                          </span>
-
-                          <button
-                            type="button"
-                            onClick={() => setDetailStudentId(row.student.id)}
-                            className="text-right text-[14.5px] font-semibold text-[#B4281F] hover:text-[#8F1F18] hover:underline whitespace-nowrap cursor-pointer"
+                        return (
+                          <div
+                            key={row.student.id}
+                            className="border-t border-[#D9D2C3] py-3.5 grid grid-cols-[44px_1fr_220px_165px_96px_86px] gap-4 items-center hover:bg-black/[0.015] transition-colors"
                           >
-                            Chi tiết →
-                          </button>
-                        </div>
-                      ))}
+                            <span className="font-mono text-[14px] text-[#6B655C] tabular-nums">
+                              {row.rank}
+                            </span>
+
+                            <div className="min-w-0">
+                              <div className="font-bold text-[15px] text-[#1F1D1A] truncate">
+                                {row.student.fullName}
+                              </div>
+                              <div className="font-mono text-[12px] text-[#6B655C] truncate">
+                                {getDisplayEmail(row.student)}
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-3">
+                              <div className="flex-1 h-[6px] rounded-[3px] bg-[#E4DDCE] overflow-hidden">
+                                <div
+                                  className="h-full rounded-[3px] transition-all duration-300"
+                                  style={{
+                                    width: `${row.pct}%`,
+                                    backgroundColor:
+                                      row.totalProblems > 0 && row.acCount >= row.totalProblems
+                                        ? '#2F6B3F'
+                                        : '#B4281F',
+                                  }}
+                                />
+                              </div>
+                              <b className="font-mono text-[14px] text-[#1F1D1A] w-[58px] text-right tabular-nums shrink-0">
+                                {row.acCount}/{row.totalProblems}
+                              </b>
+                            </div>
+
+                            {/* Cột Thời hạn (bấm để mở hộp gia hạn / điều chỉnh) */}
+                            <div className="min-w-0">
+                              <button
+                                type="button"
+                                onClick={() => setExpiryModalStudent(row.student)}
+                                title="Bấm để gia hạn hoặc điều chỉnh thời hạn học sinh trong lớp"
+                                className="text-left group cursor-pointer"
+                              >
+                                {rowExpiry ? (
+                                  <div>
+                                    <span
+                                      className={`inline-block text-[13px] font-semibold leading-tight group-hover:underline ${
+                                        isExpiringSoon
+                                          ? 'px-1.5 py-0.5 rounded bg-[#FEF3C7] text-[#92400E] border border-[#F59E0B]/40'
+                                          : 'text-[#1F1D1A]'
+                                      }`}
+                                    >
+                                      {isExpiringSoon
+                                        ? rowDaysLeft === 0
+                                          ? 'Hết hạn hôm nay'
+                                          : `Còn ${rowDaysLeft} ngày`
+                                        : formatExpiryDateVN(rowExpiry)}
+                                    </span>
+                                    <div className="text-[11.5px] text-[#6B655C] mt-0.5 tabular-nums">
+                                      {isExpiringSoon
+                                        ? `${formatExpiryDateVN(rowExpiry)} · Gia hạn`
+                                        : `còn ${rowDaysLeft} ngày · Sửa`}
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <span className="text-[13.5px] text-[#6B655C] group-hover:text-[#B4281F] group-hover:underline">
+                                    Không giới hạn
+                                  </span>
+                                )}
+                              </button>
+                            </div>
+
+                            <span className="text-[13.5px] text-[#6B655C] tabular-nums">
+                              {formatDateVN(row.student.createdAt)}
+                            </span>
+
+                            <button
+                              type="button"
+                              onClick={() => setDetailStudentId(row.student.id)}
+                              className="text-right text-[14.5px] font-semibold text-[#B4281F] hover:text-[#8F1F18] hover:underline whitespace-nowrap cursor-pointer"
+                            >
+                              Chi tiết →
+                            </button>
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
 
                   <div className="border-t border-[#D9D2C3] py-3.5 text-[14px] text-[#6B655C]">
-                    Rút khỏi lớp hoặc xóa tài khoản nằm trong trang <b>Chi tiết</b> của từng em.
+                    Bấm trực tiếp vào cột <b>Thời hạn</b> để gia hạn cho từng em. Rút khỏi lớp hoặc xóa tài khoản nằm trong trang <b>Chi tiết</b>.
                   </div>
                 </div>
               </div>
@@ -1149,6 +1255,29 @@ export const TeacherClassDetail: React.FC<TeacherClassDetailProps> = ({
           </div>
         </div>
       )}
+
+      {/* Modal điều chỉnh / gia hạn thời gian của học sinh trong lớp */}
+      <ClassExpiryModal
+        isOpen={Boolean(expiryModalStudent)}
+        onClose={() => setExpiryModalStudent(null)}
+        className={currentClass.className}
+        studentName={expiryModalStudent?.fullName || ''}
+        studentEmail={expiryModalStudent ? getDisplayEmail(expiryModalStudent) : ''}
+        currentExpiresAt={
+          expiryModalStudent ? getStudentClassExpiry(classId, expiryModalStudent) : null
+        }
+        nowMs={serverNowMs}
+        onSave={async (newExpiresAt) => {
+          if (!expiryModalStudent) return;
+          await updateStudentClassExpiry(
+            classId,
+            expiryModalStudent.id,
+            newExpiresAt,
+            expiryModalStudent.username,
+            expiryModalStudent.email
+          );
+        }}
+      />
     </div>
   );
 };
