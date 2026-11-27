@@ -10,10 +10,16 @@ function truncateDisplay(str, maxLen = 1000) {
 }
 
 const NORM_PY_SCRIPT = [
-  'import sys, hashlib, re',
+  'import sys, hashlib',
+  'STRIP = "".join(chr(c) for c in range(33)) + "\\x7f"',
+  'def rtrim(l):',
+  '    l = l.rstrip(STRIP)',
+  '    while l and (l[-1] <= " " or l[-1] == "\\x7f" or l[-1].isspace()):',
+  '        l = l.rstrip(STRIP).rstrip()',
+  '    return l',
   'data = sys.stdin.buffer.read().decode("utf-8", "replace")',
   'data = data.replace("\\r\\n", "\\n").replace("\\r", "\\n")',
-  'lines = [re.sub(r"[\\s\\x00-\\x1f\\x7f]+$", "", l) for l in data.split("\\n")]',
+  'lines = [rtrim(l) for l in data.split("\\n")]',
   'while lines and lines[-1] == "":',
   '    lines.pop()',
   'norm = "\\n".join(lines)',
@@ -21,7 +27,7 @@ const NORM_PY_SCRIPT = [
   'toks = norm.split()',
   'h2 = hashlib.sha256(" ".join(toks).encode("utf-8")).hexdigest()',
   'bools = {"yes", "no", "true", "false"}',
-  'toks_b = [t.lower() if t.lower() in bools else t for t in toks]',
+  'toks_b = [t.lower() if (len(t) <= 5 and t[0] in "yYnNtTfF" and t.lower() in bools) else t for t in toks]',
   'h3 = hashlib.sha256(" ".join(toks_b).encode("utf-8")).hexdigest()',
   'sys.stdout.write(h1 + "," + h2 + "," + h3)',
 ].join('\n');
@@ -101,6 +107,40 @@ const SUPABASE_KEY = (
 
 const JUDGE0_TARGET = (process.env.JUDGE0_API_URL || 'http://103.149.170.5:2358').trim().replace(/\/+$/, '');
 const JUDGE0_TOKEN = (process.env.JUDGE0_API_TOKEN || 'faminh_secret_api_token').trim();
+
+const TARGET_MAX_FILE_SIZE_KB = 65536; // 64MB chuẩn Themis/VNOI cho bài IO lớn (10^6 phần tử)
+const DEFAULT_MAX_FILE_SIZE_KB = 4096; // 4MB mặc định Judge0 CE nếu VPS chưa nâng MAX_MAX_FILE_SIZE
+let cachedMaxFileSizeKb = null;
+let cachedMaxFileSizeAt = 0;
+
+async function getEffectiveMaxFileSizeKb() {
+  const now = Date.now();
+  const ttlMs = cachedMaxFileSizeKb && cachedMaxFileSizeKb >= TARGET_MAX_FILE_SIZE_KB ? 10 * 60 * 1000 : 60 * 1000;
+  if (cachedMaxFileSizeKb && now - cachedMaxFileSizeAt < ttlMs) {
+    return cachedMaxFileSizeKb;
+  }
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 3000);
+  try {
+    const res = await fetch(`${JUDGE0_TARGET}/config_info`, {
+      headers: { 'X-Auth-Token': JUDGE0_TOKEN },
+      signal: controller.signal,
+    });
+    if (res.ok) {
+      const cfg = await res.json();
+      const serverMax = Number(cfg?.max_max_file_size);
+      if (Number.isFinite(serverMax) && serverMax >= 1024) {
+        cachedMaxFileSizeKb = Math.min(Math.max(Math.floor(serverMax), 1024), TARGET_MAX_FILE_SIZE_KB);
+        cachedMaxFileSizeAt = now;
+        return cachedMaxFileSizeKb;
+      }
+    }
+  } catch {
+  } finally {
+    clearTimeout(timer);
+  }
+  return cachedMaxFileSizeKb || DEFAULT_MAX_FILE_SIZE_KB;
+}
 
 const JUDGE0_LANGUAGE_MAP = {
   cpp: 54,
@@ -509,7 +549,9 @@ export default async function handler(req, res) {
       }
     }
 
-    // 3. Tiền xử lý code
+    // 3. Tiền xử lý code & lấy trần dung lượng file từ Judge0 VPS
+    const effectiveMaxFileSizeKb = await getEffectiveMaxFileSizeKb();
+    const effectiveMaxFileMb = Math.round(effectiveMaxFileSizeKb / 1024);
     const { cleaned: cleanedCode, freopenHandled } = preprocessCode(code, language);
     const langId = JUDGE0_LANGUAGE_MAP[language] || 54;
     const timeLimit = Number(problem.time_limit) || 1.0;
@@ -564,6 +606,7 @@ export default async function handler(req, res) {
           language_id: langId,
           stdin: tc.input,
           cpu_time_limit: Math.min(Math.max(timeLimit, 0.1), 10.0),
+          max_file_size: effectiveMaxFileSizeKb,
         });
         const statusId = data.status?.id || 0;
         const execTime = data.time ? parseFloat(data.time) : 0;
@@ -649,7 +692,7 @@ export default async function handler(req, res) {
 
     // 4A. SIÊU TỐC: Biên dịch 1 lần duy nhất và chạy toàn bộ bộ test trong 1 container Judge0 (language_id: 46 - Bash 5.0.0)
     // Giảm thời gian chấm 20 test từ ~20-35 giây xuống còn ~1.2 - 3.4 giây!
-    function buildBatchBashScript(batchItems, srcCode, lang, tlSec) {
+    function buildBatchBashScript(batchItems, srcCode, lang, tlSec, maxFileSizeKb = DEFAULT_MAX_FILE_SIZE_KB) {
       const codeB64 = Buffer.from(srcCode, 'utf8').toString('base64');
       const clampedTl = Math.min(Math.max(Number(tlSec) || 1.0, 0.1), 5.0);
       const tlMs = Math.round(clampedTl * 1000);
@@ -708,27 +751,51 @@ export default async function handler(req, res) {
       ];
 
       const SPLIT_THRESHOLD = 3.5 * 1024 * 1024;
+      const maxStageInputBytes = Math.max(0, maxFileSizeKb - 512) * 1024;
       for (const item of batchItems) {
         const idx = item.idx;
+        const rawInputBytes =
+          typeof item.tc.inputBytes === 'number' ? item.tc.inputBytes : Buffer.byteLength(item.tc.input || '', 'utf8');
         const gzB64 = item.tc.gzB64 || zlib.gzipSync(Buffer.from(item.tc.input || '', 'utf8')).toString('base64');
-        let feedCmd;
+        const canStageInputFile = rawInputBytes < maxStageInputBytes;
+        let stageCmd = '';
+        let execCmd = '';
+        let exitCapture = '';
         if (batchItems.length === 1 && gzB64.length > SPLIT_THRESHOLD && !extraStdin) {
           const half = Math.ceil(gzB64.length / 2);
           extraStdin = gzB64.slice(0, half);
           const part2 = gzB64.slice(half);
-          feedCmd = `{ cat; printf '%s' '${part2}'; } | base64 -d | gzip -d | timeout ${clampedTl}s ${runCmd} > out.txt 2> err.txt`;
+          if (canStageInputFile) {
+            stageCmd = `{ cat; printf '%s' '${part2}'; } | base64 -d | gzip -d > in.txt`;
+            execCmd = `timeout ${clampedTl}s ${runCmd} < in.txt > out.txt 2> err.txt`;
+            exitCapture = 'EC=$?';
+          } else {
+            execCmd = `{ cat; printf '%s' '${part2}'; } | base64 -d | gzip -d | timeout ${clampedTl}s ${runCmd} > out.txt 2> err.txt`;
+            exitCapture = 'EC=${PIPESTATUS[3]}';
+          }
+        } else if (canStageInputFile) {
+          stageCmd = `echo '${gzB64}' | base64 -d | gzip -d > in.txt`;
+          execCmd = `timeout ${clampedTl}s ${runCmd} < in.txt > out.txt 2> err.txt`;
+          exitCapture = 'EC=$?';
         } else {
-          feedCmd = `echo '${gzB64}' | base64 -d | gzip -d | timeout ${clampedTl}s ${runCmd} > out.txt 2> err.txt`;
+          execCmd = `echo '${gzB64}' | base64 -d | gzip -d | timeout ${clampedTl}s ${runCmd} > out.txt 2> err.txt`;
+          exitCapture = 'EC=${PIPESTATUS[3]}';
         }
-        lines.push(
+        const testBlock = [
           `NOW=$(date +%s%3N)`,
           `if [ $TLE_STREAK -ge 4 ] || [ $((NOW - START_ALL)) -gt 13500 ]; then`,
           `  echo "===THEMIS_TEST:${idx}:124:${tlMs}:::===END_TEST==="`,
           `else`,
+        ];
+        if (stageCmd) {
+          testBlock.push(`  ${stageCmd}`);
+        }
+        testBlock.push(
           `  T1=$(date +%s%3N)`,
-          `  ${feedCmd}`,
-          `  EC=\${PIPESTATUS[3]}`,
+          `  ${execCmd}`,
+          `  ${exitCapture}`,
           `  T2=$(date +%s%3N)`,
+          `  rm -f in.txt`,
           `  EL=$((T2 - T1))`,
           `  if [ $EC -eq 124 ] || [ $EC -eq 137 ]; then TLE_STREAK=$((TLE_STREAK + 1)); else TLE_STREAK=0; fi`,
           `  OUT_SZ=$(wc -c < out.txt)`,
@@ -740,9 +807,11 @@ export default async function handler(req, res) {
           `    OUT_HASH=$(python3 _norm.py < out.txt)`,
           `  fi`,
           `  ERR_B64=$(head -c 2048 err.txt | base64 -w 0)`,
+          `  rm -f out.txt err.txt`,
           `  echo "===THEMIS_TEST:${idx}:$EC:$EL:$OUT_B64:$ERR_B64:$OUT_HASH===END_TEST==="`,
           `fi`
         );
+        lines.push(...testBlock);
       }
 
       return { script: lines.join('\n'), stdin: extraStdin };
@@ -751,29 +820,43 @@ export default async function handler(req, res) {
     const resultsMap = new Map();
     let compileFailedResult = null;
 
-    // Chia các test case thành các lô có kích thước script Gzip+Base64 <= 3.5MB (an toàn dưới ngưỡng HTTP 500 ~5MB của Judge0)
+    // Chia các test case thành các lô có kích thước script Gzip+Base64 <= 3.5MB và tổng input thô <= 32MB
     const batches = [];
     let currentBatch = [];
     let currentBytes = Buffer.byteLength(cleanedCode, 'utf8') * 2 + 2048;
+    let currentRawBytes = 0;
     const MAX_BATCH_SCRIPT_BYTES = 3.5 * 1024 * 1024;
+    const MAX_BATCH_RAW_BYTES = 32 * 1024 * 1024;
 
     for (let i = 0; i < testCases.length; i++) {
       const inBuf = Buffer.from(testCases[i].input || '', 'utf8');
+      testCases[i].inputBytes = inBuf.length;
       testCases[i].gzB64 = zlib.gzipSync(inBuf, { level: inBuf.length > 2 * 1024 * 1024 ? 6 : 1 }).toString('base64');
       const estItemBytes = testCases[i].gzB64.length + 512;
-      if (currentBatch.length > 0 && currentBytes + estItemBytes > MAX_BATCH_SCRIPT_BYTES) {
+      if (
+        currentBatch.length > 0 &&
+        (currentBytes + estItemBytes > MAX_BATCH_SCRIPT_BYTES || currentRawBytes + inBuf.length > MAX_BATCH_RAW_BYTES)
+      ) {
         batches.push(currentBatch);
         currentBatch = [];
         currentBytes = Buffer.byteLength(cleanedCode, 'utf8') * 2 + 2048;
+        currentRawBytes = 0;
       }
       currentBatch.push({ idx: i, tc: testCases[i] });
       currentBytes += estItemBytes;
+      currentRawBytes += inBuf.length;
     }
     if (currentBatch.length > 0) batches.push(currentBatch);
 
     async function runBatch(batchItems) {
       if (compileFailedResult) return;
-      const { script, stdin: batchStdin } = buildBatchBashScript(batchItems, cleanedCode, language, timeLimit);
+      const { script, stdin: batchStdin } = buildBatchBashScript(
+        batchItems,
+        cleanedCode,
+        language,
+        timeLimit,
+        effectiveMaxFileSizeKb
+      );
       const data = await callJudge0({
         language_id: 46,
         source_code: script,
@@ -782,7 +865,7 @@ export default async function handler(req, res) {
         wall_time_limit: 20,
         max_processes_and_or_threads: 120,
         memory_limit: 512000,
-        max_file_size: 4096,
+        max_file_size: effectiveMaxFileSizeKb,
       });
 
       const stdout = data.stdout || '';
@@ -841,7 +924,7 @@ export default async function handler(req, res) {
           errorMessage = 'Chạy quá thời gian quy định (Time Limit Exceeded)';
         } else if (exitCode === 153) {
           verdict = 'RTE';
-          errorMessage = 'Vượt giới hạn dung lượng dữ liệu xuất ra (Output Limit Exceeded > 4MB)';
+          errorMessage = `Vượt giới hạn dung lượng dữ liệu xuất ra (Output Limit Exceeded > ${effectiveMaxFileMb}MB)`;
         } else if (exitCode !== 0) {
           verdict = 'RTE';
           errorMessage = stderrText.trim() || 'Lỗi thực thi (Runtime Error)';
